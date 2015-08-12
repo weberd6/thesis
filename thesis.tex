@@ -648,15 +648,30 @@ back as a single unit just as a clustered rollback in Clustered Time Warp.
 
 \chapter{The \textsc{warped2} Simulation Kernel}\label{warped2_overview}
 
-\textsc{warped2} is written in C++ and currently supports sequential simulations and optimistically 
-synchronized parallel simulations using the time warp mechanism. The parallel simulations can be
-configured to run with any number of threads on any number of nodes. Shared memory is used exchange
-events between LP’s on the same node and message passing using MPI is used to exchange event between
-nodes.
 
 %% ------------------------------------------------------------------------------------------------------
 
 \section{The Software Architecture of \textsc{warped2}}
+
+\textsc{warped2} is written in C++ and currently supports sequential simulations and optimistically 
+synchronized parallel simulations using the time warp mechanism.
+
+\begin{figure}
+  \centering
+  \includegraphics[width=\textwidth]{figs/warped2.pdf}
+  \caption{Archicture of \textsc{warped2}}\ref{warped2_architecture}
+\end{figure}
+
+The parallel simulations can be configured to run with any number of threads and any number of
+processes which can run any number of nodes. Shared memory is used exchange events between LP’s
+within the same processes and message passing using is used to exchange event between processes.
+
+
+\begin{figure}
+  \centering
+  \includegraphics[width=0.6\textwidth]{figs/Warped2-Communication.pdf}
+  \caption{Communication Model of \textsc{warped2}}\ref{warped2_communication}
+\end{figure}
 
 %% ------------------------------------------------------------------------------------------------------
 
@@ -665,27 +680,27 @@ nodes.
 The modeling interface of warped2 is a set of abstract base classes that contain methods
 that must be implemented in a derived class. The base classes may also contain methods and data
 members that are available to use by the derived classes. The three main base class types that must
-be implemented are SimulationObject, ObjectState, and Event. Optionally, the user may create a
+be implemented are LogicalProcess, LPState, and Event. Optionally, the user may create a
 custom partitioner from the Partitoner base class. In the remainder of this section, each class
 is described in more detail and sample implementations are shown for each.
 
-\subsection{The ObjectState Structure}
+\subsection{The LPState Structure}
 
-The state of the objects must be define with the \textsc{warped\_define\_object\_state\_struct} macro. This
+The state of the LPls must be define with the \textsc{warped\_define\_lp\_state\_struct} macro. This
 is used to ensure that the warped2 kernel can save a copy of the state and restore the state from
-a pointer to the ObjectState base class. An intermediate template class is defined which defines
+a pointer to the LogicalProcess base class. An intermediate template class is defined which defines
 the necessary methods to make a copy of the state and to restore the state so that the user does
-need to explicitly define them. However, if the object state contains complex data structures
+need to explicitly define them. However, if the state contains complex data structures
 that contains pointers then the default copy constructor and default copy assignment operator will
 only perform shallow copies. In this case the user must implement a custom copy constructor
 or a custom copy assignment operator or both. The copy constructor will define the behavior for
 saving the state whereas the copy assignent operator will define the behavior for restoring the
 state. Note that the copy assignment operator will most likely not be needed since a shallow copy
-will usually suffice. An simple example of an object state that contains message counts is shown
+will usually suffice. A simple example of a LP state that contains just message counts is shown
 below in listing \ref{sample_state}.
 
 \begin{lstlisting}[caption=Sample \textsc{warped2} State Definition, label=sample_state, float]
-WARPED_DEFINE_OBJECT_STATE_STRUCT(SampleState) {
+WARPED_DEFINE_LP_STATE_STRUCT(SampleState) {
     unsigned int messages_sent_;
     unsigned int messages_received_;
 };
@@ -723,39 +738,41 @@ public:
 WARPED_REGISTER_POLYMORPHIC_SERIALIZABLE_CLASS(SampleEvent)
 \end{lstlisting}
 
-\subsection{The SimulationObject class}
+\subsection{The LogicalProcess class}
 
-The most important class definition in the simulation model is the SimulationObject class. The
-implementation of the SimulationObject class defines the callback functions that the warped2 kernel
-calls and thus defines the behavior of the simulation. The user must include a single ObjectState
+The most important class definition in the simulation model is the LogicalProcess class. The
+implementation of the LogicalProcess class defines the callback functions that the warped2 kernel
+calls and thus defines the behavior of the simulation. The user must include a single LPState
 implementation as well three method implementations:
 
 \begin{enumerate}
 
-    \item The \texttt{initializeObject} method is called to perform any initializations that must
+    \item The \texttt{initializeLP} method is called to perform any initializations that must
         be done prior to the start of the simulation and must return a set of initial events.
     \item The \texttt{receiveEvent} method is called to perform some computation based on the event
         that is passed. The implementation of this method interprets the event, updates the state
-        of the simulation object and returns a set of new events with future timestamps.
+        of the LP and returns a set of new events with future timestamps.
     \item The \texttt{getState} method provides a way for the warped2 kernel to get the current
-        state of the simulation object.
+        state of the LP.
 
 \end{enumerate}
 
-It is necessary that at least one simulation object has an initial event that is returned by
-initializeObject, otherwise no events can be received and simulation will terminate immediately.
-An example of a simulation object implementation is shown below in listing \ref{object_sample}.
+It is necessary that at least one LP has an initial event that is returned by
+initializeLP, otherwise no events can be received and simulation will terminate immediately.
+Also note that the it will be called once for \emph{every} LP instance so it is possible that
+initial events are returned only in some cases. An example of a LogicalProcess implementation is
+shown below in listing \ref{lp_sample}.
 
-\begin{lstlisting}[caption=Sample \textsc{warped2} Object Definition, label=object_sample, float]
-class SampleObject : public warped::SimulationObject {
+\begin{lstlisting}[caption=Sample \textsc{warped2} LogicalProcess Definition, label=lp_sample, float]
+class SampleLP : public warped::LogicalProcess {
 public:
-    SampleObject(const std::string& name, unsigned int initial_events)
-        : SimulationObject(name), initial_events_(initial_events),
+    SampleLP(const std::string& name, unsigned int initial_events)
+        : LogicalProcess(name), initial_events_(initial_events),
           rng_(new std::default_random_engine(rd())) {}
 
-    warped::ObjectState& getState() { return this->state_; }
+    warped::LPState& getState() { return this->state_; }
 
-    std::vector<std::shared_ptr<warped::Event> > initializeObject() override {
+    std::vector<std::shared_ptr<warped::Event> > initializeLP() override {
 
         this->registerRNG(this->rng_);
 
@@ -787,7 +804,7 @@ public:
 The warped2 kernel already provides a round-robin partitioner and a profile-guided partitioner but
 the user can define their own partitioner that is customized for a specific model. The user must
 derive from the Partitioner base class and implement just a single method which takes a vector of
-all objects and the number of partitions desired and returns a vector of vectors of objects. In general,
+all LP'ss and the number of partitions desired and returns a vector of vectors of LP's. In general,
 the partitioner should work for any number of partitioners and not impose any constraints because
 the partition method is called back from the kernel. A simplified version of the kernel's round-robin
 partitioner is shown in listing \ref{partitioner_sample}. Note that a model would never have to
@@ -795,10 +812,10 @@ implement such a general partitioner but is showed just as a simple example.
 
 \begin{lstlisting}[caption=Sample \textsc{warped2} Partitioner Definition, label=partitioner_sample, float]
 class RoundRobinPartitioner : public Partitioner {
-    std::vector<std::vector<SimulationObject*>>
-    partition(const std::vector<SimulationObject*>& objects, const unsigned int num_partitions) {
-        for (unsigned int i = 0, i = 0; i < objects.size(); ++i) {
-            partitions[i % num_partitions].push_back(objects[i]);
+    std::vector<std::vector<LogicalProcess*>>
+    partition(const std::vector<LogicalProcess*>& lps, const unsigned int num_partitions) {
+        for (unsigned int i = 0, i = 0; i < lps.size(); ++i) {
+            partitions[i \% num_partitions].push_back(lps[i]);
         }
     }
 };
@@ -806,45 +823,56 @@ class RoundRobinPartitioner : public Partitioner {
 
 \subsection{Random Number Generation}
 
-{\center
-\begin{verbatim}
-    template<class RNGType>
-    void registerRNG(std::shared_ptr<RNGType>);
-\end{verbatim}}
-
-\texttt{<< operator}
-\texttt{>> operator}
+If the simulation model uses random number generators, they must all be registered with the warped2
+kernel. This is necessary so that the state of the random number generator can be saved and restored
+in case of rollbacks. The random number generators can be any type as long as they implement the
+\texttt{<< operator} and \texttt{>> operator} to allow the kernel to save and restore the internal
+state of the random number generator. To register the random number generator, the registerRNG
+template function must be used which is a member of the LogicalProcess class. All LP's
+must have separate random number generators and must be registered in the initializeLP callback
+function as shown in listing \ref{lp_sample}.
 
 \subsection{Command Line Arguments and the Kernel Entry Point}
 
+Once all the necessary structures and classes have been defined, the model's main function must
+be implementd which is where all calls into the kernel are made. First, the model specific command
+line arguments must be registered with the kernel. This must be done first so that it can be passed
+to the constructor of a \texttt{Simulation} instance. Then all of the LP's and optionally a
+partitioner must be instantiated and passed to the kernel through the \texttt{simulate}
+method of \texttt{Simulation} object. Two versions of the simulate methods are available, one for
+a model with a custom partitioner and one without as listed below:
+
 \begin{enumerate}
 
-    \item \begin{verbatim} void simulate(const std::vector<SimulationObject*>& objects); \end{verbatim}
-    \item \begin{verbatim} void simulate(const std::vector<SimulationObject*>& objects,
+    \item \begin{verbatim} void simulate(const std::vector<LogicalProcess*>& lps); \end{verbatim}
+    \item \begin{verbatim} void simulate(const std::vector<LogicalProcess*>& lps,
                 std::unique_ptr<Partitioner> partitioner); \end{verbatim}
 
 \end{enumerate}
 
+\noindent
+A sample implementation of a models main function is shown in listing \ref{main_sample}.
+
 \begin{lstlisting}[caption=Sample \textsc{warped2} Main Definition, label=main_sample, float]
 int main(int argc, const char **argv) {
-    unsigned int num_objects = 10000;
+    unsigned int num_lps = 10000;
 
-    TCLAP::ValueArg<unsigned int> num_objects_arg("o", "object-count", "Number of objects", false, num_objects, "unsigned int");
-    std::vector<TCLAP::Arg*> cmd_line_args = {  &num_objects_arg };
+    TCLAP::ValueArg<unsigned int> num_lps_arg("o", "lp-count", "Number of lp's", false, num_lps, "unsigned int");
+    std::vector<TCLAP::Arg*> cmd_line_args = {  &num_lps_arg };
     warped::Simulation simulation {"Sample Simulation", argc, argv, cmd_line_args};
 
-    num_objects = num_objects_arg.getValue();
-    std::vector<SampleObject> objects;
-    for (unsigned int i = 0; i < num_objects; i++) {
-        std::string name = std::string("Object_") + std::to_string(i);
-        objects.emplace_back(name, 1, i);
+    num_lps = num_lps_arg.getValue();
+    std::vector<SampleLP> lps;
+    for (unsigned int i = 0; i < num_lps; i++) {
+        std::string name = std::string("LP_") + std::to_string(i);
+        lps.emplace_back(name, 1, i);
     }
 
-    std::vector<warped::SimulationObject*> object_pointers;
-    for (auto& o : objects) {
-        object_pointers.push_back(&o);
+    std::vector<warped::LogicalProcess*> lp_pointers;
+    for (auto& lp : lps) {
+        lp_pointers.push_back(&lp);
     }
-    simulation.simulate(object_pointers);
+    simulation.simulate(lp_pointers);
 
     return 0;
 }
