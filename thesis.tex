@@ -653,8 +653,9 @@ back as a single unit just as a clustered rollback in Clustered Time Warp.
 
 \section{The Software Architecture of \textsc{warped2}}
 
-\textsc{warped2} is written in C++ and currently supports sequential simulations and optimistically 
-synchronized parallel simulations using the time warp mechanism.
+Wwarped2 is written in C++ and currently supports sequential simulations and optimistically
+synchronized parallel simulations using the time warp mechanism. It is a modular design so that
+new components can be added 
 
 \begin{figure}
   \centering
@@ -927,12 +928,17 @@ int main(int argc, const char **argv) {
 \section{GVT}
 
 The Global Virtual Time is the minimum timestamp of the unprocessed events in all the pending event
-sets and all events that have been sent but not received. The GVT is a global state of the system
-which includes the local states of all processes as well as the transient messages. Like all other
-global state problems, GVT algorithms are based on basic distributed snapshot algorithms
-\cite{chandy-85}\cite{lai-87}\cite{mattern-93} but extended for a particular purpose.
+sets and all events that have been sent but not received including anti-messages. The GVT is a global
+state of the system which includes the local states of all processes as well as the transient messages.
+Like all other global state problems, GVT algorithms are based on basic distributed snapshot algorithms
+\cite{chandy-85}\cite{lai-87}\cite{mattern-93} but are usually extended to be more efficient.
 
-There are two fundamental problems that GVT algorithms must usually solve. The first problem is
+GVT algorithms can be synchronous which means that all event processing is halted during the GVT
+computation, or asynchronous which does not halt event processing. Asynchronous algorithms usually
+perform better because the basic computation is not impeded but are much harder to implement due
+special cases that must be considered when using message passing concurrently with event processing.
+
+There are two fundamental problems that asynchronous GVT algorithms must usually solve. The first problem is
 known as the \emph{transient message problem}. A transient message is a message that has been sent
 but has not yet been received. Careful consideration must be taken to ensure that all transient
 messages are taken into account because they can contain timestamped events that are less than all
@@ -941,11 +947,6 @@ stems from the fact that all processes will not report their minimum clock at th
 real time. Because of this, a process can report it's minimum clock value and then receive an event
 from a process that has not reported it's minimum clock value, thus missing an event which could have
 a lower timestamp.
-
-GVT algorithms can be synchronous which means that all event processing is halted during the GVT 
-computation, or asynchronous which does halt event processing. Asynchronous algorithms usually
-perform better because the basic computation is not impeded but are much harder to implement due
-special cases that must be considered when using message passing concurrently with event processing.
 
 What sets asynchronous GVT algorithms apart is how they handle these two problems. They are a few
 main classic asynchronous GVT algorithms that form the basis for other algorithms
@@ -974,17 +975,27 @@ techniques that are not required in a shared memory system. In shared memory sys
 such thing as a transient messages because sending an event can be accomplished by inserting an
 event directly into the receiver's input queue. Also, no token is necessary because a shared flag
 variable can be used to start the GVT algorithm. Fujimoto developed a very fast asynchronous GVT
-algorithm for shared memory multiprocessors which uses
+algorithm for shared memory multiprocessors which uses these ideas\cite{fujimoto-94}. To avoid the
+simultaneous reporting problem, the timestamps of all events sent by a thread that has not yet
+reported it's minimum are recorded AFTER they are sent. The value of the start flag must also be
+obtained BEFORE retrieving the next event that contains the timestamp that will be used for the each
+threads minimum value to avoid missing the value.
+
+It is even possible to extend Fujimoto's GVT for distributed memory systems by using the idea of
+Network Atomic Operations (NAOs)\cite{bauer-05}. Instead of using a shared flag variable to start
+the GVT algorithm, super fined grained counters can be used to trigger a GVT computation at the
+same time (almost) on all machines. The Seven O'Clock GVT algorith uses this idea and achieves clock
+synchronization with cycle counters that are common these day with most architectures. To account
+for transient messages, clock drift, clock jitter, and synchronization error, an upper bound time
+interval determined and all processes must wait this time interval before reporting a minimum value.
 
 One situation that would be well-suited for a synchronous GVT algorithm would be in large
-supercomputers that are designed for efficient collective operations such as the blue gene machine.
+supercomputers. When scaling up to large systems, the time it takes to calculate the GVT approximation
+increases and can lead to a low appoximation which can decrease memory efficiency. Some machines
+are designed for very efficient collective operations such as the blue gene machine.
 ROSS, which is a processed based optimistic simulator implements a synchronous GVT algorithm which
 first uses a set MPI\_Allreduce operations to ensure all message counts add up to zero and then
 another MPI\_Allreduce on the local minimums of all processes to get the GVT.
-
-%\cite{samadi-85}
-%\cite{fujimoto-94}
-%\cite{bauer-05}
 
 \begin{algorithm}
 \DontPrintSemicolon
