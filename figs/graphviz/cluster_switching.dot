@@ -1,0 +1,32 @@
+digraph cluster_switching {
+    node [shape = record];
+    compound = true;
+    splines = ortho;
+    ranksep = 1.0;
+
+    subgraph cluster_big {
+        a15_0 [label = "Cortex-A15", style = filled, color = coral];
+        a15_1 [label = "Cortex-A15", style = filled, color = coral];
+        a15_2 [label = "Cortex-A15", style = filled, color = coral];
+        a15_3 [label = "Cortex-A15", style = filled, color = coral];
+        label = "big cluster";
+        style = filled;
+        color = lightskyblue;
+    }
+
+    subgraph cluster_little {
+        a7_0 [label = "Cortex-A7", style = filled, color = burlywood3];
+        a7_1 [label = "Cortex-A7", style = filled, color = burlywood3];
+        a7_2 [label = "Cortex-A7", style = filled, color = burlywood3];
+        a7_3 [label = "Cortex-A7", style = filled, color = burlywood3];
+        label = "LITTLE cluster";
+        style = filled;
+        color = lightskyblue;
+    }
+
+    linux_scheduler [label = "Linux Scheduler", width = 10.0, style = filled, color = sandybrown];
+
+
+    "linux_scheduler" -> "a15_3" [lhead=cluster_big];
+    "linux_scheduler" -> "a7_0" [lhead=cluster_little];
+}

@@ -1,0 +1,41 @@
+digraph parallel_communication {
+
+    subgraph cluster_mp {
+        subgraph worker0 {
+            rank = same;
+            w0 [label = "Worker 0", style = filled, color = sandybrown];
+            m0 [shape = record, label = "Message Buffer(s)", style = filled, color = lightcyan];
+            "w0" -> "m0" [label = "serialization"];
+            "m0" -> "w0" [label = "deserialization"];
+        }
+
+        subgraph worker1 {
+            rank = same;
+            w1 [label = "Worker 1", style = filled, color = sandybrown];
+            m1 [shape = record, label = "Message Buffer(s)", style = filled, color = lightcyan];
+            "w1" -> "m1" [label = "serialization"];
+            "m1" -> "w1" [label = "deserialization"];
+        }
+
+        "w0" -> "w1" [style = "invis"];
+
+        "m0" -> "m1" [label = "send/receive"];
+        "m1" -> "m0";
+        style = filled;
+        color = lightgrey;
+        label = "Message Passing";
+    }
+
+    subgraph cluster_sm {
+        sm [label = "<n0> | <s0> Shared Memory | <n1>", shape = record, width = 5, style = filled, color = lightcyan];
+        w_0 [label = "Worker 0", style = filled, color = sandybrown];
+        w_1 [label = "Worker 1", style = filled, color = sandybrown];
+        "w_0" -> "sm":s0;
+        "w_1" -> "sm":s0;
+        style = filled;
+        color = lightgrey;
+        label = "Shared Memory";
+    }
+
+}
+

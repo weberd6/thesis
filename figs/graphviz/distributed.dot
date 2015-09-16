@@ -1,0 +1,121 @@
+strict digraph distributed {
+    node [shape = record];
+    compound = true;
+    splines = ortho;
+    edge [penwidth = 3.0];
+
+    subgraph cluster_distributed {
+
+        subgraph cluster_smp0 {
+            c0 [label = "Processor", style = filled, color = deepskyblue];
+            c1 [label = "Processor", style = filled, color = deepskyblue];
+
+            p0 [label = "Local Cache(s)", style = filled, color = deepskyblue3];
+            p1 [label = "Local Cache(s)", style = filled, color = deepskyblue3];
+
+            "c0" -> "p0" [arrowhead = "none"];
+            "c1" -> "p1" [arrowhead = "none"];
+
+            sc0 [label = "Shared Cache", width = 2, style = filled, color = aquamarine2];
+            mm0 [label = "Main Memory", width = 2, style = filled, color = aquamarine3];
+            io0 [label = "I/O", width = 2, style = filled, color = forestgreen];
+
+            { rank = same;
+                sbus0 [shape = point];
+                sbus1 [shape = point];
+                sbus2 [shape = point];
+
+                "sbus0" -> "sbus1" -> "sbus2" [arrowhead = "none"];
+            }
+
+            "p0" -> "sbus0" [arrowhead = "none"];
+            "p1" -> "sbus1" [arrowhead = "none"];
+            "io0" -> "sbus2" [arrowhead = "none"];
+
+            "sbus1" -> "sc0" [arrowhead = "none"];
+            "sc0" -> "mm0" [arrowhead = "none"];
+
+            style = filled;
+            color = lightgrey;
+        }
+
+        subgraph cluster_smp1 {
+            c2 [label = "Processor", style = filled, color = deepskyblue];
+            c3 [label = "Processor", style = filled, color = deepskyblue];
+
+            p2 [label = "Local Cache(s)", style = filled, color = deepskyblue3];
+            p3 [label = "Local Cache(s)", style = filled, color = deepskyblue3];
+
+            "c2" -> "p2" [arrowhead = "none"];
+            "c3" -> "p3" [arrowhead = "none"];
+
+            sc1 [label = "Shared Cache", width = 2, style = filled, color = aquamarine2];
+            mm1 [label = "Main Memory", width = 2, style = filled, color = aquamarine3];
+            io1 [label = "I/O", width = 2, style = filled, color = forestgreen];
+
+            { rank = same;
+                sbus3 [shape = point];
+                sbus4 [shape = point];
+                sbus5 [shape = point];
+
+                "sbus3" -> "sbus4" -> "sbus5" [arrowhead = "none"];
+            }
+
+            "p2" -> "sbus3" [arrowhead = "none"];
+            "p3" -> "sbus4" [arrowhead = "none"];
+            "io1" -> "sbus5" [arrowhead = "none"];
+
+            "sbus4" -> "sc1" [arrowhead = "none"];
+            "sc1" -> "mm1" [arrowhead = "none"];
+
+            style = filled;
+            color = lightgrey;
+        }
+
+        subgraph cluster_smp2 {
+            c4 [label = "Processor", style = filled, color = deepskyblue];
+            c5 [label = "Processor", style = filled, color = deepskyblue];
+
+            p4 [label = "Local Cache(s)", style = filled, color = deepskyblue3];
+            p5 [label = "Local Cache(s)", style = filled, color = deepskyblue3];
+
+            "c4" -> "p4" [arrowhead = "none"];
+            "c5" -> "p5" [arrowhead = "none"];
+
+            sc2 [label = "Shared Cache", width = 2, style = filled, color = aquamarine2];
+            mm2 [label = "Main Memory", width = 2, style = filled, color = aquamarine3];
+            io2 [label = "I/O", width = 2, style = filled, color = forestgreen];
+
+            { rank = same;
+                sbus6 [shape = point];
+                sbus7 [shape = point];
+                sbus8 [shape = point];
+
+                "sbus6" -> "sbus7" -> "sbus8" [arrowhead = "none"];
+            }
+
+            "p4" -> "sbus6" [arrowhead = "none"];
+            "p5" -> "sbus7" [arrowhead = "none"];
+            "io2" -> "sbus8" [arrowhead = "none"];
+
+            "sbus7" -> "sc2" [arrowhead = "none"];
+            "sc2" -> "mm2" [arrowhead = "none"];
+
+            style = filled;
+            color = lightgrey;
+        }
+
+        icn [label = "Interconnection Network", width = 17, style = filled, color = lightseagreen];
+        "sbus2" -> "icn" [arrowhead = "none"];
+        "sbus5" -> "icn" [arrowhead = "none"];
+        "sbus8" -> "icn" [arrowhead = "none"];
+
+        "mm0" -> "icn" [style = "invis"];
+        "mm1" -> "icn" [style = "invis"];
+        "mm2" -> "icn" [style = "invis"];
+
+        style = filled;
+        color = white;
+    }
+
+}

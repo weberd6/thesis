@@ -1,0 +1,48 @@
+digraph pcs_model {
+    node [shape = record];
+
+    subgraph cluster_grid {
+        { rank = same;
+        cell0 [label = "Cell 0", style = filled, color = seagreen3];
+        cell1 [label = "Cell 1", style = filled, color = seagreen3];
+        cell2 [label = "Cell 2", style = filled, color = seagreen3];
+        cell3 [label = "Cell 3", style = filled, color = seagreen3];
+        }
+
+        { rank = same;
+        cell4 [label = "Cell 4", style = filled, color = seagreen3];
+        cell5 [label = "Cell 5", style = filled, color = seagreen3];
+        cell6 [label = "Cell 6", style = filled, color = seagreen3];
+        cell7 [label = "Cell 7", style = filled, color = seagreen3];
+        }
+
+        { rank = same;
+        cell8 [label = "Cell 8", style = filled, color = seagreen3];
+        cell9 [label = "Cell 9", style = filled, color = seagreen3];
+        cell10 [label = "Cell 10", style = filled, color = seagreen3];
+        cell11 [label = "Cell 11", style = filled, color = seagreen3];
+        }
+
+        style = filled;
+        color = lightgrey;
+        label = "PCS Grid";
+    }
+
+    "cell0" -> "cell4" -> "cell8";
+    "cell1" -> "cell5" -> "cell9";
+    "cell2" -> "cell6" -> "cell10";
+    "cell3" -> "cell7" -> "cell11";
+
+    "cell8" -> "cell4" -> "cell0";
+    "cell9" -> "cell5" -> "cell1";
+    "cell10" -> "cell6" -> "cell2";
+    "cell11" -> "cell7" -> "cell3";
+
+    "cell0" -> "cell1" -> "cell2" -> "cell3";
+    "cell4" -> "cell5" -> "cell6" -> "cell7";
+    "cell8" -> "cell9" -> "cell10" -> "cell11";
+
+    "cell3" -> "cell2" -> "cell1" -> "cell0";
+    "cell7" -> "cell6" -> "cell5" -> "cell4";
+    "cell11" -> "cell10" -> "cell9" -> "cell8";
+}

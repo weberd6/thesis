@@ -1,0 +1,59 @@
+strict digraph smp {
+    node [shape = record];
+    splines = ortho;
+    edge [penwidth = 3.0];
+
+    subgraph cluster_smp {
+
+        c0 [label = "Processor", style = filled, color = deepskyblue];
+        c1 [label = "Processor", style = filled, color = deepskyblue];
+        c2 [label = "Processor", style = filled, color = deepskyblue];
+        c3 [label = "Processor", style = filled, color = deepskyblue];
+        c4 [label = "Processor", style = filled, color = deepskyblue];
+        c5 [label = "Processor", style = filled, color = deepskyblue];
+
+        p0 [label = "Local Cache(s)", style = filled, color = deepskyblue3];
+        p1 [label = "Local Cache(s)", style = filled, color = deepskyblue3];
+        p2 [label = "Local Cache(s)", style = filled, color = deepskyblue3];
+        p3 [label = "Local Cache(s)", style = filled, color = deepskyblue3];
+        p4 [label = "Local Cache(s)", style = filled, color = deepskyblue3];
+        p5 [label = "Local Cache(s)", style = filled, color = deepskyblue3];
+
+        "c0" -> "p0" [arrowhead = "none"];
+        "c1" -> "p1" [arrowhead = "none"];
+        "c2" -> "p2" [arrowhead = "none"];
+        "c3" -> "p3" [arrowhead = "none"];
+        "c4" -> "p4" [arrowhead = "none"];
+        "c5" -> "p5" [arrowhead = "none"];
+
+        sc [label = "Shared Cache", width = 2, style = filled, color = aquamarine2];
+        mm [label = "Main Memory", width = 2, style = filled, color = aquamarine3];
+        io [label = "I/O System", width = 2, style = filled, color = forestgreen];
+
+        { rank = same;
+            sbus0 [shape = point];
+            sbus1 [shape = point];
+            sbus2 [shape = point];
+            sbus3 [shape = point];
+            sbus4 [shape = point];
+            sbus5 [shape = point];
+
+            "sbus0" -> "sbus1" -> "sbus2" -> "sbus3" -> "sbus4" -> "sbus5" [arrowhead = "none"];
+        }
+
+        "p0" -> "sbus0" [arrowhead = "none"];
+        "p1" -> "sbus1" [arrowhead = "none"];
+        "p2" -> "sbus2" [arrowhead = "none"];
+        "p3" -> "sbus3" [arrowhead = "none"];
+        "p4" -> "sbus4" [arrowhead = "none"];
+        "p5" -> "sbus5" [arrowhead = "none"];
+
+        "sbus2" -> "sc" [arrowhead = "none"];
+        "sc" -> "mm" [arrowhead = "none"];
+        "sbus3" -> "io" [arrowhead = "none"];
+
+        style = filled;
+        color = lightgrey;
+    }
+
+}

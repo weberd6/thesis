@@ -1,0 +1,144 @@
+digraph pending_event_set {
+    node [shape = record];
+    rankdir = BT;
+    ranksep = 0.1;
+
+    subgraph cluster_lp0 {
+        e0 [label = "2", color = dodgerblue];
+        e1 [label = "8", color = dodgerblue];
+        e2 [label = "14", color = dodgerblue];
+        e3 [label = "20", color = dodgerblue];
+
+        "e0" -> "e1" -> "e2" -> "e3" [style = "invis"];
+
+        label = "LP 0";
+        style = filled;
+        color = lightgrey;
+    }
+    subgraph cluster_lp1 {
+        e4 [label = "3", color = dodgerblue];
+        e5 [label = "9", color = dodgerblue];
+
+        "e4" -> "e5" [style = "invis"];
+
+        label = "LP 1";
+        style = filled;
+        color = lightgrey;
+    }
+    subgraph cluster_lp2 {
+        e8 [label = "4", color = dodgerblue];
+        e9 [label = "8", color = dodgerblue];
+        e10 [label = "12", color = dodgerblue];
+
+        "e8" -> "e9" -> "e10" [style = "invis"];
+
+        label = "LP 2";
+        style = filled;
+        color = lightgrey;
+    }
+    subgraph cluster_lp3 {
+        e12 [label = "5", color = dodgerblue];
+
+        label = "LP 3";
+        style = filled;
+        color = lightgrey;
+    }
+    subgraph cluster_lp4 {
+        e16 [label = "2", color = dodgerblue];
+        e17 [label = "8", color = dodgerblue];
+        e18 [label = "14", color = dodgerblue];
+
+        "e16" -> "e17" -> "e18" [style = "invis"];
+
+        label = "LP 4";
+        style = filled;
+        color = lightgrey;
+    }
+    subgraph cluster_lp5 {
+        e20 [label = "3", color = dodgerblue];
+
+        label = "LP 5";
+        style = filled;
+        color = lightgrey;
+    }
+    subgraph cluster_lp6 {
+        e24 [label = "4", color = dodgerblue];
+        e25 [label = "8", color = dodgerblue];
+        e26 [label = "12", color = dodgerblue];
+        e27 [label = "16", color = dodgerblue];
+
+        "e24" -> "e25" -> "e26" -> "e27" [style = "invis"];
+
+        label = "LP 6";
+        style = filled;
+        color = lightgrey;
+    }
+    subgraph cluster_lp7 {
+
+        e28 [label = "", color = lightgrey];
+
+        label = "LP 7";
+        style = filled;
+        color = lightgrey;
+    }
+
+    subgraph cluster_ltsf0 {
+        ltsf0 [label = "2", style = filled, color = lightgrey];
+        ltsf1 [label = "3", style = filled, color = lightgrey];
+        ltsf2 [label = "4", style = filled, color = lightgrey];
+        ltsf3 [label = "5", style = filled, color = lightgrey];
+
+        "ltsf0" -> "e0";
+        "ltsf1" -> "e4";
+        "ltsf2" -> "e8";
+        "ltsf3" -> "e12";
+
+        label = "LTSF 0";
+        style = filled;
+        color = dodgerblue;
+    }
+    subgraph cluster_ltsf1 {
+        ltsf4 [label = "2", style = filled, color = lightgrey];
+        ltsf5 [label = "3", style = filled, color = lightgrey];
+        ltsf6 [label = "4", style = filled, color = lightgrey];
+
+        "ltsf4" -> "e16";
+        "ltsf5" -> "e20";
+        "ltsf6" -> "e24";
+
+        label = "LTSF 1";
+        style = filled;
+        color = dodgerblue;
+    }
+
+    subgraph cluster_esblp0 {
+        {
+            rank = same;
+            esblp0 [label = "LP 0", style = filled, color = lightgrey];
+            esblp1 [label = "LP 1", style = filled, color = lightgrey];
+            esblp2 [label = "LP 2", style = filled, color = lightgrey];
+            esblp3 [label = "LP 3", style = filled, color = lightgrey];
+            esblp4 [label = "LP 4", style = filled, color = lightgrey];
+            esblp5 [label = "LP 5", style = filled, color = lightgrey];
+            esblp6 [label = "LP 6", style = filled, color = lightgrey];
+            esblp7 [label = "LP 7", style = filled, color = lightgrey];
+            "esblp0" -> "esblp1" -> "esblp2" -> "esblp3" -> "esblp4" -> "esblp5" -> "esblp6" -> "esblp7" [style = "invis"];
+        }
+
+        "esblp0" -> "ltsf0";
+        "esblp1" -> "ltsf1";
+        "esblp2" -> "ltsf2";
+        "esblp3" -> "ltsf3";
+        "esblp4" -> "ltsf4";
+        "esblp5" -> "ltsf5";
+        "esblp6" -> "ltsf6";
+
+        label = "Event Scheduled by LP";
+        style = filled;
+        color = deepskyblue;
+    }
+
+    nullptr [label = "NULL"];
+    "esblp7" -> "nullptr";
+    "nullptr" -> "e28" [style = "invis"];
+}

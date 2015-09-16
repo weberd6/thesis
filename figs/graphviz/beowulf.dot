@@ -1,0 +1,25 @@
+digraph beowulf {
+    node [shape = record]
+
+    node0 [label = "Compute Node", style = filled, color = cadetblue];
+    node1 [label = "Compute Node", style = filled, color = cadetblue];
+    node2 [label = "Compute Node", style = filled, color = cadetblue];
+    node3 [label = "Compute Node", style = filled, color = cadetblue];
+
+    { rank = same;
+        switch [label = "Network Switch", style = filled, color = burlywood3];
+        node4 [label = "Master Node", style = filled, color = cadetblue3];
+        node5 [label = "Compute Node", style = filled, color = cadetblue];
+        node6 [label = "Compute Node", style = filled, color = cadetblue];
+    }
+
+    "node0" -> "switch" [arrowhead = "none"];
+    "node1" -> "switch" [arrowhead = "none"];
+
+    "switch" -> "node2" [arrowhead = "none"];
+    "switch" -> "node3" [arrowhead = "none"];
+
+    "switch" -> "node4" [arrowhead = "none"];
+    "switch" -> "node5" [arrowhead = "none"];
+    "node6" -> "switch" [arrowhead = "none"];
+}

@@ -1,0 +1,47 @@
+digraph traffic_model {
+    node [shape = record];
+
+    subgraph cluster_grid {
+        { rank = same;
+        intersection0 [label = "Intersection 0", style = filled, color = seagreen3];
+        intersection1 [label = "Intersection 1", style = filled, color = seagreen3];
+        intersection2 [label = "Intersection 2", style = filled, color = seagreen3];
+        intersection3 [label = "Intersection 3", style = filled, color = seagreen3];
+        }
+
+        { rank = same;
+        intersection4 [label = "Intersection 4", style = filled, color = seagreen3];
+        intersection5 [label = "Intersection 5", style = filled, color = seagreen3];
+        intersection6 [label = "Intersection 6", style = filled, color = seagreen3];
+        intersection7 [label = "Intersection 7", style = filled, color = seagreen3];
+        }
+
+        { rank = same;
+        intersection8 [label = "Intersection 8", style = filled, color = seagreen3];
+        intersection9 [label = "Intersection 9", style = filled, color = seagreen3];
+        intersection10 [label = "Intersection 10", style = filled, color = seagreen3];
+        intersection11 [label = "Intersection 11", style = filled, color = seagreen3];
+        }
+        style = filled;
+        color = lightgrey;
+        label = "Traffic Grid";
+    }
+
+    "intersection0" -> "intersection4" -> "intersection8";
+    "intersection1" -> "intersection5" -> "intersection9";
+    "intersection2" -> "intersection6" -> "intersection10";
+    "intersection3" -> "intersection7" -> "intersection11";
+
+    "intersection8" -> "intersection4" -> "intersection0";
+    "intersection9" -> "intersection5" -> "intersection1";
+    "intersection10" -> "intersection6" -> "intersection2";
+    "intersection11" -> "intersection7" -> "intersection3";
+
+    "intersection0" -> "intersection1" -> "intersection2" -> "intersection3";
+    "intersection4" -> "intersection5" -> "intersection6" -> "intersection7";
+    "intersection8" -> "intersection9" -> "intersection10" -> "intersection11";
+
+    "intersection3" -> "intersection2" -> "intersection1" -> "intersection0";
+    "intersection7" -> "intersection6" -> "intersection5" -> "intersection4";
+    "intersection11" -> "intersection10" -> "intersection9" -> "intersection8";
+}

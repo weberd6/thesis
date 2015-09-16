@@ -1,0 +1,74 @@
+digraph G {
+    node [shape = record];
+    style = filled;
+    color = lightgrey;
+    nodesep = 1.0;
+    rankdir = BT;
+    ranksep = 1.5;
+
+    { rank = same
+        event0 [label = "", style = filled, color = orangered3];
+        event1 [label = "", style = filled, color = orangered3];
+        event2 [label = "", style = filled, color = orangered3];
+        event3 [label = "", style = filled, color = orangered3];
+        "event0" -> "event1" -> "event2" -> "event3" [style = "invis"];
+    }
+
+    subgraph cluster_0 {
+        label = "Processed Queue";
+
+        processed0 [label = "<p0> Event", color = orangered3];
+        processed1 [label = "<p0> Event", color = orangered3];
+        processed2 [label = "<p0> Event", color = orangered3];
+        processed3 [label = "<p0> Event", color = orangered3];
+    }
+
+    subgraph cluster_1 {
+        label = "State Queue";
+        state0 [label = "{<p0> Source event | <s0> LP State | <r0> RNG State} | State Tuple", color = purple];
+        state1 [label = "{<p0> Source event | <s0> LP State | <r0> RNG State} | State Tuple", color = purple];
+        state2 [label = "{<p0> Source event | <s0> LP State | <r0> RNG State} | State Tuple", color = purple];
+        state3 [label = "{<p0> Source event | <s0> LP State | <r0> RNG State} | State Tuple", color = purple];
+
+    }
+
+    subgraph cluster_2 {
+        label = "Output Queue";
+        output0 [label = "{<in0> Source event | <out0> Sent event} | Output Tuple", color = blue];
+        output1 [label = "{<in0> Source event | <out0> Sent event} | Output Tuple", color = blue];
+        output2 [label = "{<in0> Source event | <out0> Sent event} | Output Tuple", color = blue];
+        output3 [label = "{<in0> Source event | <out0> Sent event} | Output Tuple", color = blue];
+
+    }
+
+    "event0" -> "processed0" [color = orangered3, dir = "back"];
+    "event1" -> "processed1" [color = orangered3, dir = "back"];
+    "event2" -> "processed2" [color = orangered3, dir = "back"];
+    "event3" -> "processed3" [color = orangered3, dir = "back"];
+
+    "state0":p0 -> "event0" [color = purple];
+    "state1":p0 -> "event1" [color = purple];
+    "state2":p0 -> "event2" [color = purple];
+    "state3":p0 -> "event3" [color = purple];
+
+    "output0":in0 -> "event0" [color = blue];
+    "output1":in0 -> "event1" [color = blue];
+    "output2":in0 -> "event2" [color = blue];
+    "output3":in0 -> "event3" [color = blue];
+
+    event4 [label = "", style = filled, color = orangered3];
+    event5 [label = "", style = filled, color = orangered3];
+    event6 [label = "", style = filled, color = orangered3];
+    event7 [label = "", style = filled, color = orangered3];
+
+    "event4" -> "output0":out0 [color = blue, dir = "back"];
+    "event5" -> "output1":out0 [color = blue, dir = "back"];
+    "event6" -> "output2":out0 [color = blue, dir = "back"];
+    "event7" -> "output3":out0 [color = blue, dir = "back"];
+
+    line [label = "Unprocessed or processed queues for other LPs within process", shape = underline];
+
+    "line" -> "event4" [color = orangered3];
+    "line" -> "event5" [color = orangered3];
+
+}

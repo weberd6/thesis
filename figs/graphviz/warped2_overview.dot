@@ -1,0 +1,84 @@
+digraph overview {
+
+    node [shape = record];
+    compound = true;
+    splines = ortho;
+    ranksep = 0.9;
+
+    subgraph cluster_model {
+        subgraph cluster_lps {
+            subgraph cluster_lp0 {
+                lp_state0 [label = "LPState", style = filled, color = darkolivegreen3];
+                lp_api0 [label = "LP Callback API", style = filled, color = darkolivegreen4];
+                label = "LP 2";
+                style = filled;
+                color = lightgrey;
+            }
+            subgraph cluster_lp1 {
+                lp_state1 [label = "LPState", style = filled, color = darkolivegreen3];
+                lp_api1 [label = "LP Callback API", style = filled, color = darkolivegreen4];
+                label = "LP 1";
+                style = filled;
+                color = lightgrey;
+            }
+            subgraph cluster_lp2 {
+                lp_state2 [label = "LPState", style = filled, color = darkolivegreen3];
+                lp_api2 [label = "LP Callback API", style = filled, color = darkolivegreen4];
+                label = "LP 0";
+                style = filled;
+                color = lightgrey;
+            }
+            label = "Logical Processes";
+            labeljust = "r";
+            style = filled;
+            color = deepskyblue3;
+        }
+        partitioner [label = "Partitioner", style = filled, color = deepskyblue3];
+        command_line_args [label = "Command Line Arguments", style = filled, color = deepskyblue3];
+        label = "Simulation Model";
+        style = filled;
+        color = lightgrey;
+    }
+
+    subgraph cluster_kernel {
+        event_dispatcher [label = "Time Warp Event Dispatcher", style = filled, color = plum3];
+        comm_manager [label = "Communication Manager", style = filled, color = plum3];
+
+        event_set [label = "Event Set", style = filled, color = lightgoldenrod3];
+        state_manager [label = "State Manager", style = filled, color = lightgoldenrod3];
+        output_manager [label = "Output Manager", style = filled, color = lightgoldenrod3];
+        gvt_manager [label = "GVT Manager", style = filled, color = lightgoldenrod4];
+        termination_manager [label = "Termination Manager", style = filled, color = lightgoldenrod4];
+        time_warp_statistics [label = "Time Warp Statistics Manager", style = filled, color = lightgoldenrod4];
+
+        "event_dispatcher" -> "event_set";
+        "event_dispatcher" -> "state_manager";
+        "event_dispatcher" -> "output_manager";
+        "event_dispatcher" -> "gvt_manager";
+        "event_dispatcher" -> "termination_manager";
+        "event_dispatcher" -> "time_warp_statistics";
+
+        "event_dispatcher" -> "comm_manager";
+        "gvt_manager" -> "comm_manager";
+        "termination_manager" -> "comm_manager";
+        "time_warp_statistics" -> "comm_manager";
+
+        label = "Warped2 Kernel";
+        style = filled;
+        color = lightgrey;
+    }
+
+    // Kernel Interface
+    "lp_api2" -> "event_dispatcher" [lhead=cluster_kernel, ltail=cluster_lps];
+    "partitioner" -> "event_dispatcher" [lhead=cluster_kernel, style = dashed];
+    "command_line_args" -> "event_dispatcher" [lhead=cluster_kernel, style = dashed];
+
+    // Callback API
+    "event_dispatcher" -> "lp_api0" [color = darkolivegreen4];
+    "event_dispatcher" -> "lp_api1" [color = darkolivegreen4];
+    "event_dispatcher" -> "lp_api2" [color = darkolivegreen4];
+
+    mpl [label = "Message Passing Library (e.g. MPI)", style = filled, color = orange];
+    "comm_manager" -> "mpl";
+}
+

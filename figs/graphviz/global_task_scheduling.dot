@@ -1,0 +1,26 @@
+digraph global_task_scheduling {
+    node [shape = record];
+    splines = ortho;
+    ranksep = 1.0;
+
+    a15_0 [label = "Cortex-A15", style = filled, color = coral];
+    a15_1 [label = "Cortex-A15", style = filled, color = coral];
+    a15_2 [label = "Cortex-A15", style = filled, color = coral];
+    a15_3 [label = "Cortex-A15", style = filled, color = coral];
+
+    a7_0 [label = "Cortex-A7", style = filled, color = burlywood];
+    a7_1 [label = "Cortex-A7", style = filled, color = burlywood];
+    a7_2 [label = "Cortex-A7", style = filled, color = burlywood];
+    a7_3 [label = "Cortex-A7", style = filled, color = burlywood];
+
+    linux_scheduler [label = "Linux Scheduler", style = filled, color = sandybrown, width = 10];
+
+    "linux_scheduler" -> "a15_0";
+    "linux_scheduler" -> "a15_1";
+    "linux_scheduler" -> "a15_2";
+    "linux_scheduler" -> "a15_3";
+    "linux_scheduler" -> "a7_0";
+    "linux_scheduler" -> "a7_1";
+    "linux_scheduler" -> "a7_2";
+    "linux_scheduler" -> "a7_3";
+}
