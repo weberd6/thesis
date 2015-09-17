@@ -127,6 +127,8 @@
 %% why existing solutions are insufficient, it must describe your approach to a
 %% solution and what your primary results are.  whew!!
 
+
+
 \chapter*{Acknowledgments}
 
 
@@ -248,9 +250,6 @@ some preliminary results in determining the best configurations for these algori
 Chapter \ref{memory_management} analyzes techniques for managing memory efficiently. This
 includes state saving techniques, fossil collection, and GVT period. Some preliminary results
 are also shown for various configurations.
-
-Chapter \ref{shared_memory} discusses some optimizations for shared memory usage and presents
-some results from the optimizations.
 
 Chapter \ref{results_summary} summarizes the preliminary results from preceding chapters by
 putting them all together.
@@ -1183,7 +1182,7 @@ State Variables:
 
 \chapter{\textsc{warped2} Data Structures and Their Organization}\label{warped2_ds}
 
-\section{Pending Event Set}
+\section{Pending Event Set Data Structures}
 
 The pending event set is the set of all unprocessed events. Every process contains a
 logically seperate pending event set for a dedicated set of LPs. Exhanging of events
@@ -1220,7 +1219,7 @@ Figure \ref{pending_event_set} illustrates the pending event set data structures
     \caption{\textsc{warped2} Pending Event Set Date Structures}\label{pending_event_set}
 \end{figure}
 
-\section{Event Processing}
+\section{Processing Events}
 
 One or more of the worker threads are assigned to each LTSF Queue to process events from
 and they all follow the exact same procedure. First, an event is removed from an LTSF
@@ -1243,7 +1242,7 @@ processing loop is shown in psuedocode in algorithm \ref{warped2_processing}.
 \SetAlgoVlined
 
     \While{termination not detected}{
-        $e \gets \getNextEvent{}$\;
+        \nlset{SQCRIT} $e \gets \getNextEvent{}$\;
         $lp \gets$ receiver of $e$\;\;
 
         \If{$e <$ last processed event for $lp$}{
@@ -1252,21 +1251,28 @@ processing loop is shown in psuedocode in algorithm \ref{warped2_processing}.
         \;
         \If{$e$ is an anti-message}{
             cancel event with $e$\;
-            schedule new event for $lp$\;
+            \nlset{SQCRIT} schedule new event for $lp$\;
             \Continue\;
         }
         \;
         process event $e$\;
         save state of $lp$\;
-        send new events\;
-        replace scheduled event for $lp$\;
+        \nlset{SQCRIT} send new events\;
+        \nlset{SQCRIT} replace scheduled event for $lp$\;
     }
 
 \caption{\textsc{warped2} Main Event Processing Loop}\label{warped2_processing}
 \end{algorithm}
 
-When the events are sent to an LP local to the process, they are directly inserted into
-the unprocessed queue and 
+When events are sent to an LP that is local to the process, they are directly inserted
+into the unprocessed queue and checked against the currently scheduled event. If the
+new event is less than the scheduled event, the scheduled event is replaced. When events
+are sent to an LP that is not local to the process, they are inserted into a shared data
+structure called the \emph{remote event queue}. The manager thread removes the events from
+the remoted event queue, serializes them into messages and sends them to remote processes
+through the communication manager.
+
+
 
 \subsection{Total Ordering of Events}
 
@@ -1307,7 +1313,11 @@ keeps track of the number of events that have been sent from the LP.
     \caption{Rollback and Cancellation Data Structures in \textsc{warped2}}\label{rollback_ds}
 \end{figure}
 
-\chapter{Partitioning}
+\section{Protecting Access to Shared Data Structures}
+
+\subsection{Performance Analysis}
+
+\chapter{Partitioning}\label{partitioning}
 
 \section{Overview}
 
@@ -1324,10 +1334,14 @@ simulation.
 In a shared memory system, partitioning can aid reducing the number of simulateous accesses
 to shared data structures (e.g. unprocessed queues). Although it may not reduce the total
 number of accesses to a data structure, it can force worker threads to access the same
-subset of data structures. This can also enhance the number of cache hits by increasing
-locality.
+subset of data structures reducing contention. This can also enhance the number of cache
+hits by increasing locality.
 
 \section{Partitioning in \textsc{warped2}}
+
+Since \textsc{warped2} uses multiple worker threads within multiple processes, two levels
+of partitioning is done. The first level of partitioning is for allocating LPs to processes
+and the second level is for allocating LPs to an LTSF queue.
 
 \subsection{Process Partitioning}
 
@@ -1335,76 +1349,80 @@ locality.
 
 \subsection{LTSF Queue Partitioning}
 
-
-
+Each process further partitions the LPs by the LTSF Queue that the LPs schedule their
+events to. It is effectively partioning among worker threads if each worker thread has its
+own LTSF Queue and has no effect if a single LTSF is shared among worker threads.
 
 
 \chapter{GVT and Termination Detection}\label{gvt_termination}
 
 Algorithms that compute the Global Virtual Time (GVT) and detect termination conditions are
 both examples of algorithms that can be solved by determining the global state of a
-distributed system. The global state of a system can be defined as the combination of all
+distributed system. The global state of a system is defined as the combination of all
 the local states of the processes in the system and all messages in transit. Global state
-determination is also useful in algorithms for deadlock detection, garbage collection,
-debugging, and checkpointing for failure recovery.
+determination algorithms are also commonly used for deadlock detection, garbage collection,
+debugging, and checkpointing for failure recovery in distributed systems.
 
 \section{Global Snapshots}
 
 \paragraph{Chandy and Lamport}\cite{chandy-85} described a basic global state algorithm by
-using \emph{global snapshots} for distribtuted systems that use only FIFO channels. To start
-the algorithm, an initiator process records it's state and sends a control token out of all
-outgoing channels. When a process receives a control token, and it hasn't yet recorded its
-state, then the process records its state and sends more control tokens out of all its
-outgoing channels. The algorithm terminates at each process when it has recieved a token
-through all of its incoming channels.
+using \emph{global snapshots} for distribtuted systems that use only FIFO channels for
+communication. To start the algorithm, an initiator process records it's state and sends
+a control token out of all outgoing channels. When a process receives a control token, and
+it hasn't yet recorded its state, the process records its state and sends more control
+tokens out of all its outgoing channels. The algorithm terminates at each process when it
+has recieved a token through all of its incoming channels.
 
 \paragraph{Lai and Yang}\cite{lai-87} describe an algorithm for non-FIFO systems which
 computes a consistent cut by piggybacking a control bit onto basic messages. The control
-bit is used to indicate whether or not the sending process has recorded its state. It is
-easy to explain the processes in terms of colors. A process that has not recorded its state
+bit is used to indicate whether or not the sending process has recorded its state. The
+processes can be explained in terms of colors. A process that has not recorded its state
 is colored white and a process that has recorded its state is red. White processes send
-white messages and red processes send red messages. All processes are initially white and
-turn red when a red message arrives. When a red message arrives at a white process, the
-process must record its state BEFORE actually receiving the message. This algorithm has
-several drawbacks. First, it assumes that every process will eventually receive a red message
-and record its state which is not gaurenteed. Second, to ensure transient messages are
-recorded, the processes must record all incoming and outgoing messages and send them to
-other processes. That way the transient messages can be calculated by differences in
-incoming and outgoing messages.
+white messages and red processes send red messages. The control bit in the messages indicates
+the color. All processes are initially white and turn red when a red message arrives. When
+a red message arrives at a white process, the process must record its state BEFORE actually
+receiving the message. The snapshot only relies on basic messages and no control tokens are
+used. This algorithm has several drawbacks. First, it assumes that every process will
+eventually receive a red message and record its state which is not guarenteed. Second, to
+ensure transient messages are recorded, the processes must record all incoming and outgoing
+messages and send them to other processes within the basic messages. That way the transient
+messages can be calculated by differences in incoming and outgoing messages.
 
 \paragraph{Mattern}\cite{mattern-93} extended the algorithm by Lai and Yang by adding a
-seperate control token which is used to create two cuts by cirulating the token to every
-process twice. The control token is used to color the processes instead of the basic
+seperate control token which is used to create two cuts by cirulating the control token to
+every process twice. The control token is used to color the processes instead of the basic
 messages. This guarentees that every process will eventually record its state because the
 token is always circulated. Furthermore, processes do not have to keep track of sent and
 received messages. Instead counters can be used to keep track of the differences in sent
 and received white messages at each process. The control token can then accumulate the
-counts. When the white message counts accumulate to zero, it can be determined that the
-snapshot is complete. These counters can be \emph{vector counters} or \emph{scalar counters}.
-Vector counters keep track of messages to/from each process individually whereas scalar
-counters keep track of just a single count at each process.
+counts. When the white message counts accumulate to zero when the token arrives back at
+the initiator proccess, it can be determined that the snapshot is complete. These counters
+can be \emph{vector counters} or \emph{scalar counters}. Vector counters keep track of
+messages to/from each process individually whereas scalar counters keep track of just a
+single count at each process. When the algorithm is complete, only the initiator process
+can produce a global snapshot so if all processes must use the snapshot, it must be broadcasted
+to the other processes.
 
 \section{GVT}
 
 Although GVT algorithms can be implemented with the basic global snapshot algorithms described
 above, it is usually more efficient to build custom solutions on top of the basic algorithms.
-This section first describes the key ideas that must be considered when developing a GVT
-algorithm. Then, a few of the classic and modern GVT algorithms that are commonly used in
-practice today. Finally, the algorithm that is implemented in \textsc{warped2} is described
-as well as the reasons behind it.
-
 In a GVT algorithm, the local minimum clock of process is the local state and the basic
-messages are events that are sent between processes.
+messages are events that are sent between processes. This section first describes the key
+ideas that must be considered when developing a GVT algorithm. Then, a few of the classic
+GVT algorithms and modern GVT algorithms that are commonly used in practice today are described.
+Finally, the algorithm that is implemented in \textsc{warped2} is described as well as the
+reasons for choosing the approach.
 
 GVT algorithms can be synchronous or asynchronous. In a synchronous GVT algorithm, since
 all other computation will be blocked, event processing will be halted. Synchronous GVT
-algorithms are usually very simple to implement but the halting the event processing can
+algorithms are usually very simple to implement but halting the event processing can
 be very costly. On the other hand, asynchronous GVT algorithms calculate GVT concurrently
 with event processing. For this reason, asynchronous GVT algorithms perform much better
 than synchronous GVT algorithms but are harder to implement because special cases must be
 considered.
 
-Two special cases that must be considered in an asynchronous GVT algorithms are:
+There are two special cases that must be considered in any GVT algorithms:
 
 \begin{description}
     \item[Transient Message Problem:] is caused by messages(events) that have been sent by
@@ -1427,11 +1445,11 @@ years that all have some method of either solving these problems.
 
 \subsubsection{Message Passing Algorithms}
 
-Most of the time warp systems in use today are based on message passing and classically,
+Most of the time warp systems in use today are based on message passing and classically
 GVT algorithms have been designed for message passing systems. In this section Samadi's and
 Mattern's message passing algorithms are discussed and in the next section Fujimoto's shared
 memory GVT algorithms is discussed as well as the Seven O'Clock algorithm which is an
-extension of Fujimoto's shared memory algorithm which is extended for distributed memory systems.
+extension of Fujimoto's shared memory algorithm extended for distributed memory systems.
 
 \paragraph{Samadi's Algorithm}\cite{samadi-85} in the most general form uses acknowledgements
 for all events that have been received. All processes must track all events that have been
@@ -1506,15 +1524,27 @@ To calculate the GVT in \textsc{warped2}, Fujimoto's shared memory algorithm is 
 worker threads and a variation of Mattern's algorithm with scalar message counters is used
 between processes. Hence, Fujimoto's algorithm is a subalgorithm of Mattern's algorithm.
 The details of the Mattern's algorithm implementation in \textsc{warped2} is detailed below
-as well as how it is used with Fujimoto's algorithm. The variables that are maintained at each
-process and are used to illustrate the algorithms are listed below in algorithm
-\ref{process_variables}.
+as well as how it is used with Fujimoto's algorithm.
 
-%% Explain scalar counter, why both counts are needed
 In the \textsc{warped2} implementation, scalar counters are used to keep track of message
 that are sent that carry the initial color. That means that each process keeps track of
 the number of sent messages minus the number of received messages to and from all other
-process as a single counter.
+process as a single counter. The reason that scalar counters are used over vector counters
+is that vector counters require that communication is stopped after receiving a control token
+until all known transient messages bound for the receiving process are received. With scalar
+counters, this is not possible because it is only a single counter. However, it is possible
+that more than two rounds of the control token will be necessary. This is usually not a
+problem in practice though since two rounds is usually sufficient. With scalar counters,
+each process must maintain a counter for both white messages \emph{and} red messages so
+that counters can be consistent between multiple runs of the algorithm. Moreover, the role
+of colors must be switched between successive runs.
+
+In the description of the \textsc{warped2} algorithm, the colors will be described as
+\emph{initial} and \emph{final}. Each process also keeps track of its current color, a
+minimum timestamp of an event received with the final color, and temporary variables to
+hold accumulated values from the token. The variables that are maintained at each
+process and are used in the succeeding discussion are listed below in algorithm
+\ref{process_variables}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -1537,12 +1567,9 @@ The event messages that are sent between processes contain the format:
 
 \noindent
 where $sender$ is the id of the sender process, $receiver$ is the id of the reciever process,
-and $mcolor$ is the color of the message. When an event is sent by the sender process, the
-current color of the process is used for the message color. The color can be either WHITE
-or RED. A RED process sends RED events and WHITE processes send WHITE events. When an event
-is sent from a process, the current color is inserted into the message that carries the
-event and the message count for the current color is incremented. Psuedocode illustrating
-this procedure is shown in algorithm \ref{gvt_event_send}.
+and $mcolor$ is the color of the message. The message color is the color of the sending
+process at the time it is sent. The message count for the current color is also incremented
+when it is sent. Psuedocode illustrating this procedure is shown in algorithm \ref{gvt_event_send}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -1582,16 +1609,17 @@ The control token that is sent between processes contains the format:
     $<sender, receiver, mclock, msend, mcount>$
 
 \noindent
-where $mclock$ is an accumulated minimum of all local minimum clocks at all processes,
-$msend$ is an accumulated minimum of all $ts_{min}$ values at all processes, and $mcount$
-is an accumulated sum of $msgcount_{final}$ from all processes.
+where $mclock$ is an accumulated minimum of all local minimum clocks at all processes
+visited by the token, $msend$ is an accumulated minimum of all $ts_{min}$ values at all
+processes visited by the token, and $mcount$ is an accumulated sum of $msgcount_{final}$
+from all processes visited by the token.
 
 In the \textsc{warped2} implementation, the token is passed in logical ring fashion to
 increasing process ids and is initiated by process with id 0. When the token reaches
 process $N-1$, where $N$ is the number of processes in the system, it is sent back to
 process 0. To start the algorithm, process 0 toggles its color, resets minim values to
 infinity, stores the initial color message count into a temporary variable $msgcount$, and
-starts Fujimoto's algorithm. When Fujimoto's algorithm is complete, will send the token
+starts Fujimoto's algorithm. When Fujimoto's algorithm is complete, it will send the token
 $<0, 1, lvt_{min}, ts_{min}, msgcount>$ with $lvt_{min}$ being the result of Fujimoto's
 algorithm. Psuedocode illustrating the start procedure is shown in algorithm \ref{gvt_start}.
 
@@ -1615,8 +1643,13 @@ algorithm. Psuedocode illustrating the start procedure is shown in algorithm \re
 \end{algorithm}
 
 When a token is received at a process that is not the initiator and it still has the initial
-color then the color is toggled. Then the minimum timestamp received from a final colored
-message is accumulated so and
+color then the color is toggled. Then, the minimum timestamp received from final colored
+messages, the minimum clock value, and the initial message count for the process are
+accumulated with the token's value. The initial message count is then reset so it will not
+be used in the next round and Fujimoto's algorithm is initiated. When Fujimoto's algorithm
+is completed, the token is sent to the next process with all of the accumulated values
+including $lvt_{min}$ calculated from Fujimoto's algorithm. This procedure is illustrated
+in psuedocode shown in algorithm \ref{gvt_receive_noninit}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -1637,14 +1670,18 @@ message is accumulated so and
     $msgcount_{initial} \gets 0$\;
     $lvt_{min} \gets \Fujimoto$\;
     \SendToken{$i, (i+1) \bmod N, \min{(lvt_{min}, clock_{min})}, ts_{min}, msgcount$}\;
-\caption{Mattern Control Token Receive Procedure: Non-initiator Node}
+\caption{Mattern Control Token Receive Procedure: Non-initiator Node}\label{gvt_receive_noninit}
 \end{algorithm}
 
-When a token is received at a the initiator process, it can be assumed that a minimum value
-has already been included in the token that is received. If the accumulated message count
+When a token is received at a the initiator process, it can be assumed that a minimum clock
+value has already been included in the token that is received. If the accumulated message count
 for the initial color has reached zero, then the GVT can be appoximated and the algorithm
-is terminated. The GVT is approximated by taking the minimum of the accumulated minimum
-clock values and the accumulated minimum timestamp values.
+is terminated. If there are still transient message that were not accounted for, the initiator
+process initiates a new round until the resulting message count accumulation is zero
+when received at the initiator. The GVT is approximated at the initiator by taking the
+minimum of the accumulated minimum clock values and the accumulated minimum timestamp values
+and broadcast to the rest of the processes. This procedure is illustrated in the psuedocode
+in algorithm \ref{gvt_receive_init}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -1668,21 +1705,24 @@ clock values and the accumulated minimum timestamp values.
         $lvt_{min} \gets \Fujimoto$\;
         \SendToken{$i, (i+1) \bmod N, lvt_{min}, ts_{min}, msgcount$}\;
     }
-\caption{Mattern Control Token Receive Procedure: Initiator Node}
+\caption{Mattern Control Token Receive Procedure: Initiator Node}\label{gvt_receive_init}
 \end{algorithm}
 
 \section{Termination Detection}
 
 Termination detection, like GVT, is a problem of determining the global state of the system.
 Termination is a \emph{stable property} of a distributed system, meaning that once termination
-conditions occur, the system will remain with termination conditions forever.
+conditions occur, the system will remain with termination conditions forever until further
+action is taken.
 
-A process in the system can be in one of two states: active or passive. A process is
-considered active if it has at least one unprocessed event and passive otherwise.
-When all processes in the system become passive and no events are left in transit, then
+A process in the system can be in one of two states at any time: active or passive. A process
+is considered active if some basic computation still remains and passive otherwise.
+When all processes in the system become passive and no messages are left in transit, then
 the system should be terminated. The purpose of the termination detection algorithm is to
-determine when this occurs. A termination detection for any parallel discrete event
-simulation must satisfy the following properties:
+determine when this occurs. A passive process can become active with the arrival of an
+\emph{activation message}. For parallel discrete event simulation the basic computation is
+event processing and the activation messages are events. A termination detection for any
+parallel discrete event simulation must satisfy the following properties:
 
 \begin{description}
     \item[Safety:] Termination will not be detected if any unprocessed event is still present
@@ -1692,42 +1732,53 @@ simulation must satisfy the following properties:
 \end{description}
 
 Just like GVT algorithms, termination detection algorithms can implemented with message
-passing or shared memory. There are a lot of different termination algorithms that have
-been developed but can range durastically depending on how system defines the true meaning
-of termination. Furthermore, termination usually does not affect system performance so
-correctness is far more important than optimization. For these reasons only the termination
-algorithm that is implemented in \textsc{warped2} will be discussed any further. The
-algorithm is a message passing algorithm with a shared memory subalgorithm.
+passing or shared memory. Termination algorithms vary widely because different systems
+can define termination conditions in such different ways. Furthermore, termination usually
+does not affect system performance so correctness is more important than optimization.
+For these reasons only the termination algorithm that is implemented in \textsc{warped2}
+will be discussed any further. It is actually two independant algorithms, a message passing
+algorithm and a shared memory algorithm. In the opposite manner as the GVT algorithm, the
+shared memory algorithm is actually used to initiate the message passing algorithm.
 
-\subsection{Shared Memory Subalgorithm}
+\subsection{Shared Memory algorithm}
 
-The purpose of the shared memory subalgorithm is to determine when all of the worker threads
+The purpose of the shared memory algorithm is to determine when all of the worker threads
 in a process become passive (inactive). The algorithm is fairly straightforward and uses
 just a single shared counter variable to keep track of the number of active worker threads
 and a boolean array to keep track of which worker threads are active. Worker threads can
-only read or write to their own status values.
+only read or write to their own status values. The counter is updated atomically to avoid
+possible race condtions.
 
-It is not necessary that the subalgorithm follow the safety property as long as the main
-algorithm follows it. This is true because no transient messages can exist within a process,
-only between processes. The only way that a process can become active again is when it
-receives a message from another process, which the main algorithm will account for. Therefore,
-the inactivity of a single process cannot be falsely determined assuming that the shared
-counter variable is protected from race conditions.
-
-The liveness property is required, however, so that termination conditions within a single
-process can be used to start the termination detection algorithm between the processes.
-In \textsc{warped2}, this is achieved by the manager thread periodically checking the
-active worker thread count. If the count is zero, then the message passing algorithm will
-be initiated.
+The safety property is achieved because there can be no transient messages. If a thread
+sends an event to an LP that will be processed by another thread and then becomes inactive,
+false termination cannot detected because the receiving thread becomes active again after
+seeing the event. Come back to this, it may not be accurate.
+The liveness property is achieved because the manager thread periodically checks the
+active worker thread count so the inactivity of all worker threads will eventually be
+discovered. If the count is zero, then the message passing algorithm will be initiated
+between processes.
 
 \subsection{Message Passing Algorithm}
 
-The main algorithm that is carried out among processes is an asynchronous message passing
-algorithm based on Mattern's "sticky flags" termination detection algorithm\cite{mattern-93}.
-Just like the GVT algorithm, the token is passed in a logical ring to increasing process
-ids. However, the initiator process of the algorithm is dynamic leader decided by the first
-active process in the token circulation with the initial leader starting with process 0.
-Each process has the variables that are listed in algorithm\ref{termination_variables}.
+The algorithm that is carried out among processes is an asynchronous message passing
+algorithm based on Mattern's "sticky flags" algorithm\cite{mattern-93}. Just like the GVT
+algorithm, the token is passed in a logical ring to increasing process ids. However, the
+initiator process of the algorithm is dynamic. The initiator is the first active process
+that the token reaches during circulation. For the first circulation, the initator is process
+0.
+
+Each process has two states, one for the actual state and one for the \emph{sticky state}.
+The sticky state is the state that is actually used in the algorithm. It becomes active
+when the actual state becomes active but sticks to active when the actual state becomes
+passive. The sticky state can only changes to passive on the arrival of a token. By using
+this scheme the token is forced to circulate two times with no process becoming active and
+ensures the safety property. Without this scheme, a process that has already forwarded the
+token because it was passive could receive an activation message and then the sender of the
+activation message could become passive before receiving the token. False termination could
+then be detected.
+
+The process variable names that are used for the succeeding discussion are listed in
+algorithm \ref{termination_variables}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -1744,7 +1795,18 @@ The termination token that is sent between process has the format:
     $<sender, receiver, mstate, minitiator>$
 
 \noindent
-blah blah blah
+where $sender$ is the id of the sending process, $receiver$ is the id of the receiving
+process, $mstate$ is the partial state of system based on visited processes, and $minitiator$
+is the process id of the initiator.
+
+The algorithm is started when the initiator process becomes passive which is determined by
+the shared memory algorithm. When a process receives the token it becomes the initiator
+but loses its roles as initiator when it sends the token. That way, only a single process
+can be the initiator. Furthermoe, since the token always stops at an active process, the
+token is always guarenteed to start again when it becomes passive which also guarentees
+the liveness property. When the token is received back at the initiator with a passive
+state, then termination is signaled to all processes. The procedure is illustrated in
+algorithm \ref{termination_token_receive}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -1757,49 +1819,94 @@ blah blah blah
             Signal termination\;
         }
     } \ElseIf{$state_{sticky} = PASSIVE$} {
+        $initiator \gets false$\;
         \SendToken{$mstate, minitiator$}\;
     }
-    $state_{sticky} \gets true$\;
-\caption{Message Receive Handler for Termination Token}
+    $state_{sticky} \gets state_{actual}$\;
+\caption{Termination Token Receive Procedure}\label{termination_token_receive}
 \end{algorithm}
+
+It should also be noted that this algorithm is only guarenteed to work if the message order
+is preserved. If that is not the case, then message counters are necessary to ensure
+transient activation messages are not missed.
 
 \chapter{Memory Management}\label{memory_management}
 
+This chapter will focus on three main topics that are all related to the management
+of memory. First, state saving techniques will be discussed as well the analysis of state
+saving in \textsc{warped2}. This will include both space and time requirements. Then fossil
+collection and its overheads are introduced and a comparison of worker thread versus manager
+thread fossil collection will be examined. Lastly, memory allocation and deallocation and
+its importance in time warp is presented as well as how it is accomplished in \textsc{warped2}.
+
 \section{State Saving}
 
-\paragraph{Copy State Saving}
+\paragraph{Copy-state Saving} is the classic state saving technique that saves every past
+state of every LP and requires that the all states are copied and saved into the state queues.
+This method requires a lot of extra memory and requires a lot of extra computation to copy
+the states and insert them into the state queue. For this reason, copy-state saving is
+usually used in conjuction with other technique or not at all.
 
-\paragraph{Periodic State Saving} is a type of state saving where the state of each LP
-is saved only once every N events, where N is a number greater than one.
-%% Coast forwarding
+\paragraph{Periodic State Saving} is another state saving technique where the state of each LP
+is saved only once every N events, where N is a number greater than one. Periodic state
+saving can significantly reduce the overhead of the time taken to copy the state of the
+LPs into the state queue. However, due to state history being lost, more processed event
+have to be saved so that the state of LPs can be restored correctly. These saved events
+must be reprocessed to restore the state in a process known as \emph{coast forwarding}.
+During coast forwarding the events are processed normally but only to update the state.
+The only difference is that no events are sent during the coast forwarding phase. The
+downside is that the rollback length is increased due to the loss in state saving. However,
+periodic state saving is a significant improvement over the base copy-state staving approach
+since the reduced time in state saving far outweighs the extra rollback time for increased
+rollback length.
 
-\paragraph{Incremental State Saving}
+\paragraph{Incremental State Saving} is a technique that aims to reduce the amount of
+memory needed to store past states of the LPs. Instead of saving entire snapshots of the
+past states, the differences in specific state variables are saved. This method requires
+that metadata describing which variables are modified for each event. Therefore, this approach
+works well as long as only a small portion of the state variables change during the forward
+execution of events.
 
-\paragraph{Reverse Computation}
+\paragraph{Reverse Computation} is a modern approach to state state saving that does not
+actually save any past states of the LPs. Instead, the \emph{control state} of the forward
+computation is saved as a set of bits that describe the control flow. By saving the control
+flow of the forward execution for each event, the state variables that are modified and
+how they are modified are known and can be reversed. That is, at least, if all state variables
+are reversible without the need to know the histories of the variables. Also, a reversible
+random number generator is required. These are both practical requirements, though. The major
+problem with this approach is the necessity to understand forward and reverse computation
+precisely in the implementation of the simulation model.
 
 \subsection{State Saving Experimental Assessment}
 
-%% Explain reason behind warped2 periodic state saving
+\textsc{warped2} currently implements only periodic state saving because it works well
+regardless of the simulation model and it can be implemented transparently in the simulation
+kernel.
 
 %% State saving period analysis
 %%\showPlots{State Saving Performance.pdf}{ssp_performance}{State Saving Performances}
 
-\subsubsection{\textsc{warped2} Data Stucture Organization}
+\section{Fossil Collection}
 
 
-\subsection{Fossil Collection}
+
+\paragraph{GVT-based Fossil Collection}
 
 \paragraph{On-the-fly Fossil Collection}
 
-\paragraph{LP Clustering}
-
 \paragraph{Optimistic Fossil Collection}
 
-\subsection{\textsc{warped2} FC Experimental Assessment}
+\subsection{Fossil Collection Experimental Assessment}
 
 %% Manager thread versus Worker Threads
 
-\chapter{Shared Memory Analysis}\label{shared_memory}
+\section{Memory Allocation}
+
+\subsection{Thread-Caching Malloc (TCMalloc)}
+
+\chapter{Observations with the ARM big.LITTLE Platform}
+
+\section{}
 
 \chapter{Summary of Results}\label{results_summary}
 
