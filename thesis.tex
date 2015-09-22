@@ -17,6 +17,8 @@
 \usepackage[space]{grffile}
 \usepackage[ruled]{algorithm2e}
 \usepackage{float}
+\usepackage{multirow}
+\usepackage{paralist}
 
 \setcounter{topnumber}{2}
 \setcounter{bottomnumber}{3}
@@ -1073,76 +1075,43 @@ int main(int argc, const char **argv) {
 
 \subsection{Pending Event Set}
 
-
-
 \subsection{Partitioning}
 
-Partitioning the work between parallel workers is commonly done in distributed systems
-to increase efficiency and minimize communication. In a parallel discrete event simulation
-the work can easily by partitioned by partitioning logical process. 
+\subsection{State Saving}
 
-Profile-Guided partitioning is a method of partitioning based on profile data collected
-from a sequential simulation. The profile data forms a weighted graph with vertices
-representing LPs and egdes representing communication channels. The weights of the egdes
-are based on the frequency of communication on the channels. The profile-guided partitioner
-uses this data and a graph partioning tool to build partitions that minimize interpartition
-communication.
+\subsection{Fossil Collection}
 
-\subsection{GVT and Termination}
-
-Another important aspect of a time warp system is GVT and termination detection algorithms.
-These algorithms are particularly hard to implement in distributed systems efficiently.
-Most of the common GVT and termination detection algorithms are well suited for either
-shared memory or message passing but not both. In chapter \ref{gvt_termination}, some
-popular GVT and termination detection algorithms will be discussed as well as the algorithms
-used in \textsc{warped2}.
-
-\subsection{State Saving and Fossil Collection}
-
-The state saving and fossil collection techniques in a time warp system can significantly
-impact the memory requirements of the system and thus are very important and need to be
-considered. Furthermore, saving the state of and fossil collecting the LPs takes an
-nonnegligable amount of time. There have been many state saving techniques that have been
-developed to minimize space and time overheads such as periodic state saving, 
-
-These techniques will be discussed in chapter \ref{memory_management}.
-
-\textsc{warped2} implements a periodic state saving technique where the state
-for every LP is saved only every N events.
-
-In chapter \ref{memory_management}, the effects of different state saving periods and fossil
-collection techniques are analyzed to determine the optimal memory/time tradeoff.
-
-\subsection{Multi-Threading Optimizations}
-
-\subsubsection{Spinlocks and Atomic Instructions}
-
-Most multi-threaded applications use mutexes to protect shared data structures by only
-allowing a single thread to access the critical section. These mutexes are usually implemented
-so that if a thread tries to acquire the lock but the lock has already been aqcuired by
-another thread, the thread will be put to sleep and try again in the future. If the lock is
-only held by any thread for a short period of time then the amount of time it takes to put
-the thread to sleep and wake it back up is usually not necessary.
-
-Instead of using this type of mutex, a spinning mutex or just spinlock can be used. In the
-case of a spinlock, when the lock is contended, the thread that is trying to aqcuire the
-lock will continuously keep trying to acquire it over and over. This works well for small
-critical sections that are executed quickly as in the case of warped2.
-
-Furthermore, if the critical section only contains a few variables that do not depend on
-each other in any way, then atomic instructions can be used instead of locks. Atomic
-instruction can also be used as a basis for lock free data structures.
-
-\subsubsection{Thread Caching Malloc (TCMalloc)}
-
-TCMalloc is a memory allocator that is optimized for multithreaded applications. The main
-feature that sets it apart is the use of per-thread set of "free-lists" which are called
-\emph{thread caches}. The thread caches do not have to be protected by locks since they
-belong to only a single thread and only the owner thread can access it's thread cache.
-
-The central cache is also protected by spinlocks.
+\subsection{Memory Allocation}
 
 \section{Platforms for Assessment}
+
+\pagebreak
+
+\begin{center}
+    \begin{tabular}{|| l | l | c | c | c c ||}
+    \hline
+        \multicolumn{2}{|l|}{} & \multirow{2}{*}{Intel Core i7-4770} & \multirow{2}{*}{Intel Xeon} & \multicolumn{2}{c||}{Exynos 5422} \\ \cline{5-6}
+        \multicolumn{2}{|l|}{} & & & Cortex-A15 & Cortex-A7 \\ [0.5ex]
+        \hline\hline
+        \multirow{7}{*}{Processor}
+            & ISA           & x86\_64   & ? & \multicolumn{2}{c||}{ARMv7} \\
+            & Cores         & 4         & 8 & 4         & 4 \\
+            & Frequency     & 3.4 GHz   & ? & 2.0 GHz   & 1.4 GHz \\
+            & L1 Data Cache & 32kB      & ? & 32kB      & 32kB \\
+            & L1 Inst Cache & 32kB      & ? & 32kB      & 32kB \\
+            & L2 Cache      & 256kB     & ? & 2MB       & 512kB\\
+            & L3 Cache      & 8MB       & ? & \multicolumn{2}{c||}{N/A} \\
+        \hline
+        \multirow{2}{*}{Memory}
+            & Type          & 2 x DDR3-1333/1600    & ? & \multicolumn{2}{c||}{2 x LPDDR3-933} \\
+            & Max Bandwidth & 25.6 GB/s             & ? & \multicolumn{2}{c||}{14.9 GB/s} \\
+        \hline
+        \multirow{2}{*}{Runtime}
+            & Compiler      & ? & ? & \multicolumn{2}{c||}{?} \\
+            & MPI Version   & ? & ? & \multicolumn{2}{c||}{?} \\
+        \hline
+    \end{tabular}
+\end{center}
 
 \subsection{x86 SMP Nodes and Clusters}
 
@@ -1186,7 +1155,7 @@ State Variables:
 
 The pending event set is the set of all unprocessed events. Every process contains a
 logically seperate pending event set for a dedicated set of LPs. Exhanging of events
-between LPs between processes is funneled through the manager thread of the processes.
+between LPs of different processes is achieved through the manager thread of each processes.
 
 Each LP has an unprocessed queue which contains both positive events and anti-messages and
 remains sorted at all times. The anti-messages are given priority over their positive counterparts
@@ -1242,7 +1211,7 @@ processing loop is shown in psuedocode in algorithm \ref{warped2_processing}.
 \SetAlgoVlined
 
     \While{termination not detected}{
-        \nlset{SQCRIT} $e \gets \getNextEvent{}$\;
+        \nlset{1} $e \gets \getNextEvent{}$\;
         $lp \gets$ receiver of $e$\;\;
 
         \If{$e <$ last processed event for $lp$}{
@@ -1251,19 +1220,20 @@ processing loop is shown in psuedocode in algorithm \ref{warped2_processing}.
         \;
         \If{$e$ is an anti-message}{
             cancel event with $e$\;
-            \nlset{SQCRIT} schedule new event for $lp$\;
+            \nlset{3} schedule new event for $lp$\;
             \Continue\;
         }
         \;
         process event $e$\;
         save state of $lp$\;
-        \nlset{SQCRIT} send new events\;
-        \nlset{SQCRIT} replace scheduled event for $lp$\;
+        \nlset{2} send new events\;
+        \nlset{3} replace scheduled event for $lp$\;
     }
 
 \caption{\textsc{warped2} Main Event Processing Loop}\label{warped2_processing}
 \end{algorithm}
 
+%% Sending events
 When events are sent to an LP that is local to the process, they are directly inserted
 into the unprocessed queue and checked against the currently scheduled event. If the
 new event is less than the scheduled event, the scheduled event is replaced. When events
@@ -1272,9 +1242,7 @@ structure called the \emph{remote event queue}. The manager thread removes the e
 the remoted event queue, serializes them into messages and sends them to remote processes
 through the communication manager.
 
-
-
-\subsection{Total Ordering of Events}
+\subsection{Ordering of Events}
 
 The time warp system assumes that every event is labeled with a totally ordered clock value
 based on virtual time \cite{jefferson-85}. This is important so that causal dependencies
@@ -1288,7 +1256,7 @@ are preserved and so that simulation results are deterministic\cite{ronngren-99}
     \item Generation
 \end{enumerate}
 
-\noindent
+\noindent %% tiebreaking
 The last three serve as a tie breaker for simultaneous receive times. The send time is
 necessary to ensure correct causal dependencies. It is analogous to a Lamport logical
 clock\cite{lamport-78} in real time distributed systems but for virtual time systems. The
@@ -1299,13 +1267,77 @@ Without it, it is possible that different results could occur on different runs 
 simulation\cite{ronngren-99}. The generation is necessary for distributed systems to
 differentiate between the same events which could be resent after rolling back
 \cite{ronngren-99}. In \textsc{warped2} it is implemented as a single counter per LP and
-keeps track of the number of events that have been sent from the LP.
+keeps track of the number of events that have been sent from the LP. The count is then
+tagged in the event when it is sent.
 
-\subsection{Performance Analysis}
+\subsection{LTSF Replication}
 
-%%\showPlots{Schedule Queue Performance.pdf}{sq_performance}{Schedule Queue Performances}
+The number of LTSF queues that are shared by a single worker thread is configurable in
+\textsc{warped2} because the best configuration is not really known. If all worker threads
+share a single LTSF queue then a huge contention point is created and performance will suffer.
+At the opposite extreme, however, with all worker threads processing events from a seperate
+LTSF queue, the the critical path of the simulation will be spread out and the number of
+rollbacks can increase significantly. To make matters more complicated this tradeoff can
+vary as the event processing algorithms and LTSF Queue data structures in \textsc{warped2}
+evolve.
+
+%% Explain plots
+The plots shown in figure \ref{sq_performance} provide some initial insight on the best
+number of LTSF Queues for each of the simulation models. All simulations were run with
+on a single Intel Core i7 machine with 8 worker threads.
+
+\showPlots{Schedule Queue Performance.pdf}{sq_performance}{Schedule Queue Performances}
+
+%% Explain results
+From these results it is apparent that contention to the LTSF queues far outweigh the
+effects of increased rollbacks. This can be explained by looking back at the current event
+processing algorith in algorithm \ref{warped2_processing}. The lines with a number on the
+margin indicate possible access to the LTSF queue.
+For every event the LTSF queue is accessed at least 3 times: \begin{inparaenum}[(1)]
+\item getting the next event; \item sending new events; and \item rescheduling new events
+\end{inparaenum}. %%TODO, possibly mention this in future research
 
 \section{Data Structures to Support Rollback and Cancellation}
+
+Jefferson\cite{jefferson-85} described the rollback and cancellation process in terms
+of three data structures: the input queue, output queue, and state queue. The data structures
+that are implemented in \textsc{warped2} follows pretty closely to Jefferson's description
+except that the input queue holds both unprocessed and processed events whereas \textsc{warped2}
+has two seperate data structures to allow easier scheduling of new events.
+
+\subsection{Processed Queue}
+The processed queues are pretty straightforward and only contain pointers to processed
+events for the owning LP. When a straggler event is detected, the incorrectly processed
+event pointers are moved back to unprocessed queue where the event can be cancelled out by
+an anti-message or reprocessed as necessary. Anti-messages cannot be processed so they
+will never exist in the processed queue.
+
+\subsection{Output Queue}
+
+An output queue is used to hold previously sent events by a single LP. They are necessary
+so that the LP can send anti-messages during a rollback. The output queue in \textsc{warped2}
+contains a set of tuples that each contain a pointer to a sent event and a pointer to the
+source event that triggered the sent event. The LP determines which events should be sent
+as anti-messages by comparing the straggler event with the source event.
+
+\subsection{State Queue}
+
+The state queues in \textsc{warped2} contain a three-tuple value for each state saved.
+The three-tuple consists of \begin{inparaenum}[(1)] \item a copy of the LPs state at the
+time it was saved, \item a copy of the internal states of the LPs random number generators,
+and \item a pointer to the event that was processed just before the state was saved.
+\end{inparaenum}. The internal states of the random number generators are saved in a linked
+list and are necessary so that simulations can yield deterministic results. Just as with
+the output queue, the source event is used for comparison against straggler events except
+that it is for deciding the state which restore the LP back to.
+
+\subsection{Organization of Data Structures}
+
+Pointers are used in all data structures to avoid unnecessary copying and to save memory
+space. There can be multiple pointers to the same events from the processed queue,
+unprocessed queue, output queue, or state queue as shown in figure \ref{rollback_ds}. This
+can be rather complex to deal with when freeing memory so \textsc{warped2} uses smart
+pointers objects that count references to the dereferenced memory location.
 
 \begin{figure}[H]
     \centering
@@ -1315,7 +1347,60 @@ keeps track of the number of events that have been sent from the LP.
 
 \section{Protecting Access to Shared Data Structures}
 
-\subsection{Performance Analysis}
+\subsection{Motivation}
+
+Worker threads must be able to access shared data structures without the possibility of
+race conditions. To deal with this, \textsc{warped2} uses mutexes to serialize worker thread
+access to any section of code that accesses the LTSF queue. This method, however significantly
+slows down access to the LTSF queues. With the results from the last section, it is obvious
+that quick access to the LTSF queues is necessary for the best performance.
+
+Traditionally, mutexes are implemented in such a way that if a thread cannot acuire the
+lock, the thread is put to sleep and rescheduled for execution at a later time. This method,
+however, can waist a lot of unnecessary time putting the thread to sleep and waking it
+back up again if each thread only holds the lock for a short period of time. \textsc{warped2}
+is the perfect example of this behavior since accesses to the LTSF queues only perform
+very simple and fast operations.
+
+A \emph{spinlock} is a type of mutex that does not force threads to be rescheduled but
+instead continue to attempt to aqcuire the lock over and over until it successfully acquires
+the lock or the timeslice of the thread expires. The downside of spinlocks is that the CPU time
+can be waised, especially as the number of contending threads increase. Furthermore, if the
+number of total threads is larger than the number of available processors, spinlocks are
+event worse because a thread can be involuntarily pre-empted while holding the lock.
+
+\subsection{Spinlocks in \textsc{warped2}}
+
+There are many ways to implement spinlocks like test-and-set or exchange based locks,
+queueing locks, and ticket locks to name a few. Test-and-set or exchange based locks are
+the simplest to implement but do not guarantee fairness among threads. Queueing based locks
+are more complicated to implement but also guarentee fairness and are more scalable. However
+they have a higher latency for uncontended aqcuisition. Ticket locks, on the other hand
+are simple to implement, provide fairness, and generally have good performance for a small
+number of threads.
+
+Due to the advantages mentioned above, \textsc{warped2} implements ticket spinlocks.
+
+\begin{algorithm}
+\DontPrintSemicolon
+\SetKwFunction{fetchAndIncrement}{fetchAndIncrement}
+\SetAlgoVlined
+
+    \tcc{Aqcuire}
+    \Begin{
+        $my\_number \gets \fetchAndIncrement{next\_number}$\;
+        \Repeat{$ticket = my\_number$}{nothing}
+    }
+    \;
+    \tcc{Release}
+    \Begin{
+        $\fetchAndIncrement{ticket}$
+    }
+
+\caption{Ticket Lock Procedures}\label{ticket_lock}
+\end{algorithm}
+
+
 
 \chapter{Partitioning}\label{partitioning}
 
@@ -1518,7 +1603,7 @@ which is broadcast to all processes. This algorithm is efficient when time warp 
 are run on large supercomputing platforms like the blue gene machine which perform collective
 operations very quickly.
 
-\subsection{Warped2 Algorithm}
+\subsection{GVT Calculation in \textsc{Warped2}}
 
 To calculate the GVT in \textsc{warped2}, Fujimoto's shared memory algorithm is used between
 worker threads and a variation of Mattern's algorithm with scalar message counters is used
@@ -1736,11 +1821,16 @@ passing or shared memory. Termination algorithms vary widely because different s
 can define termination conditions in such different ways. Furthermore, termination usually
 does not affect system performance so correctness is more important than optimization.
 For these reasons only the termination algorithm that is implemented in \textsc{warped2}
-will be discussed any further. It is actually two independant algorithms, a message passing
-algorithm and a shared memory algorithm. In the opposite manner as the GVT algorithm, the
-shared memory algorithm is actually used to initiate the message passing algorithm.
+will be discussed any further.
 
-\subsection{Shared Memory algorithm}
+\subsection{Termination in \textsc{warped2}}
+
+The termination detection algorithm in \textsc{warped2} is actually two independant algorithms,
+a message passing algorithm and a shared memory algorithm. In the opposite manner as the
+GVT algorithm, the shared memory algorithm is actually used to initiate the message passing
+algorithm.
+
+\subsubsection{Shared Memory algorithm}
 
 The purpose of the shared memory algorithm is to determine when all of the worker threads
 in a process become passive (inactive). The algorithm is fairly straightforward and uses
@@ -1758,7 +1848,7 @@ active worker thread count so the inactivity of all worker threads will eventual
 discovered. If the count is zero, then the message passing algorithm will be initiated
 between processes.
 
-\subsection{Message Passing Algorithm}
+\subsubsection{Message Passing Algorithm}
 
 The algorithm that is carried out among processes is an asynchronous message passing
 algorithm based on Mattern's "sticky flags" algorithm\cite{mattern-93}. Just like the GVT
@@ -1877,32 +1967,71 @@ random number generator is required. These are both practical requirements, thou
 problem with this approach is the necessity to understand forward and reverse computation
 precisely in the implementation of the simulation model.
 
-\subsection{State Saving Experimental Assessment}
+\subsection{State Saving in \textsc{warped2}}
 
-\textsc{warped2} currently implements only periodic state saving because it works well
+\textsc{warped2} currently implements periodic state saving because it can work well
 regardless of the simulation model and it can be implemented transparently in the simulation
 kernel.
 
 %% State saving period analysis
-%%\showPlots{State Saving Performance.pdf}{ssp_performance}{State Saving Performances}
+\showPlots{State Saving Performance.pdf}{ssp_performance}{State Saving Performances}
 
 \section{Fossil Collection}
 
+When the events and states in the processed queues, output queues, and state queues are
+no longer needed, the memory that they consume is no longer needed and can either be freed
+or reused. Fossil collection is the process of reclaiming memory for future use. There
+are many methods of fossil collection that have been used in practice.
 
+\paragraph{GVT-based Fossil Collection} is the traditional method of fossil collection.
+Since rollbacks cannot occur past the GVT, it can be used be used as a marker to indicate
+what can be fossil collected. In this case, the calculation of the GVT generally triggers
+the fossil collection process and all memory is explicitly freed so that it can be reused
+again.
 
-\paragraph{GVT-based Fossil Collection}
+\paragraph{On-the-fly Fossil Collection} is a method of fossil collection used in GTW
+which does not use GVT and memory is not explicitly freed. Instead, after events are
+processed, they are added to a free memory list. New events can then be allocated from the
+list as long the first event in the list has a timestamp less than the GVT. If it does not
+then the current event being processed is either aborted until the GVT reaches a higher
+value or the list is searched for a lower timestamp event.
 
-\paragraph{On-the-fly Fossil Collection}
+\paragraph{Optimistic Fossil Collection} is another method of fossil collection which
+aims to reuse memory instead of explicitly freeing it. However, optimistic fossil collection
+is based on a statistical bound for rollbacks. It is still possible that memory that was
+fossil collected could still be used causing an OFC fault. Therefore, methods such as
+global state checkpointing must also be implemented to recover from these faults.
 
-\paragraph{Optimistic Fossil Collection}
-
-\subsection{Fossil Collection Experimental Assessment}
+\subsection{Fossil Collection in \textsc{warped2}}
 
 %% Manager thread versus Worker Threads
 
 \section{Memory Allocation}
 
+Parallel discrete event simulation systems must frequently allocate and free memory for
+events and states. This can be a huge overhead if used memory and free memory is not
+maintained in an efficient way. Furthermore, memory must be allocated to deallocated from
+each process by the operating system as needed which can be even more costly.
+
+In a standard system, the application will never know when this occurs because it is handled
+by runtime libraries which provide an API for allocation/deallocation for each specific
+process. For this reason, some time warp systems allocate a large fixed sized memory space
+before the start of the simulation and use their own memory management schemes.
+
+Dynamic memory management in \textsc{warped2} is achieved through the standard malloc/free
+interface just like any other C/C++ application and does not pre-allocate any memory.
+Custom memory management is usually not necessary because modern implementations of malloc/free
+usually manage memory efficiently. Furthermore, the default allocator can be overriden by
+other allocators such as tcmalloc, jemalloc, hoard, etc.
+
 \subsection{Thread-Caching Malloc (TCMalloc)}
+
+TCMalloc is a memory allocator that is designed to efficiently allocate memory in
+multi-threaded applications such as \textsc{warped2}. In TCMalloc, seperate thread-local
+caches of free memory are maintained to avoid contention that would be caused by shared
+caches.
+
+
 
 \chapter{Observations with the ARM big.LITTLE Platform}
 
