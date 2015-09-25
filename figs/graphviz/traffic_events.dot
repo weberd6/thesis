@@ -1,0 +1,24 @@
+digraph traffic_events {
+    node [shape = record];
+
+    subgraph cluster_intersection0 {
+        {
+            rank = same;
+            arrival0 [label = "Arrival", style = filled, color = burlywood];
+            departure0 [label = "Departure", style = filled, color = burlywood];
+            ds0 [label = "Direction\nSelect", style = filled, color = dodgerblue];
+        }
+
+        "arrival0" -> "ds0" -> "departure0";
+
+        label = "Intersection";
+        style = filled;
+        color = lightgrey;
+    }
+
+    to [label = "Arrival to another intersection", shape = plaintext];
+    from [label = "Departure from another intersection", shape = plaintext];
+
+    "from" -> "arrival0";
+    "departure0" -> "to";
+}
