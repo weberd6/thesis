@@ -137,7 +137,7 @@
 
 \tableofcontents \markright{ }
 \listoffigures \markright{ }
-%\listoftables \markright{ }
+\listoftables \markright{ }
 \listofalgorithms \markright { }
 \lstlistoflistings \markright{ }
 
@@ -356,7 +356,7 @@ Jefferson\cite{jefferson-85} describes how to support rollbacks with three main 
 \end{enumerate}
 
 \noindent
-Every LP will have seperate input queues, output queues, and a state queues. The input
+Every LP will have a seperate input queue, output queue, and state queues. The input
 queue contains the unprocessed and processed events for the LP that it belongs to. The
 input queue must be sorted in timestamp order and the LP's must always process from the
 lowest unprocessed event. The LVT is always the largest timestamped processed event and
@@ -387,7 +387,7 @@ periodic state saving, incremental state saving, and reverse computation.
 \section{Parallel Systems Architectures}
 
 Systems that support parallel processing come in many forms. They can generally be
-characterized by how processors and memories are grouped together.
+characterized by how processors and memories are grouped together. 
 
 \subsection{Shared Memory Multiprocessor Systems}
 
@@ -635,34 +635,6 @@ LP's. Furthermore, the initial partitioning of the LP's is hard to change during
 of the simulation because there are no seperate input queues but rather a single message
 queue to hold all unprocessed events for each processor.
 
-%% The states of the LP's can be save using the traditional copy-state saving or incremental
-%% state saving. The simulation model must choose which state variables need to be automatically
-%% saved after every processed event and which state variables need to be incrementally saved.
-%% The state variables must then be registered with the simulation kernel so that they can
-%% saved when needed and restored when a rollback occurs. The state saving mechanisms provided
-%% allow the simulation model developer some flexability to optimize the simulation model based
-%% on how often the state variables are modified. The seldom modified variables can be
-%% incrementally saved and the often modified variables can always be saved. However, it also
-%% forces the simulation model developer to understand time warp and how the underlying state
-%% saving mechanisms work.
-
-%% GTW does not use conventional fossil collection. Instead, the events are placed into a
-%% per thread free list after they are processed. Events can then be allocated from the free
-%% list as long as the first event in the list has a timestamp less than the GVT. If the first
-%% event is not less than the GVT then the current event being processed is aborted and fossil
-%% collection is initiated. This mechanism called "on-the-fly" fossil collection. One benefit
-%% to on-the-fly fossil collection is that it provides a mechanism to prevent some LP's from
-%% processing events too far in the future. However, on-the-fly fossil can cause unstable
-%% behavior. As rollbacks occur, the free lists becomes unordered and the first event in the
-%% list may not have a timestamp less than the GVT even if another event in the list does.
-%% If a processor tends to have LP's that rollback more often, then a lot of events can be
-%% unnecessarily aborted because it is becomes more unordered relative to other free lists.
-%% Searching the free-list will also not help because it will take more time to search longer
-%% lists which will cause behavior to still  depend on rollback behavior. The only way to fix
-%% the problem with imbalanced event processing is to allocate more memory per processor.
-
-%% GTW versions only exist for SparcStation and SGI PowerChallenge architectures.
-
 \section{Clustered Time Warp (CTW)}
 
 Clustered Time Warp\cite{avril-95} (CTW) uses a hybrid approach by processing events within
@@ -731,27 +703,6 @@ used in GTW but have a different naming convention. The main data structures in 
         events in timestamp order. ROSS also allows the priority queue to be implemented
         as a calendar queue, heap, splay tree, or avl tree depending on user configuration.
 \end{enumerate}
-
-\noindent
-
-
-%% ROSS does not save any of the LP's state, but instead uses reverse computation
-%% \cite{carothers-99a} to restore states. With reverse computation, a sequence of bits is
-%% saved for each event which describes the path of execution (control state). By knowing the
-%% path of execution for each event, it is possible to know exactly what state variables were
-%% modified and how. This method works great for some models but relies on two main properties.
-%% The first property that the models should have is that the reverse computation should not
-%% rely on previous values of the state variables. The second property that the  models should
-%% have is simple forward computation that contains very few branches. More complex code
-%% will lead to a larger control state which can end up being as large or larger than the data
-%% state of the LP's.
-
-%% Because of the limitations of on-the-fly fossil collection, ROSS does not use it and instead
-%% uses conventional fossil collection triggered by a GVT change. To make fossil collection
-%% more efficient, LP's within are further divided into units called Kernel Processes (KPs).
-%% The LP's within each KP are then fossil collected together. Furthermore, because the
-%% processed events within a KP are grouped together, the KP's must also be rolled back as a
-%% single unit just like clustered rollback in Clustered Time Warp.
 
 \section{\textsc{warped}}
 
@@ -1086,21 +1037,11 @@ int main(int argc, const char **argv) {
 
 \subsection{x86 SMP Nodes and Clusters}
 
-\subsubsection{Intel Core i7}
+For the majority of the assessments, just a single x86 SMP machine will be used. These
+simulations will be run on an Intel Core i7-4770 quad core with hyperthreading which
+supports up to 8 concurrent threads.
 
-For the majority of the assessment througout this thesis, just a single x86 SMP machine
-will be used. For this assessment, an Intel Core i7-4770 will be used. It is a quad core
-machine with hyperthreading and supports up to 8 concurrent threads.
-
-\subsubsection{Intel Xeon Cluster}
-
-\subsection{ARM big.LITTLE Nodes and Clusters}
-
-In chapter \ref{big_little_platform}, a seperate set of experiments will be run on an
-ARM big.LITTLE platform. 
-
-\subsubsection{ODROID XU3}
-
+A cluster of Intel Xeon nodes will be used for assessment on multiple node simulations.
 
 \pagebreak
 
@@ -1166,6 +1107,7 @@ Every LP keeps track of the following state variables:
     \item Number of handoff blocks
 \end{itemize}
 
+\noindent
 Call arrivals to a portable also follow a poisson distribution. The cells in the model
 generate all of their own incoming calls in a self-initiating process.
 Four types of events are used to model the network: \begin{inparaenum}[(1)] \item NextCall,
@@ -1177,20 +1119,18 @@ uniform probability.
 \subsection{Traffic}
 
 The traffic model describes a grid of intersections and the movement of cars through
-the intersection and between the intersections. All intersections are four ways and have
-three lanes in each direction. The LPs in the traffic model are the intersections and form
-a square grid in the same way as that of the PCS model. The layout is illustrated in
-figure \ref{traffic_model_lps}.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth]{figs/graphviz/traffic_model.pdf}
-    \caption{Traffic Model Logical Processes}\label{traffic_model_lps}
-\end{figure}
+the intersection and between the intersections. All intersections are four way intersections
+and have three lanes in each direction. The LPs in the traffic model are the intersections
+and form a rectangular grid in the same way as that of the PCS model. The layout is illustrated
+in figure \ref{traffic_model_lps}.
 
 The simulation starts with a uniform distribution of cars at each intersection and each
-car is a assigned a destination. With each arrival at an intersection the car always
-goes in the direction that gets it closer to its destination.
+car is a assigned a destination which it finishes at. With each arrival at an intersection
+the car always goes in the direction that gets it closer to its destination.
+The number of cars going out of an intersection in the same direction is limited to a
+maximum number due traffic on the approaching road. An incoming car that cannot travel in
+a specific direction is forced back in the same direction it came from and tries another
+route. For each intersection, the state consists of:
 
 \begin{itemize}
     \item Number of cars coming into the intersection from each direction
@@ -1199,27 +1139,57 @@ goes in the direction that gets it closer to its destination.
     \item Total cars finished at the intersection
 \end{itemize}
 
-The number of cars going out of an intersection in the same direction is limited to a
-maximum number due traffic on the road. An incoming car that cannot travel in a specific
-direction is forced back in the same direction it came from and can either try the same
-direction again or take another route.
-
 A car goes through three event phase in every intersection as shown in figure
-%\ref{traffic_events}.
-The three types of events are: \begin{inparaenum}[(1)] \item Arrival,
-\item Direction Select, and \item Departure. \end{inparaenum}
+\ref{traffic_events}. The three types of events are: \begin{inparaenum}[(1)] \item Arrival,
+\item Direction Select, and \item Departure \end{inparaenum}. The arrival and departure
+events are mainly used for simple state updates and timing of the next events.
+The direction select event is where the complexity of the simulation is and determines the
+direction that the car should go in order to reach its destination or whether the car should
+take another route due to traffic on the road.
 
-%\begin{figure}[H]
-%    \centering
-%    \includegraphics[width=\textwidth]{figs/graphviz/traffic_events.dot}
-%    \caption{Intersection Event Sequence}\ref{traffic_events}
-%\end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{figs/graphviz/traffic_events.pdf}
+    \caption{Intersection Event Sequence}\label{traffic_events}
+\end{figure}
+
+All events in the traffic model follow an exponential distribution and a single event
+is generated with the processing of each event. The departure and direction select events
+are self-generated but the arrival event is from an adjacent intersection.
 
 \subsection{Epidemic}
 
+The epidemic model describes the spreading of an infectious disease across a set of
+geographic locations in a region and across a set of regions. The logical processes in
+the simulation are geographic locations which represent a portion of the population. The
+interactions between people in different geographic locations and regions are modeled with
+a diffusion network. An abstract view of the simulation model is shown below in figure
+\ref{epidemic_model}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{figs/graphviz/epidemic.pdf}
+    \caption{Epidemic Model}\label{epidemic_model}
+\end{figure}
+
+The model is based on reaction-diffusion model\cite{perumalla-12}. The reaction process
+models the behavior of the disease within a person as well as the transmission of the
+disease between people within the same location. A probabilistic reaction function defines
+the behavior of the disease between individuals\cite{barrett-08}. The disease within an
+individual is modeled by a Probabilistic Timed Transition System (PTTS)\cite{barrett-08}
+which is a finite state machine describing the disease states and transitions between states.
+Together, the interhost and intrahost models of the disease form the \emph{disease model}.
+The diffusion network models the social interactions of people between locations and between
+region\cite{barrett-08}.
+
 \subsection{Airport}
 
-
+The airport model describes the departure and arrivals of airplanes between a connected
+set of airports. The logical processes represent airports and the events are simply
+departures and arrivals. For simplicity, the airports are connected in a rectangular grid
+and can only fly to aiports to the north, east, south, or west of the aiport departed from.
+The time spent between takeoff and landing and between landing and takeoff both follow an
+exponential distributions.
 
 \chapter{\textsc{warped2} Data Structures and Their Organization}\label{warped2_ds}
 
@@ -1456,16 +1426,16 @@ Due to the advantages mentioned above, \textsc{warped2} implements ticket spinlo
 \begin{algorithm}
 \DontPrintSemicolon
 \SetKwFunction{fetchAndIncrement}{fetchAndIncrement}
+\SetKwBlock{Acquire}{lock}{end}
+\SetKwBlock{Release}{unlock}{end}
 \SetAlgoVlined
 
-    \tcc{Aqcuire}
-    \Begin{
+    \Acquire{
         $my\_number \gets \fetchAndIncrement{next\_number}$\;
-        \Repeat{$ticket = my\_number$}{nothing}
+        \Repeat{$ticket = my\_number$}{\tcp{Do nothing}}
     }
     \;
-    \tcc{Release}
-    \Begin{
+    \Release{
         $\fetchAndIncrement{ticket}$
     }
 
