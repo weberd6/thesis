@@ -1,0 +1,61 @@
+digraph epidemic {
+    node [shape = record];
+
+    subgraph cluster_region0 {
+        location0 [label = "Location", style = filled, color = green3];
+        location1 [label = "Location", style = filled, color = green3];
+        location2 [label = "Location", style = filled, color = green3];
+
+        intra0 [shape = none, image="cloud.png", label = "Intra-Region Diffusion Network",
+                fixedsize = true, width = 4, height = 1];
+
+        "location0" -> "intra0";
+        "location1" -> "intra0";
+        "location2" -> "intra0";
+
+        label = "Region";
+        style = filled;
+        color = lightgrey;
+    }
+
+    subgraph cluster_region1 {
+        location3 [label = "Location", style = filled, color = green3];
+        location4 [label = "Location", style = filled, color = green3];
+        location5 [label = "Location", style = filled, color = green3];
+
+        intra1 [shape = none, image="cloud.png", label = "Intra-Region Diffusion Network",
+                fixedsize = true, width = 4, height = 1];
+
+        "location3" -> "intra1";
+        "location4" -> "intra1";
+        "location5" -> "intra1";
+
+        label = "Region";
+        style = filled;
+        color = lightgrey;
+    }
+
+    subgraph cluster_region2 {
+        location6 [label = "Location", style = filled, color = green3];
+        location7 [label = "Location", style = filled, color = green3];
+        location8 [label = "Location", style = filled, color = green3];
+
+        intra2 [shape = none, image="cloud.png", label = "Intra-Region Diffusion Network",
+                fixedsize = true, width = 4, height = 1];
+
+        "location6" -> "intra2";
+        "location7" -> "intra2";
+        "location8" -> "intra2";
+
+        label = "Region";
+        style = filled;
+        color = lightgrey;
+    }
+
+    inter [shape = none, image="cloud.png", label = "Inter-Region Diffusion Network",
+           fixedsize = true, width = 6, height = 1.5];
+
+    "intra0" -> "inter";
+    "inter" -> "intra1" [dir = "back"];
+    "inter" -> "intra2" [dir = "back"];
+}
