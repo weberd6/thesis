@@ -387,13 +387,12 @@ periodic state saving, incremental state saving, and reverse computation.
 \section{Parallel Systems Architectures}
 
 Systems that support parallel processing come in many forms. They can generally be
-characterized by how processors and memories are grouped together. 
+characterized by how processors and memories are grouped together. Shared memory
+systems are a single machine which share a common address space which can have a single
+physical memory unit or multiple memory units. On the other hand, a cluster is a system
+comprised of multiple machines with seperate address spaces. 
 
 \subsection{Shared Memory Multiprocessor Systems}
-
-A shared memory multiprocessor is a system where processors in the system have a common
-shared address space. The address space can be within a single memory or multiple memories
-depending on the system.
 
 \paragraph{A Symmetric Multiprocessor (SMP)} is a type of shared memory multiprocessor
 system where each processor has uniform access to a single shared memory through a common
@@ -411,8 +410,8 @@ like.
 \end{figure}
 
 \paragraph{A Distributed Shared Memory} sytem, also known as a Non-Uniform Memory Access
-(NUMA) has mulitple memories that are distributed. In these systems, the memories are stilled
-shared between processors, but access to different memories may take different amounts
+(NUMA) system has mulitple memories that are distributed. In these systems, the memories are
+stilled shared between processors, but access to different memories may take different amounts
 of time. An interconnection network connects processors and memories together with one or
 more processors per memory. Because memory access times can vary, software on NUMA systems
 usually try to keep memory accesses local to a processor. However, NUMA systems can scale
@@ -429,8 +428,12 @@ NUMA system might look like.
 \subsection{Clustered Systems}
 
 \paragraph{A Beowulf Cluster} is a type of cluster which appears to the user as a single
-machine. A single program is executed by all machines in the cluster and typically use
-parallel communication software such as MPI or PVM.
+machine but is actually a loosely coupled set of machines connected together over a local
+network. A single program is executed by all machines concurrently by launching multiple
+processes on each machine. A program written for a beowulf cluster typically use some type
+of message passing to communicate among processes and is typically written with parallel
+communication software such as MPI or PVM. Figure \ref{beowulf} illustrates a common realization
+of a beowulf cluster.
 
 \begin{figure}[H]
     \centering
@@ -442,11 +445,13 @@ parallel communication software such as MPI or PVM.
 
 Parallel applications are composed of multiple workers that operate independantly in parallel
 and may have to exchange information. The workers in a parallel application can be a process,
-thread, or any other type of execution context. Workers can communicate by either sending
-explicit messages to each other by means of well defined message formats or by using shared
-data structures that all workers can access. The former method is known as \emph{message passing}
-and the latter method is known as \emph{shared memory}. Both communication models are
-fundamentally different and both have strengths and weaknesses.
+thread, or any other type of execution context and can be within a shared memory system or a
+cluster or any type of parallel system. Workers can communicate by either sending explicitly
+passing messages to each other by means of well defined message formats or by using shared
+data structures that all workers can access. The former method of communication is known as
+\emph{message passing} and the latter method of communication is known as \emph{shared memory}
+communication. Both communication methods are fundamentally different and both have strengths
+and weaknesses.
 
 \subsection{Message Passing}
 
@@ -460,38 +465,39 @@ the sender will block until the message is received at the reciever and the rece
 at the receiver will block until the message is fully received. That means the every worker
 must follow a predictable communication pattern. Workers cannot continue other operations
 during communication operations and may slow down the whole system. On the other hand,
-asynchronous communication allows workers to start send and recieve operations and immediately
-continue without blocking. To allow this, intermediate queues must be used to hold pending
+asynchronous communication allows workers to start a send and recieve operations and immediately
+continue without blocking. To allow this, temporary queues must be used to hold pending
 operations. The workers do not have to follow a predictable communication pattern in this
 case because the messages will be queued and can be processed at any time and in any order.
-The main advantage of message passing in general is that the number of workers can be scaled
-very efficiently as long as the work is partitioned in the right way. The workers can execute
-in address spaces on different machines and communicate over a local network. The biggest
-disadvantage, however, is the high communication latency compared to computation speed.
-Since workers run in different address spaces the messages must be copied or if the address
-spaces exist on different machines, they must be propagated through the network. This makes
-message passing especially hard for fine-grained parallel applications. An illustration of
-simple message passing is shown in figure \ref{communication}.
+The main advantage of message passing is that the number of workers can be scaled to any size
+as long as the work is partitioned in the right way. Also, he workers can execute in address
+spaces on different machines and communicate over a local network connection. The biggest
+disadvantage, however, is an increased communication latency which can be vary large compared
+to the speed of computation. This makes message passing especially hard for fine-grained
+parallel applications. An illustration of simple message passing is shown in figure
+\ref{communication}.
 
 \subsubsection{Message Passing Interface (MPI)}
 
 MPI\cite{Forum:1994:MMI:898758} is an extensive message passing API specification for parallel
-applications and supports both synchronous and asychronous forms of communication. MPI is just
+applications and supports both synchronous and asychronous forms of communication. It is
 a standard specification for developers and MPI users and many current implementations exist.
 The most widely used implementations used in practice include MPICH and OpenMPI.
 
 \subsection{Shared Memory}
 
-The workers in a parallel application can also share a single address space and communicate
+The workers in a parallel application can also share a common address space and communicate
 through shared data structures. The producer worker will insert data directly into the data
 structure and the consumer worker will remove the data and use it. This takes much less time
-to send data than message passing. However, access to the shared data structures must be
-protected so that multiple workers do not simultaneously access the same data which could
-cause unpredictable results. Access to the data is enforced using lock synchronization
-mechanisms such as mutexes or semaphores. Shared memory data structures may suffer from
-performance if lots of workers contend for the lock at the same time. For this reason, it
-is very hard to scale systems that use only shared memory as a means of communication. An
-illustration of a simple shared memory system is show in figure \ref{communication}.
+to transmit data than with a message passing scheme. However, access to the shared data
+structures must be protected so that multiple workers do not simultaneously access the same
+data which could cause unpredictable results. Access to the data structures is usually enforced
+using lock synchronization mechanisms that protect entire sections of code that are executed by
+different workers and can end up accessing the same data structures such as mutexes or semaphores.
+Shared memory data structures may suffer from performance if lots of workers contend for the
+lock at the same time. For this reason, it is very hard to scale systems that use only shared
+memory as a means of communication. An illustration of a simple shared memory system is show
+in figure \ref{communication}.
 
 \begin{figure}[H]
     \centering
@@ -568,23 +574,25 @@ right policies. A diagram that illustrates HMP is shown in figure \ref{global_ta
 
 \chapter{Related Work}\label{related_work}
 
-This chapter give an overview of some of the most popular Time Warp systems. For each system,
-the design will be described at a high level. The the data structures and algorithms used
-will be described further as well as the strengths and weaknesses.
+This chapter give an overview of some of the most popular Time Warp implementations. For each
+impementation the design will be described at a high level with a focus on the target
+architecture. The featured data structures and algorithms for each will also be described
+as well as the strengths and weaknesses.
 
 \section{Georgia Tech Time Warp (GTW)}
 
-Georgia Tech Time Warp is a general purpose Time Warp Simulator designed specifically for
-shared memory multiprocessors. Although GTW is not used any more, it's design has influenced
-the design of other simulators that are used widely in practice. GTW simulation models run
-in a single processes, multi-threaded environment and uses only shared memory to communicate
-between threads that are bound to single processor. The LP's for all models are statically
-allocated to a single thread so that events for the LP's are processed only on a single
-processor.
+Georgia Tech Time Warp wass a general purpose Time Warp Simulator designed specifically for
+shared memory multiprocessors. It is not used anymore, however, because it was only written
+to target SparcStation and SGI PowerChallenge which are now obsolete. Although GTW is not
+used any more, it's design has influenced the design of other simulators that are still used
+widely in practice. GTW simulation models run in a single processes, multi-threaded environment
+and uses only shared memory to communicate between threads that are bound to single processor.
 
-The pending event set is distributed among threads with each having its own data structures.
-Since the threads can only run on a single processor, the data structures are owned by that
-processor. The pending event set for each processor consists of three main data structures
+The LP's for all models are statically allocated to a single thread so that events for the
+LP's are processed only on a single processor. The pending event set is distributed among
+threads with each having its own data structures for the set of LPs that belong to it.
+Since the threads can only run on a single processor, the data structures also belong to a
+singl processor. The pending event set for each processor consists of three main data structures
 listed below\cite{das-94}:
 
 \begin{enumerate}
@@ -595,7 +603,7 @@ listed below\cite{das-94}:
         the message queue except that it containes only negative messages(anti-messages).
         Access to this queue must also be synchronized.
     \item The \emph{Event Queue} is used to hold unprocessed and processed events and is
-        directlyused to schedule events to be processed. The event queue is actually made
+        directly used to schedule events to be processed. The event queue is actually made
         up of different data structures, one for processed events and one for unprocessed
         events. The processed events are contained within a doubly linked list and the
         unprocessed events are contained within a priority queue which can be configured to
@@ -604,11 +612,11 @@ listed below\cite{das-94}:
 
 \noindent
 When messages are sent between LP's, they are inserted directly in the message queue or
-the cancel queue depending on whether they are positive or negative. Each thread first moves
-messages from the message queue to the event queue and processes any rollbacks. Then, the
-messages from the cancel queue are removed and cancellations and any more rollbacks are
-processed. The smallest event from the event queue is then processed and added to the
-processed event list. This procedure is repeated over over and over again by all processors.
+the cancel queue depending on whether they are positive or negative. Each thread processes events
+by first moving events from the message queue to the event queue and processing rollbacks. Then,
+the messages from the cancel queue are removed and cancellations are processed and any more
+rollbacks are processed. One or more of the smallest events from the event queue are then processed
+and added to the processed event list. This procedure is repeated over and over again by all processors.
 Psuedocode for the main event processing loop in GTW is show in figure \ref{gtw_processing}.
 
 \begin{algorithm}
@@ -617,22 +625,31 @@ Psuedocode for the main event processing loop in GTW is show in figure \ref{gtw_
     \While{eventQ is not empty} {
         move messages from MsgQ to EvQ and process any rollbacks\;
         remove anti-messages from CanQ, process annihilations and rollbacks\;
-        remove smallest timestamped event E from EvQ\;
-        processe event E\;
+        remove N smallest timestamped events E from EvQ\;
+        process the N events\;
     }
 \caption{GTW Main Event Processing Loop\cite{das-94}\cite{fujimoto-94}\label{gtw_processing}}
 \end{algorithm}
 
 \noindent
 To avoid accessing the message queues and cancel queues too often, which is a contention point,
-GTW also supports batch processing. With batch processing, multiple events will be processed
-at a time without processing any rollbacks or cancellations.
+a larger value of N can be used. GTW calls this batch processing and N is the batch interval.
+With batch processing, multiple events will be processed at a time without processing any
+rollbacks or cancellations.
 
+Since GTW is only uses shared memory communication, anti-messages do not need to be explicitly
+sent. Only a pointer to the event that needs to be cancelled is necessary. Fujimoto calls
+this method \emph{direct cancellation}. Also by only using shared memory, GVT can be calculated
+very quickly using shared data structures instead of passing messages around to all processors.
+The downfall of GTW, however is that it was limited to only a single multiprocessor machine and
+it was only designed and optimized for specific architectures.
+
+GTW also imposed some unnecessary requirements for the developer of particular simulation models.
 The partitioning of the LP's among processors must be done in the simulation model during
 initialization. That means that the model developer must understand some the features of
 the underlying architecture such as the number of processors, to effectively partition the
-LP's. Furthermore, the initial partitioning of the LP's is hard to change during the course
-of the simulation because there are no seperate input queues but rather a single message
+LP's. Furthermore, the initial partitioning of the LP's is hard to dynamically balance during
+the simulation because there are no seperate input queues for each LP but rather a single message
 queue to hold all unprocessed events for each processor.
 
 \section{Clustered Time Warp (CTW)}
@@ -643,10 +660,11 @@ This design was chosen because it works well for digital logic simulation which 
 localized computation within a group of LP's. Furthermore, digital logic simulation tends to
 have low computational granularity and lot's of LP's which can lead to a lot of rollbacks
 and a large memory footprint in a traditional Time Warp simulator. CTW is implemented for
-shared memory multiprocessors but only uses shared memory for use with a message passing
-system. No other shared memory algorithms are used.
+shared memory multiprocessors but only uses shared memory for use with a custom message passing
+system so that it can better support NUMA architectures. It is not designed for use on a
+network of machines such as a beowulf cluster.
 
-Each cluster has a timezone table, an output queue, and a set of LP's which each have an
+Each cluster of LPs has a timezone table, an output queue, and a set of LP's which each have an
 input queue and a state queue. The timezones in the timezone table are divided by timestamps
 of the events received from LP's on different clusters. Whenever an event is received from
 a remote cluster, a new timezone is added. Only a single output queue is needed per cluster
@@ -680,11 +698,11 @@ ROSS\cite{carothers-00} is a general purpose simulator that is capable of runnin
 conservatively and optimistically synchronized parallel simulations as well as sequential
 simulations. It is most often used for optimistic parallel simulations which is achieved
 with the time warp mechanism. ROSS started as a reimplementation of GTW and is still
-modeled after it but has some enhancesments. The same basic event scheduling mechanism is
+modeled after it but has had many enhancesments. The same basic event scheduling mechanism is
 used but ROSS supports different priority queue implementations and different algorithms
 are used for fossil collection, state saving, and gvt calculation. In addition, ROSS uses
-processes instead of threads and uses message passing with MPI instead of shared memory
-for communication among the processes.
+processes instead of threads and uses message passing explicitly with MPI instead of shared
+memory for communication among the processes.
 
 Just as in GTW, ROSS maps every LP to a process and each process contains its own pending
 event set structures. No locks are needed explicity within each process because there are
@@ -699,25 +717,22 @@ used in GTW but have a different naming convention. The main data structures in 
     \item The \emph{Cancel Queue} is a linked list which is used to hold negative events
         for all LP's for the corresponding process. The cancel queue is used in the exact
         same way as GTW except that no locks are necessary.
-    \item The \emph{Priority Queue} is analogous to the event queue in GTW and contains
-        events in timestamp order. ROSS also allows the priority queue to be implemented
-        as a calendar queue, heap, splay tree, or avl tree depending on user configuration.
+    \item The \emph{Priority Queue} is analogous to the unprocessed event queue in GTW and
+        contains events in timestamp order. ROSS also allows the priority queue to be
+        implemented as a calendar queue, heap, splay tree, or avl tree depending on user
+        configuration.
 \end{enumerate}
 
 \section{\textsc{warped}}
 
-\textsc{warped} is the predecessor of \textsc{warped2}. The complexity of \textsc{warped}
-became unmaintainable over the years which eventually led to its demise and rewrite.
-\textsc{warped}, from its beginnings, has always followed a modular design to allow maximum
-flexability for new optimization.
-
-The famous computer scientist David Wheeler used to say "All problems in computer science
-can be solved by another level of indirection."
-
-Kevlin Hennley's corallary to goes "...except for the problem of too many layers of
-indirection."
-
-The original \textsc{warped} was written for 
+\textsc{warped} is the predecessor of \textsc{warped2} and serves as the basis for the design
+and architecture of \textsc{warped2}. \textsc{warped} started as a completely processed-based
+solution with only message passing for communication. Eventually, with the development of
+multicore processors, each process was extended into multiple threads to further enhance
+concurrent processing of events. Over the years, with many students developing new algorithms
+in \textsc{warped2}, the complexity of \textsc{warped} became unmaintainable, mainly because
+of the great deal of indirection which, although made for a super configurable and modular
+design, became too complex for new students to learn it and enhance it.
 
 \section{Others}
 
