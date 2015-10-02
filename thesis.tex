@@ -146,8 +146,6 @@
 
 \chapter{Introduction}\label{intro}
 
-\section{Motivation and Plan of Study}
-
 %% Background
 Many systems can be described by events that occur in discrete time intervals such as
 communication networks, digital logic circuits, transportation systems, or disease
@@ -166,11 +164,11 @@ be achieved by using shared data structures or by passing explicit messages betw
 %% Problem Statement
 Some time warp systems are designed for only shared memory multiprocessors. These systems
 minimize communication latencies and allow very fast, simple algorithm because everything
-can run in a single address space and use shared data structrures. However, they are still
-limited by the computational power and memory size of the machine. Other time warp systems
-are completely based on a message passing scheme. These systems can be scaled to any number
-of machines using interconnection networks as a means of exhchanging messages. However,
-this approach introduces high communication latencies.
+can run in a single address space and use shared data structrures with pointers to prevent
+unnecessary copying. However, they are still limited by the computational power and memory
+size of the machine. Other time warp systems are completely based on a message passing scheme.
+These systems can be scaled to any number of machines using interconnection networks as a means
+of exhchanging messages. However, this approach introduces high communication latencies.
 
 %% Solution
 The \textsc{warped2} simulation kernel, which is a reimplementation of the original
@@ -644,13 +642,13 @@ very quickly using shared data structures instead of passing messages around to 
 The downfall of GTW, however is that it was limited to only a single multiprocessor machine and
 it was only designed and optimized for specific architectures.
 
-GTW also imposed some unnecessary requirements for the developer of particular simulation models.
-The partitioning of the LP's among processors must be done in the simulation model during
-initialization. That means that the model developer must understand some the features of
+GTW also imposed some unnecessary requirements for the developer of particular simulation
+models. The partitioning of the LP's among processors must be done in the simulation model
+during initialization. That means that the model developer must understand some the features of
 the underlying architecture such as the number of processors, to effectively partition the
 LP's. Furthermore, the initial partitioning of the LP's is hard to dynamically balance during
-the simulation because there are no seperate input queues for each LP but rather a single message
-queue to hold all unprocessed events for each processor.
+the simulation because there are no seperate input queues for each LP but rather a single
+message queue to hold all unprocessed events for each processor.
 
 \section{Clustered Time Warp (CTW)}
 
@@ -765,24 +763,19 @@ Furthermore, a LIFO approach is taken to improve cache reuse.
 \chapter{The \textsc{warped2} Simulation Kernel}\label{warped2_overview}
 
 This chapter describes the software architecture of the \textsc{warped2} simulation kernel.
-The main compenents are described. The modeling API is also described and an example model
-is shown to illustrate the API.
+The main compenents are described and the dependencies between each of them. The modeling API
+is also described and an example model is shown to illustrate the API.
 
 \section{The Software Architecture of \textsc{warped2}}
 
-The \textsc{warped2} simulation kernel uses a modular design to make it configurable,
-extendable, and maintainable.
-
-\subsection{Event Dispatcher}
-
-The event dispatcher is at the center of everything and determines how the simulation will
-be progressed. Warped2 currently supports the event dispatcher to be configured for either
-sequential simulation or time warp simulation. The sequential event dispatcher just contains
-a single list of all events because only a single event is processed at a time. The time warp
-event dispatcher has more complex data structures and multiple components. In either case,
-the event dispatcher calls methods that are defined by the LP. Since a sequential simulation
-doesn't really have any real complexity only the time warp event dispatcher will be discussed
-any further. The time warp components are illustrated in figure \ref{warped2_architecture}.
+The \textsc{warped2} simulation kernel uses a modular design to make it more configurable,
+extendable, and maintainable. All components are configured and created at startup individually
+and subcomponents are accessed through pointers. Furthermore, \textsc{warped2} is written in
+C++ so each component can also be an object of derived subclass that implement a well-defined
+interface by a base class. The main central component is the event dispatcher which is responsible
+for calling the LP callback methods during the course of the simulation as well as determing
+when rollbacks and cancellation is necessary and carrying them out. The main components and
+how they depend on eachother are illustrated in figure \ref{warped2_architecture}.
 
 \begin{figure}[H]
     \centering
@@ -790,75 +783,69 @@ any further. The time warp components are illustrated in figure \ref{warped2_arc
     \caption{Time Warp Components in \textsc{warped2}}\label{warped2_architecture}
 \end{figure}
 
-\noindent
-Each process has its own time warp components that exist in only their own address space.
+Warped2 also supports a sequential event dispatcher. The sequential event dispatcher, however
+does not depend on any other components and just contains a single list of all events since
+only a single event is processed at a time.
+
 The time warp components can be categorized as either a local time warp component or a global
-time warp component. The local time warp components are concerned only with the local control
-mechanism of the individual LP's such as rollbacks and fossil collection whereas the global
-time warp components are concerned with the global control mechanisms such as GVT, termination
-detection and statistics counting.
+time warp component. The local time warp components are used only for the local control
+mechanism of the individual LP's such as rollbacks, cancellation and fossil collection whereas
+the global time warp components are concerned with the global control mechanisms such as GVT,
+termination detection and statistics counting. The global time warp components must be able to
+communicate with all other processes in the system so that it is possible to determine the
+global state of the system.
 
 \subsection{Local Time Warp Components}
 
 \paragraph{The Event Set} contains the data structures for all of the unprocessed and
-processed events for the LPs that are local to the process. This is where the events are
-scheduled for processing. It provides methods for getting the next event, rolling back an
-LPs input queue, and fossil collecting the processed events for an LP.
+processed events for the LPs that are local to the process. This includes the input queues for
+each LP as well as a scheduling data structure. The event set provides methods for retrieving the
+next event, processing a rollback, and fossil collecting the processed events. All the data
+structures that have pending events must necessarily be thread safe.
 
-\paragraph{The Output Manager} contains all of the output queues and implements a cancellation
-technique. It provides methods for adding an event to an LPs output queue, rollback back an
-LPs output queue, and fossil collecting old output events. Currently, \textsc{warped2} only
-supports aggressive cancellation.
+\paragraph{The Output Manager} contains all of the output queues and implements a single
+cancellation technique. The output manager base class provides a set of methods that a derived
+class must implement. The derived class must have methods for adding an event to an output queue,
+processing a rollback, and fossil collecting old output events. Currently, \textsc{warped2} only
+implements aggressive cancellation but may support more cancellation techniques in the future.
 
-\paragraph{The State Manager} contains all of the state queues and implements a technique
-for saving and restoring states for the LPs. It provides methods for saving the state of an
-LP, restoring the state of an LP, and fossil collecting old states. Currently, \textsc{warped2}
-only supports periodic state saving.
+\paragraph{The State Manager} contains all of the state queues and implements a single technique
+for state saving and state restoration. Just like the output manager, it also hase a base
+class. The derived class provide methods for saving the state of an LP, restoring the state of
+an LP, and fossil collecting old states. Currently, \textsc{warped2} only implements periodic
+state saving.
 
-\subsection{Global Time Warp Components}
+\subsection{Global Time Warp Components and Communication Manager}
 
-\paragraph{The GVT Manager} implements an algorithm for determining the Global Virtual Time
-of the simulation. A more detailed description of the GVT algorithm used in \textsc{warped2}
-is given in chapter \ref{gvt_termination}.
-
-\paragraph{The Termination Manager} impements an algorithm for determining when all processes
-become inactive and initiates termination when that occurs. A more detailed description of
-the termination algorithm used in \textsc{warped2} is given in chapter \ref{gvt_termination}.
-
-\paragraph{The Time Warp Statistics Manager} keeps track of all local statistics counts and
-provides methods to do global reductions on the statistics.
-
-\subsection{Communication Manager}
+The GVT manager implements an algorithm for determining the Global Virtual Time of the simulation.
+Because of the nature of \textsc{warped2}, the GVT algorithm has a base message passing algorithm
+with a shared memory subalgorithm. The termination manager impements an algorithm for determining
+when all processes become inactive and initiates termination when that occurs. A more detailed
+description of the GVT and termination detection algorithms used in \textsc{warped2} are given
+in chapter \ref{gvt_termination}. The Time Warp statistics manager keeps track of all local
+statistics and provides methods for global reductions on the them.
 
 The communication manager provides an interface between the underlying message passing library
-and the \textsc{warped2} simulation kernel. Any interprocess communication must go through the
-communication manager whether the communication processes are on the same machine or different
-machines.
+and the global time warp components in the \textsc{warped2} simulation kernel. Any interprocess
+communication must go through the communication manager, including remote events that must be
+sent to another process or received from another process.
 
 \section{The Modeling API of \textsc{warped2}}
 
 The modeling interface of warped2 is a set of abstract base classes that contain methods
-that must be implemented in a derived class. The base classes may also contain methods and
-data members that are available to use by the derived classes. The three main base class
+to be implemented in a derived class in the simulation model. The three main base class
 types that must be implemented are LogicalProcess, LPState, and Event. Optionally, the user
 may create a custom partitioner from the Partitoner base class. In the remainder of this
 section, each class is described in more detail and sample implementations are shown for each.
 
 \subsection{The LPState Structure}
 
-The state of the LP's must be define with the \textsc{warped\_define\_lp\_state\_struct}
-macro. This is used to ensure that the warped2 kernel can save a copy of the state and
-restore the state from a pointer to the LogicalProcess base class. An intermediate template
-class is defined which defines the necessary methods to make a copy of the state and to
-restore the state so that the user does need to explicitly define them. However, if the
-state contains complex data structures that contains pointers then the default copy
-constructor and default copy assignment operator will only perform shallow copies. In this
-case the user must implement a custom copy constructor or a custom copy assignment operator
-or both. The copy constructor will define the behavior for saving the state whereas the
-copy assignent operator will define the behavior for restoring the state. Note that the
-copy assignment operator will most likely not be needed since a shallow copy will usually
-suffice. A simple example of a LP state that contains just message counts is shown
-below in listing \ref{example_state}.
+The state of the LP's must be defined with the \textsc{warped\_define\_lp\_state\_struct}
+macro which automatically derives from an intermediate structure that defines a necessary
+clone method so that the model developer does not have to. It is needed to ensure that the warped2
+kernel can save a copy of the state and restore the state from a pointer to the LogicalProcess
+base class. A simple example of a LP state that contains just message counts is shown below in
+listing \ref{example_state}.
 
 \begin{lstlisting}[caption=Example \textsc{warped2} State Definition, label=example_state, float]
 WARPED_DEFINE_LP_STATE_STRUCT(ExampleState) {
@@ -867,20 +854,28 @@ WARPED_DEFINE_LP_STATE_STRUCT(ExampleState) {
 };
 \end{lstlisting}
 
+If the state contains complex data structures that contains pointers then the default copy
+constructor and default copy assignment operator will only perform shallow copies. In this
+case the user must implement a custom copy constructor or a custom copy assignment operator
+or both. The copy constructor will define the behavior for saving the state whereas the
+copy assignent operator will define the behavior for restoring the state. Note that the
+copy assignment operator will most likely not be needed since a shallow copy will usually
+suffice for restoring the state.
+
 \subsection{The Event Class}
 
 The event base class is used as the basis for creating model specific events. The user must
-implement at least two function: \texttt{receiverName()} and \texttt{timestamp()} so that
-the name of the receiver and receive time, respectively, can be obtained for each instance
-of an event. The user must also register all member variables with the serialization API so
-that a storage order can be defined for events that are sent and received over a network.
-To do this, the WARPED\_REGISTER\_SERIALIZABLE\_MEMBERS macro is provided. All member
-variable must be passed to this macro as well as
-\texttt{cereal::base\_class<warped::Event>(this)} to ensure that all members that are
-inherited are also serialized serialized. The order that the members are listed is completely
-arbitrary and does not matter. In addition, the derived event type must be registered using
-the WARPED\_REGISTER\_POLYMORPHIC\_SERIALIZABLE\_CLASS macro. A basic example of an event
-implementation is shown below in listing \ref{event_example}.
+implement at least two methods: \begin{inparaenum}[(1)] \item \texttt{receiverName()} and 
+\item \texttt{timestamp()} \end{inparaenum}. It is necessary so that the name of the receiver
+and receive time, respectively, can be obtained for each instance of an event within the kernel.
+The user must also register all member variables with the serialization API so that a storage
+order can be defined for events that are sent and received through the message passing system.
+To do this, the WARPED\_REGISTER\_SERIALIZABLE\_MEMBERS macro is provided. All member variable
+must be passed to this macro as well as \texttt{cereal::base\_class<warped::Event>(this)} to
+ensure that all members that are inherited are also serialized. The order that the members are
+listed is completely arbitrary and does not matter. In addition, the derived event type must
+be registered using the WARPED\_REGISTER\_POLYMORPHIC\_SERIALIZABLE\_CLASS macro. A basic
+example of an event implementation is shown below in listing \ref{event_example}.
 
 \begin{lstlisting}[caption=Sample \textsc{warped2} Event Definition, label=event_example, float]
 class ExampleEvent : public warped::Event {
@@ -908,24 +903,25 @@ WARPED_REGISTER_POLYMORPHIC_SERIALIZABLE_CLASS(ExampleEvent)
 
 The most important class definition in the simulation model is the LogicalProcess class.
 The implementation of the LogicalProcess class defines the callback functions that the
-warped2 kernel calls and thus defines the behavior of the simulation. The user must include
-a single LPState implementation as well three method implementations:
+event dispatcher with the warped2 kernel calls and thus it defines the behavior of the simulation.
+The user must include a single LPState as a data member of the LogicalProcess and provide three
+callback method implementations:
 
 \begin{enumerate}
-    \item The \texttt{initializeLP} method is called to perform any initializations that must
-        be done prior to the start of the simulation and must return a set of initial events.
-    \item The \texttt{receiveEvent} method is called to perform some computation based on
-        the event that is passed. The implementation of this method interprets the event,
-        updates the state of the LP and returns a set of new events with future timestamps.
+    \item The \texttt{initializeLP} method is called to perform any initializations of an LP that
+        must be done prior to the start of the simulation and must return a set of initial events.
+    \item The \texttt{receiveEvent} method is called to perform the forward computation based on
+        the event that is passed. The implementation of this method must process the event by
+        updating the state of the LP and returning a set of new events with future timestamps.
     \item The \texttt{getState} method provides a way for the warped2 kernel to get the current
-        state of the LP.
+        state of the LP so that it can be saved in the state queue.
 \end{enumerate}
 
-It is necessary that at least one LP has an initial event that is returned by
-initializeLP, otherwise no events can be received and simulation will terminate immediately.
-Also note that the it will be called once for \emph{every} LP instance so it is possible that
-initial events are returned only in some cases. An example of a LogicalProcess implementation
-is shown below in listing \ref{lp_example}.
+It is necessary that at least one LP has an initial event that is returned by initializeLP,
+otherwise no events can be received and simulation will terminate immediately. Also note that
+the it will be called once for \emph{every} LP instance so it is possible that initial events
+are returned only in some cases. An example of a LogicalProcess implementation is shown below
+in listing \ref{lp_example}.
 
 \begin{lstlisting}[caption=Example \textsc{warped2} LogicalProcess Definition, label=lp_example, float]
 class ExampleLP : public warped::LogicalProcess {
@@ -955,15 +951,13 @@ public:
 
 \subsection{The Partitioner class}\label{partitioner}
 
-The warped2 kernel already provides a round-robin partitioner and a profile-guided partitioner
-but the user can define their own partitioner that is customized for a specific model.
-The user must derive from the Partitioner base class and implement just a single method
-which takes a vector of all LP'ss and the number of partitions desired and returns a vector
-of vectors of LP's. In general, the partitioner should work for any number of partitioners
-and not impose any constraints because the partition method is called back from the kernel.
-A simplified version of the kernel's round-robin partitioner is shown in listing
-\ref{partitioner_example}. Note that a model would never have to implement such a general
-partitioner but is showed just as a simple example.
+The warped2 kernel already provides a set of partitioners but the model developer can define
+their own partitioner that is customized for the model. The user must derive from the Partitioner
+base class and implement just a single method which takes a vector of all LPs and the number of
+partitions desired and returns a vector of vectors of LP's. In general, the partitioner should
+work for any number of partitions and not impose any constraints because the partition method
+is called back from the kernel. A simple template of a partitioner is shown in listing
+\ref{partitioner_example}.
 
 \begin{lstlisting}[caption=Example \textsc{warped2} Partitioner Definition, label=partitioner_example, float]
 class ExamplePartitioner : public Partitioner {
@@ -978,24 +972,27 @@ class ExamplePartitioner : public Partitioner {
 
 \subsection{Random Number Generation}
 
-If the simulation model uses random number generators, they must all be registered with the
-warped2 kernel. This is necessary so that the state of the random number generator can be
-saved and restored in case of rollbacks. The random number generators can be any type as
-long as they implement the \texttt{<< operator} and \texttt{>> operator} to allow the kernel
-to save and restore the internal state of the random number generator. To register the
-random number generator, the registerRNG template function must be used which is a member
-of the LogicalProcess class. All LP's must have separate random number generators and must
-be registered in the initializeLP callback function as shown in listing \ref{lp_example}.
+If the simulation model must use random number generators, then they must all be registered
+with the warped2 kernel so that the state of the random number generator can be saved and
+restored in case of rollbacks and provide deterministic result. The random number generators
+can be any type as long as they implement the \texttt{<< operator} and \texttt{>> operator} to
+allow the kernel to save and restore the internal state of the random number generator. To
+register the random number generator, the registerRNG template function must be used which is
+a member of the LogicalProcess class. All LP's must have separate random number generators and
+must be registered in the initializeLP callback function as shown in listing \ref{lp_example}.
 
 \subsection{Command Line Arguments and the Kernel Entry Point}
 
 Once all the necessary structures and classes have been defined, the model's main function
-must be implementd which is where all calls into the kernel are made. First, the model
-specific command line arguments must be registered with the kernel. This must be done first
-so that it can be passed to the constructor of a \texttt{Simulation} instance. Then all of
-the LP's and optionally a partitioner must be instantiated and passed to the kernel through
-the \texttt{simulate} method of \texttt{Simulation} object. Two versions of the simulate
-methods are available, one for a model with a custom partitioner and one without as listed below:
+must be implementd which is where all calls into the kernel are made. First, the model can create
+specific command line arguments but they must be registered with the kernel. This must be done
+first so that it can be passed to the constructor of a \texttt{Simulation} instance and so that
+the command line arguments can be displayed without unnecessarily running a simulation. The
+kernel uses a third-party library called TCLAP for command line arguments. Then, after setting
+up the command line arguments, all of the LP objects and optionally a partitioner object must
+be instantiated and passed to the kernel through the \texttt{simulate} method of
+\texttt{Simulation} object. Two versions of the simulate methods are available, one for a model
+with a custom partitioner and one without as listed below:
 
 \begin{enumerate}
     \item \begin{verbatim} void simulate(const std::vector<LogicalProcess*>& lps); \end{verbatim}
@@ -1034,13 +1031,11 @@ int main(int argc, const char **argv) {
 
 
 
-\chapter{Plans of Study}\label{plans_of_study}
+\chapter{Experimental Setup}\label{plans_of_study}
 
-\section{Implementation Components of \textsc{warped2}}
+\section{x86 SMP Nodes and Cluster}
 
-\subsection{Pending Event Set}
-
-\subsection{Partitioning}
+The single node SMP experiments will be carried out on a  
 
 \subsection{State Saving}
 
@@ -1048,15 +1043,11 @@ int main(int argc, const char **argv) {
 
 \subsection{Memory Allocation}
 
-\section{Platforms for Assessment}
+\subsection{Pending Event Set}
 
-\subsection{x86 SMP Nodes and Clusters}
+\subsection{Partitioning}
 
-For the majority of the assessments, just a single x86 SMP machine will be used. These
-simulations will be run on an Intel Core i7-4770 quad core with hyperthreading which
-supports up to 8 concurrent threads.
-
-A cluster of Intel Xeon nodes will be used for assessment on multiple node simulations.
+\section{ARM big.LITTLE nodes}
 
 \pagebreak
 
@@ -2113,30 +2104,13 @@ multi-threaded applications such as \textsc{warped2}. In TCMalloc, seperate thre
 caches of free memory are maintained to avoid contention that would be caused by shared
 caches.
 
-%% Plots for TCMalloc
-
 \chapter{Observations with the ARM big.LITTLE Platform}\label{big_little_platform}
 
-\section{Removing OS Jitter}
-
-\section{Distributing the Load}
-
-\section{Increasing TLB Hits}
-
-\section{Memory Bandwidth Analysis}
-
-\chapter{Summary of Results}\label{results_summary}
-
-%% DOUG: wrap up the results, review the main configurations that make sense to the best
-%% general performance that one could expect to use.  depending on your principle results,
-%% this may have to be broken down into two main parts, one for x86 and one for ARM.
 
 \chapter[Conclusions \& Future Research]{Conclusions and Suggestions for Future Research}
 \label{conclude}
 
 \section{Summary of Findings}
-
-
 
 \section{Detailed Conclusions}
 
