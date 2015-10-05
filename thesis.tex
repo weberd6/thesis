@@ -250,9 +250,6 @@ Chapter \ref{memory_management} analyzes techniques for managing memory efficien
 includes state saving techniques, fossil collection, and GVT period. Some preliminary results
 are also shown for various configurations.
 
-Chapter \ref{results_summary} summarizes the preliminary results from preceding chapters by
-putting them all together.
-
 Finally, Chapter \ref{conclude} contains some concluding remarks and suggestions for future
 research.
 
@@ -1037,7 +1034,39 @@ int main(int argc, const char **argv) {
 
 The single node SMP experiments will be carried out on a  
 
+\pagebreak
+
+\begin{table}
+    \centering
+    \begin{tabular}{|| l | l | c | c ||}
+    \hline
+    & & Intel Core i7-4770 & Intel Xeon E5410 \\ [0.5ex]
+        \hline\hline
+        \multirow{8}{*}{Processor}
+            & ISA           & x86\_64   & x86\_64   \\
+            & \# Cores      & 4         & 8 (2x4)   \\
+            & \# Threads    & 8         & 8         \\
+            & Frequency     & 3.4 GHz   & 2.33 GHz  \\
+            & L1 Data Cache & 32kB      & 32kB      \\
+            & L1 Inst Cache & 32kB      & 32kB      \\
+            & L2 Cache      & 256kB     & 6MB       \\
+            & L3 Cache      & 8MB       & N/A       \\
+        \hline
+        \multirow{2}{*}{Memory}
+        & Type          & 2 x DDR3-1333/1600    &   \\
+        & Max Bandwidth & 25.6 GB/s             &   \\
+        \hline
+        \multirow{2}{*}{Runtime}
+            & Compiler      & ? & ? \\
+            & MPI Version   & ? & ? \\
+        \hline
+    \end{tabular}
+    \caption{x86 Assessment Platforms}\label{x86_platform}
+\end{table}
+
 \subsection{State Saving}
+
+The first aspect of \textsc{warped2} that will be analyzed will be the state 
 
 \subsection{Fossil Collection}
 
@@ -1051,34 +1080,33 @@ The single node SMP experiments will be carried out on a
 
 \pagebreak
 
-\begin{center}\begin{table}
-    \begin{tabular}{|| l | l | c | c | c c ||}
+\begin{table}
+    \centering
+    \begin{tabular}{|| l | l | c c ||}
     \hline
-        \multicolumn{2}{|l|}{} & \multirow{2}{*}{Intel Core i7-4770} &
-            \multirow{2}{*}{Intel Xeon E5410} & \multicolumn{2}{c||}{Exynos 5422} \\ \cline{5-6}
-        \multicolumn{2}{|l|}{} & & & Cortex-A15 & Cortex-A7 \\ [0.5ex]
+        \multicolumn{2}{|l|}{} & \multicolumn{2}{c||}{Exynos 5422} \\ \cline{3-4}
+        \multicolumn{2}{|l|}{} & Cortex-A15 & Cortex-A7 \\ [0.5ex]
         \hline\hline
         \multirow{8}{*}{Processor}
-            & ISA           & x86\_64   & x86\_64   & \multicolumn{2}{c||}{ARMv7} \\
-            & \# Cores      & 4         & 8 (2x4)   & 4         & 4 \\
-            & \# Threads    & 8         & 8         & \multicolumn{2}{c||}{8} \\
-            & Frequency     & 3.4 GHz   & 2.33 GHz  & 2.0 GHz   & 1.4 GHz \\
-            & L1 Data Cache & 32kB      & 32kB      & 32kB      & 32kB \\
-            & L1 Inst Cache & 32kB      & 32kB      & 32kB      & 32kB \\
-            & L2 Cache      & 256kB     & 6MB       & 2MB       & 512kB\\
-            & L3 Cache      & 8MB       & N/A       & \multicolumn{2}{c||}{N/A} \\
+            & ISA           & \multicolumn{2}{c||}{ARMv7} \\
+            & \# Cores      & 4         & 4 \\
+            & \# Threads    & \multicolumn{2}{c||}{8} \\
+            & Frequency     & 2.0 GHz   & 1.4 GHz \\
+            & L1 Data Cache & 32kB      & 32kB \\
+            & L1 Inst Cache & 32kB      & 32kB \\
+            & L2 Cache      & 2MB       & 512kB\\
         \hline
         \multirow{2}{*}{Memory}
-            & Type          & 2 x DDR3-1333/1600    & ? & \multicolumn{2}{c||}{2 x LPDDR3-933} \\
-            & Max Bandwidth & 25.6 GB/s             & ? & \multicolumn{2}{c||}{14.9 GB/s} \\
+            & Type          & \multicolumn{2}{c||}{2 x LPDDR3-933} \\
+            & Max Bandwidth & \multicolumn{2}{c||}{14.9 GB/s} \\
         \hline
         \multirow{2}{*}{Runtime}
-            & Compiler      & ? & ? & \multicolumn{2}{c||}{?} \\
-            & MPI Version   & ? & ? & \multicolumn{2}{c||}{?} \\
+            & Compiler      & \multicolumn{2}{c||}{?} \\
+            & MPI Version   & \multicolumn{2}{c||}{?} \\
         \hline
     \end{tabular}
-    \caption{Summary of Assessment Platforms}\label{platform_table}
-\end{table}\end{center}
+    \caption{ODROID XU3 Platforms}\label{odroid_platform}
+\end{table}
 
 \section{Simulation Models used for Assessment}
 
@@ -1127,8 +1155,7 @@ uniform probability.
 The traffic model describes a grid of intersections and the movement of cars through
 the intersection and between the intersections. All intersections are four way intersections
 and have three lanes in each direction. The LPs in the traffic model are the intersections
-and form a rectangular grid in the same way as that of the PCS model. The layout is illustrated
-in figure \ref{traffic_model_lps}.
+and form a rectangular grid in the same way as that of the PCS model.
 
 The simulation starts with a uniform distribution of cars at each intersection and each
 car is a assigned a destination which it finishes at. With each arrival at an intersection
@@ -1201,31 +1228,37 @@ exponential distributions.
 
 \section{Pending Event Set Data Structures}
 
-The pending event set is the set of all unprocessed events. Every process contains a
-logically seperate pending event set for a dedicated set of LPs. Exhanging of events
-between LPs of different processes is achieved through the manager thread of each processes.
+The pending event set is the set of events that are ready to be processed at any given time.
+Every process contains a logically seperate pending event set for a dedicated set of LPs. Events
+that are being sent to an LP that is local to the process are directly inserted into the pending
+event set. Events that must be sent to a remote process are inserted into a remote event
+queue where the manager thread will remove it, form an event message and send the message to
+the recieving process. The manager thread at the receiving process will then unpack the message
+and insert it into the pending event set. The pending event set is made up of a queue for each
+LP known as an \emph{unprocessed queue} which is directly accessible from all threads and allows
+for the sending of events.
 
-Each LP has an unprocessed queue which contains both positive events and anti-messages and
-remains sorted at all times. The anti-messages are given priority over their positive
-counterparts to prevent any unnessary rolbacks and prevent cascading of rollbacks that can
-cause instability \cite{lubachevsky-89}. To avoid any copying, the unprocessed queue only
-contains pointers to the unprocessed events which are allocated by the simulation model. The
-worker threads or manager thread send events to LPs by simply inserting the pointers into their
-unprocessed queue.
+The unprocessed queue contains both positive events and anti-messages and remains sorted at all
+times. The anti-messages are given priority over their positive counterparts so that the
+anti-messages are always processed first and any unnecessary rollbacks can be prevented which
+could create a chain of rollbacks that could cause instability \cite{lubachevsky-89}. To avoid
+any unnecessary copying from the simulation model to the kernel and with the kernel, the
+unprocessed queue only contains pointers to the unprocessed events which are passed in by the
+simulation model.
 
 A second type of data structure, an \emph{LTSF (Lowest TimeStamp First) Queue}, provides
 order among events from multiple LPs. At most, a single event from each LP is \emph{scheduled}
 into a single LTSF queue. Scheduling an event to an LTSF queue means only inserting a pointer
-into the LTSF data structure with no removal from the unprocessed queue. The pending event
-set contains one or more LTSF Queue to process events from.
+to an event into the LTSF queue with no removal from the unprocessed queue. Every process has
+one or more LTSF queues which the worker threads obtain the lowest timestamped event to process.
 
 A third type of data structure is also used to keep track of the events that have been
-scheduled or are currently being processed and is organized by receiving LP. It is used for
-two main reasons. First, it provides a way to determine if a smaller event is scheduled for
-an LP upon the arrival of another event into its unprocessed queue. The new event can be
-scheduled in place of the already scheduled event if that occurs. Second, it serves to
+scheduled or are currently being processed but organized by receiving LP. It is used for
+two main reasons. First, when inserting an event into the recieving LPs unprocessed queue, it
+provides a way to determine if a smaller event has already been scheduled for the LP. The new
+event can then be scheduled in place of the already scheduled event. Second, it serves to
 prevent multiple worker threads from processing events from the same LP which could cause
-out of order committing of events violating the local causality constraint\cite{fujimoto-90}.
+out of order committing of events without rolling back as would be necessary.
 
 Figure \ref{pending_event_set} illustrates the pending event set data structures in
 \textsc{warped2}.
@@ -1233,24 +1266,24 @@ Figure \ref{pending_event_set} illustrates the pending event set data structures
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.75\textwidth]{figs/graphviz/pending_event_set.pdf}
-    \caption{\textsc{warped2} Pending Event Set Date Structures}\label{pending_event_set}
+    \caption{\textsc{warped2} Pending Event Set Data Structures}\label{pending_event_set}
 \end{figure}
 
 \section{Processing Events}
 
 One or more of the worker threads are assigned to each LTSF Queue to process events from
 and they all follow the exact same procedure. First, an event is removed from an LTSF
-queue to be processed but remains in the unprocessed queue until it is processed. The
-event is then checked to see if it is a straggler, and rolled back if so. An anti-message
-is also considered a straggler if its positive counterpart was the last processed event
-since \textsc{warped2} makes the assumption that events cannot be sent out of order.
-If the event is an anti-message, the positive counterpart is assumed to be in the LPs
-unprocessed queue after rolling back and is cancelled out and a new event is scheduled.
-If the event is positive it is processed normally, the state of the LP is saved, and
-new events are sent to other LPs. The event is then inserted into the processed queue
-of the LP and a new event is scheduled if one exists for the LP. Lastly, the data structure
-that keeps track of scheduled events by LP is updated. To summarize the worker thread
-processing loop is shown in psuedocode in algorithm \ref{warped2_processing}.
+queue to be processed but remains in the unprocessed queue until it is completely processed or
+cancelled out. The event is first checked against the last processed event of the receiving LP
+to see if it is a straggler, and rolled back if necessary. An anti-message is also considered to
+be a straggler if its positive counterpart was the last processed event for the LP since
+\textsc{warped2} makes the assumption that message order will always be preserved.
+Therefore, if the event is an anti-message, the positive counterpart is assumed to be in the LPs
+unprocessed queue after rolling back and is cancelled out and a new event is scheduled into the
+LTSF queue if another event is pending. If the event is positive then it is processed normally,
+the state of the LP is saved, and new events are sent to other LPs. The event is then inserted
+into the processed queue and a new event is scheduled into the LTSF queue. To summarize the
+worker thread processing loop is shown in psuedocode in algorithm \ref{warped2_processing}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -1282,20 +1315,17 @@ processing loop is shown in psuedocode in algorithm \ref{warped2_processing}.
 \end{algorithm}
 
 %% Sending events
-When events are sent to an LP that is local to the process, they are directly inserted
-into the unprocessed queue and checked against the currently scheduled event. If the
-new event is less than the scheduled event, the scheduled event is replaced. When events
-are sent to an LP that is not local to the process, they are inserted into a shared data
-structure called the \emph{remote event queue}. The manager thread removes the events from
-the remoted event queue, serializes them into messages and sends them to remote processes
-through the communication manager.
+When events are inserted into the unprocessed queues, they are compared to the currently
+scheduled event for the LP. If there is no currently scheduled event or the new event is less
+than the currently scheduled event, then the new event is scheduled, thus preventing and
+unnecessary rollbacks.
 
 \subsection{Ordering of Events}
 
-The time warp system assumes that every event is labeled with a totally ordered clock value
+The time warp mechanism assumes that every event is labeled with a totally ordered clock value
 based on virtual time \cite{jefferson-85}. This is important so that causal dependencies
-are preserved and so that simulation results are deterministic\cite{ronngren-99}.
-\textsc{warped2} uses a four tuple scheme which provide a total ordering of events:
+are preserved and so that simulation results are deterministic\cite{ronngren-99}. To ensure
+this, \textsc{warped2} uses a 4-tuple scheme which provide a total ordering of events:
 
 \begin{enumerate}
     \item Receive Time
@@ -1308,107 +1338,60 @@ are preserved and so that simulation results are deterministic\cite{ronngren-99}
 The last three serve as a tie breaker for simultaneous receive times. The send time is
 necessary to ensure correct causal dependencies. It is analogous to a Lamport logical
 clock\cite{lamport-78} in real time distributed systems but for virtual time systems. The
-send time works for this as long as LPs only send a single event with the same send time
-to any individual LP. The sender LP name is necessary to ensure that order is determined
-between events received with the same receive time and send time from different senders.
-Without it, it is possible that different results could occur on different runs of the
-simulation\cite{ronngren-99}. The generation is necessary for distributed systems to
-differentiate between the same events which could be resent after rolling back
+send time will work as long as LPs only send a single event with the same send time, receive
+time, and receiver LP. Otherwise, a more strict ordering of sends would be required. However,
+\textsc{warped2} forbids this behaviour in the simulation model. The sender LP name is necessary
+to ensure that order is determined between events received with the same receive time and send
+time from different senders. Without it, it is possible that different results could occur on
+different runs of the simulation\cite{ronngren-99}. The generation is necessary for distributed
+memory systems to differentiate between the same events which could be resent after rolling back
 \cite{ronngren-99}. In \textsc{warped2} it is implemented as a single counter per LP and
 keeps track of the number of events that have been sent from the LP. The count is then
-tagged in the event when it is sent.
+tagged in the event when it is sent and used for comparison at the receiver.
 
 \subsection{LTSF Replication}
 
-The number of LTSF queues that are shared by a single worker thread is configurable in
-\textsc{warped2} because the best configuration is not really known. If all worker threads
-share a single LTSF queue then a huge contention point is created and performance will suffer.
-At the opposite extreme, however, with all worker threads processing events from a seperate
-LTSF queue, the the critical path of the simulation will be spread out and the number of
-rollbacks can increase significantly. To make matters more complicated this tradeoff can
-vary as the event processing algorithms and LTSF Queue data structures in \textsc{warped2}
-evolve.
+If all worker threads share a single LTSF queue then a huge contention point is created and
+performance will suffer. At the opposite extreme, however, with all worker threads processing
+events from a seperate LTSF queue, the the critical path of the simulation will be spread out
+and the number of rollbacks can increase significantly.
+
+To make matters more complicated this
+tradeoff can vary as the event processing algorithms and LTSF Queue data structures in
+\textsc{warped2} evolve.
 
 %% Explain plots
-The plots shown in figure \ref{sq_performance} provide some initial insight on the best
-number of LTSF Queues for each of the simulation models. All simulations were run with
-on a single Intel Core i7 machine with 8 worker threads.
 
-\showPlots{Schedule Queue Performance.pdf}{sq_performance}{Schedule Queue Performances}
 
 %% Explain results
-From these results it is apparent that contention to the LTSF queues far outweigh the
-effects of increased rollbacks. This can be explained by looking back at the current event
-processing algorith in algorithm \ref{warped2_processing}. The lines with a number on the
-margin indicate possible access to the LTSF queue.
-For every event the LTSF queue is accessed at least 3 times: \begin{inparaenum}[(1)]
-\item getting the next event; \item sending new events; and \item rescheduling new events
-\end{inparaenum}. %%TODO, possibly mention this in future research
+From these results it is apparent that contention to the LTSF queues outweigh the extra time
+needed to process a larger number of rollbacks. This can be explained by looking back at the
+event processing loop back in algorithm \ref{warped2_processing}. The lines with a number on the
+margin indicate possible access to the LTSF queue. For every event the LTSF queue is accessed
+at least 3 times: \begin{inparaenum}[(1)] \item obtaining the next event; \item sending new
+events; and \item rescheduling new events \end{inparaenum}. As the number of LTSF Queues 
 
-\section{Data Structures to Support Rollback and Cancellation}
-
-Jefferson\cite{jefferson-85} described the rollback and cancellation process in terms
-of three data structures: the input queue, output queue, and state queue. The data structures
-that are implemented in \textsc{warped2} follows pretty closely to Jefferson's description
-except that the input queue holds both unprocessed and processed events whereas \textsc{warped2}
-has two seperate data structures to allow easier scheduling of new events.
-
-\subsection{Processed Queue}
-The processed queues are pretty straightforward and only contain pointers to processed
-events for the owning LP. When a straggler event is detected, the incorrectly processed
-event pointers are moved back to unprocessed queue where the event can be cancelled out by
-an anti-message or reprocessed as necessary. Anti-messages cannot be processed so they
-will never exist in the processed queue.
-
-\subsection{Output Queue}
-
-An output queue is used to hold previously sent events by a single LP. They are necessary
-so that the LP can send anti-messages during a rollback. The output queue in \textsc{warped2}
-contains a set of tuples that each contain a pointer to a sent event and a pointer to the
-source event that triggered the sent event. The LP determines which events should be sent
-as anti-messages by comparing the straggler event with the source event.
-
-\subsection{State Queue}
-
-The state queues in \textsc{warped2} contain a three-tuple value for each state saved.
-The three-tuple consists of \begin{inparaenum}[(1)] \item a copy of the LPs state at the
-time it was saved, \item a copy of the internal states of the LPs random number generators,
-and \item a pointer to the event that was processed just before the state was saved.
-\end{inparaenum}. The internal states of the random number generators are saved in a linked
-list and are necessary so that simulations can yield deterministic results. Just as with
-the output queue, the source event is used for comparison against straggler events except
-that it is for deciding the state which restore the LP back to.
-
-\subsection{Organization of Data Structures}
-
-Pointers are used in all data structures to avoid unnecessary copying and to save memory
-space. There can be multiple pointers to the same events from the processed queue,
-unprocessed queue, output queue, or state queue as shown in figure \ref{rollback_ds}. This
-can be rather complex to deal with when freeing memory so \textsc{warped2} uses smart
-pointers objects that count references to the dereferenced memory location.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth]{figs/graphviz/rollback_ds.pdf}
-    \caption{Rollback and Cancellation Data Structures in \textsc{warped2}}\label{rollback_ds}
-\end{figure}
+%%TODO  ^ ^ ^ ^ ^ ^ ^ ^
+%%TODO  | | | | | | | |
+%%TODO  | | | | | | | |
+%%TODO, possibly mention this in future research
 
 \section{Protecting Access to Shared Data Structures}
-
-\subsection{Motivation}
 
 Worker threads must be able to access shared data structures without the possibility of
 race conditions. To deal with this, \textsc{warped2} uses mutexes to serialize worker thread
 access to any section of code that accesses the LTSF queue. This method, however significantly
 slows down access to the LTSF queues. With the results from the last section, it is obvious
-that quick access to the LTSF queues is necessary for the best performance.
+that quick access to the LTSF queues is necessary for the best performance. This section
+describes the use of spinlocks as an alternative to the standard blocking mutexes.
 
-Traditionally, mutexes are implemented in such a way that if a thread cannot acuire the
-lock, the thread is put to sleep and rescheduled for execution at a later time. This method,
-however, can waist a lot of unnecessary time putting the thread to sleep and waking it
-back up again if each thread only holds the lock for a short period of time. \textsc{warped2}
-is the perfect example of this behavior since accesses to the LTSF queues only perform
-very simple and fast operations.
+\subsection{Spinlocks}
+
+Traditionally, mutexes are implemented in such a way that if a thread cannot acquire the
+lock, the thread is put to sleep and rescheduled for execution at a later time. If the locks
+are usually held for a short period, yielding the processor can waist more time than is necessary
+to wait for the lock to be free. \textsc{warped2} is a perfect example of this type of behavior
+since accesses to the LTSF queues only perform very simple and fast operations.
 
 A \emph{spinlock} is a type of mutex that does not force threads to be rescheduled but
 instead continue to attempt to aqcuire the lock over and over until it successfully acquires
@@ -1419,15 +1402,12 @@ event worse because a thread can be involuntarily pre-empted while holding the l
 
 \subsection{Spinlocks in \textsc{warped2}}
 
-There are many ways to implement spinlocks like test-and-set or exchange based locks,
-queueing locks, and ticket locks to name a few. Test-and-set or exchange based locks are
-the simplest to implement but do not guarantee fairness among threads. Queueing based locks
-are more complicated to implement but also guarentee fairness and are more scalable. However
-they have a higher latency for uncontended aqcuisition. Ticket locks, on the other hand
-are simple to implement, provide fairness, and generally have good performance for a small
-number of threads.
-
-Due to the advantages mentioned above, \textsc{warped2} implements ticket spinlocks.
+There are many ways to implement spinlocks with all varying attributes and complexities.
+Ticket locks were chosen for \textsc{warped2} because they are simple to implement, provide
+fairness, and generally have good performance for a small number of threads\cite{lockless-10}.
+The psuedocode below in algorithm \ref{ticket_lock} describes the acquisition and release
+procedures for a typical ticket lock implementation which is also how it is implemented in
+\textsc{warped2}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -1439,14 +1419,57 @@ Due to the advantages mentioned above, \textsc{warped2} implements ticket spinlo
     \Acquire{
         $my\_number \gets \fetchAndIncrement{next\_number}$\;
         \Repeat{$ticket = my\_number$}{\tcp{Do nothing}}
-    }
-    \;
+    }\;
+
     \Release{
         $\fetchAndIncrement{ticket}$
     }
 
-\caption{Ticket Lock Procedures}\label{ticket_lock}
+    \caption{Ticket Lock Procedures}\cite{wiki:ticketlock-15}\label{ticket_lock}
 \end{algorithm}
+
+%% Analysis of spinlocks in warped2
+
+\section{Data Structures to Support Rollback and Cancellation}
+
+Jefferson\cite{jefferson-85} described the rollback and cancellation process in terms of three
+data structures: the input queue, output queue, and state queue. The data structures that are
+implemented in \textsc{warped2} follows pretty closely to Jefferson's description except that
+in Jefferson's approach, the input queue holds both unprocessed and processed events whereas
+\textsc{warped2} has two seperate data structures to allow easier scheduling of new events.
+
+The state queues contain a 3-tuple value for each state. The first value is a pointer to a
+memory location which holds the saved copy of the LP state. The second value is a pointer to the
+event that produced the state of the LP and is used for comparison against a straggler event
+on a rollback to determine which state to restore or against the GVT during fossil collection.
+The third value is the state of the LPs random number generators at the time the state was saved.
+The random number generator states are saved in a linked list and are also restored during a
+rollback to ensure deterministic results.
+
+Similar to the state queue, the output queue also contains a tuple of values. In the output
+queue though, only a pointer to a source event and a sent events are used. In the same way
+as the state queue, the source event is used for comparison against a straggler event during
+a rollback but is used to determine which events should be sent as anti-messages.
+
+The processed queues only contain a pointer to the processed events. The dereferenced events
+from the processed queue are the same as dereferenced source events from output queue and state
+queue so that no copying of the events is needed. Furthermore, if events are sent withing the
+same process, the same events can be pointed to from the output queue and an unprocessed or
+processed event from another LP. The organization of the processed queue, state queue and output
+queue for a single LP is illustrated in figure \ref{rollback_ds}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figs/graphviz/rollback_ds.pdf}
+    \caption{Rollback and Cancellation Data Structures in \textsc{warped2}}\label{rollback_ds}
+\end{figure}
+
+Although the organization of these data structures prevents copying of events, there are also
+some limitations. First, it introduces a lot of indirect memory accesses which could slow down
+access to memory, especially in a multiprocessor system. Secondly, it adds some complexity
+when freeing memory used by events. To solve this problem though, \textsc{warped2} uses the
+smart pointers offered by the standard C++11 libraries which employ a reference counting
+scheme.
 
 
 
@@ -1482,7 +1505,7 @@ threads fit with it.
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{figs/graphviz/partitioning.pdf}
-    \caption{Partitioning in \textsc{warped2}}\label{partitionig_fig}
+    \caption{Partitioning in \textsc{warped2}}\label{partitioning_fig}
 \end{figure}
 
 \textsc{warped2} currently supports thee types of partitioning: \begin{inparaenum}[(1)]
@@ -1985,12 +2008,10 @@ transient activation messages are not missed.
 
 \chapter{Memory Management}\label{memory_management}
 
-This chapter will focus on three main topics that are all related to the management
-of memory. First, state saving techniques will be discussed as well the analysis of state
-saving in \textsc{warped2}. This will include both space and time requirements. Then fossil
-collection and its overheads are introduced and a comparison of worker thread versus manager
-thread fossil collection will be examined. Lastly, memory allocation and deallocation and
-its importance in time warp is presented as well as how it is accomplished in \textsc{warped2}.
+This chapter will focus on main topics related to memory management in a time warp system
+and their implementations in \textsc{warped2}. The topics will include state saving, fossil
+collection and memory allocation. Different methods for each of these topics have different
+time and memory requirements and vary greatly in complexity.
 
 \section{State Saving}
 
