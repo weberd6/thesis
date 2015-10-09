@@ -232,15 +232,9 @@ compute platforms for each is described.
 Chapter \ref{warped2_overview} introduces the software architecture and modeling API for
 the \textsc{warped2} simulation kernel.
 
-Chapter \ref{plans_of_study} gives an overview of the studies carried out in the remainder
-of the text, motivations for the studies, and the hardware architectures and simulation
-models used in the studies.
-
 Chapter \ref{warped2_ds} describes the pending event set data structures used within
 the \textsc{warped2} kernel and provides some preliminary results in finding the best
 configurations for various models.
-
-Chapter \ref{partitioning} talks about partitioning.
 
 Chapter \ref{gvt_termination} descibes various GVT and termination detection algorithms that
 have been used explains the algorithms used in \textsc{warped2}. This chapter also provides
@@ -249,6 +243,10 @@ some preliminary results in determining the best configurations for these algori
 Chapter \ref{memory_management} analyzes techniques for managing memory efficiently. This
 includes state saving techniques, fossil collection, and GVT period. Some preliminary results
 are also shown for various configurations.
+
+Chapter \ref{experimental_analysis}
+
+Chapter \ref{big_little_platform}
 
 Finally, Chapter \ref{conclude} contains some concluding remarks and suggestions for future
 research.
@@ -1028,202 +1026,6 @@ int main(int argc, const char **argv) {
 
 
 
-\chapter{Experimental Setup}\label{plans_of_study}
-
-\section{x86 SMP Nodes and Cluster}
-
-The single node SMP experiments will be carried out on a  
-
-\pagebreak
-
-\begin{table}
-    \centering
-    \begin{tabular}{|| l | l | c | c ||}
-    \hline
-    & & Intel Core i7-4770 & Intel Xeon E5410 \\ [0.5ex]
-        \hline\hline
-        \multirow{8}{*}{Processor}
-            & ISA           & x86\_64   & x86\_64   \\
-            & \# Cores      & 4         & 8 (2x4)   \\
-            & \# Threads    & 8         & 8         \\
-            & Frequency     & 3.4 GHz   & 2.33 GHz  \\
-            & L1 Data Cache & 32kB      & 32kB      \\
-            & L1 Inst Cache & 32kB      & 32kB      \\
-            & L2 Cache      & 256kB     & 6MB       \\
-            & L3 Cache      & 8MB       & N/A       \\
-        \hline
-        \multirow{2}{*}{Memory}
-        & Type          & 2 x DDR3-1333/1600    &   \\
-        & Max Bandwidth & 25.6 GB/s             &   \\
-        \hline
-        \multirow{2}{*}{Runtime}
-            & Compiler      & ? & ? \\
-            & MPI Version   & ? & ? \\
-        \hline
-    \end{tabular}
-    \caption{x86 Assessment Platforms}\label{x86_platform}
-\end{table}
-
-\subsection{State Saving}
-
-The first aspect of \textsc{warped2} that will be analyzed will be the state 
-
-\subsection{Fossil Collection}
-
-\subsection{Memory Allocation}
-
-\subsection{Pending Event Set}
-
-\subsection{Partitioning}
-
-\section{ARM big.LITTLE nodes}
-
-\pagebreak
-
-\begin{table}
-    \centering
-    \begin{tabular}{|| l | l | c c ||}
-    \hline
-        \multicolumn{2}{|l|}{} & \multicolumn{2}{c||}{Exynos 5422} \\ \cline{3-4}
-        \multicolumn{2}{|l|}{} & Cortex-A15 & Cortex-A7 \\ [0.5ex]
-        \hline\hline
-        \multirow{8}{*}{Processor}
-            & ISA           & \multicolumn{2}{c||}{ARMv7} \\
-            & \# Cores      & 4         & 4 \\
-            & \# Threads    & \multicolumn{2}{c||}{8} \\
-            & Frequency     & 2.0 GHz   & 1.4 GHz \\
-            & L1 Data Cache & 32kB      & 32kB \\
-            & L1 Inst Cache & 32kB      & 32kB \\
-            & L2 Cache      & 2MB       & 512kB\\
-        \hline
-        \multirow{2}{*}{Memory}
-            & Type          & \multicolumn{2}{c||}{2 x LPDDR3-933} \\
-            & Max Bandwidth & \multicolumn{2}{c||}{14.9 GB/s} \\
-        \hline
-        \multirow{2}{*}{Runtime}
-            & Compiler      & \multicolumn{2}{c||}{?} \\
-            & MPI Version   & \multicolumn{2}{c||}{?} \\
-        \hline
-    \end{tabular}
-    \caption{ODROID XU3 Platforms}\label{odroid_platform}
-\end{table}
-
-\section{Simulation Models used for Assessment}
-
-\subsection{PCS}
-
-The model describes a type of wireless communication network known as a Portable Cellular
-Service (PCS) network. A PCS network provides services for a number of \emph{portables} which
-are the subscribers to the network. The service area of the network is divided into
-\emph{cells} and a single \emph{port} covers a cell which has a certain number channels that
-it can allocate for calls. When an incoming or outgoing call is made, a port must allocate
-a channel from the port if one cannot be allocated then the call is \emph{blocked}\cite{lin-96b}.
-The only type of logical processes in the PCS simulation are the cells. The cells in the
-\textsc{warped2} model form a rectangular grid as shown in figure \ref{pcs_model_lps}.
-Portables can only move to other cells from an adjacent cell with a wrap around occuring
-at the edges.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.6\textwidth]{figs/graphviz/pcs_model.pdf}
-    \caption{PCS Model Logical Processes}\label{pcs_model_lps}
-\end{figure}
-
-The portables stay within a cell for a period of time which follows a poisson distribution
-before moving to another cell. If the all cells are busy in the cell that the portable
-is moving to then the call is dropped. This is called a \emph{handoff block}.
-
-Every LP keeps track of the following state variables:
-\begin{itemize}
-    \item Number of idle channels
-    \item Number of call attempts
-    \item Number of channel blocks
-    \item Number of handoff blocks
-\end{itemize}
-
-\noindent
-Call arrivals to a portable also follow a poisson distribution. The cells in the model
-generate all of their own incoming calls in a self-initiating process.
-Four types of events are used to model the network: \begin{inparaenum}[(1)] \item NextCall,
-\item CallCompletion, \item PortableMoveOut, and \item PortableMoveIn \end{inparaenum}.
-The NextCall, CallCompletion, and PortableMoveOut events are all sent to self whereas
-the PortableMoveIn event is sent to an adjacent cell based on a random variable with
-uniform probability.
-
-\subsection{Traffic}
-
-The traffic model describes a grid of intersections and the movement of cars through
-the intersection and between the intersections. All intersections are four way intersections
-and have three lanes in each direction. The LPs in the traffic model are the intersections
-and form a rectangular grid in the same way as that of the PCS model.
-
-The simulation starts with a uniform distribution of cars at each intersection and each
-car is a assigned a destination which it finishes at. With each arrival at an intersection
-the car always goes in the direction that gets it closer to its destination.
-The number of cars going out of an intersection in the same direction is limited to a
-maximum number due traffic on the approaching road. An incoming car that cannot travel in
-a specific direction is forced back in the same direction it came from and tries another
-route. For each intersection, the state consists of:
-
-\begin{itemize}
-    \item Number of cars coming into the intersection from each direction
-    \item Number of cars going out of the intersection to each direction
-    \item Total cars arrived at the intersection
-    \item Total cars finished at the intersection
-\end{itemize}
-
-A car goes through three event phase in every intersection as shown in figure
-\ref{traffic_events}. The three types of events are: \begin{inparaenum}[(1)] \item Arrival,
-\item Direction Select, and \item Departure \end{inparaenum}. The arrival and departure
-events are mainly used for simple state updates and timing of the next events.
-The direction select event is where the complexity of the simulation is and determines the
-direction that the car should go in order to reach its destination or whether the car should
-take another route due to traffic on the road.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.6\textwidth]{figs/graphviz/traffic_events.pdf}
-    \caption{Intersection Event Sequence}\label{traffic_events}
-\end{figure}
-
-All events in the traffic model follow an exponential distribution and a single event
-is generated with the processing of each event. The departure and direction select events
-are self-generated but the arrival event is from an adjacent intersection.
-
-\subsection{Epidemic}
-
-The epidemic model describes the spreading of an infectious disease across a set of
-geographic locations in a region and across a set of regions. The logical processes in
-the simulation are geographic locations which represent a portion of the population. The
-interactions between people in different geographic locations and regions are modeled with
-a diffusion network. An abstract view of the simulation model is shown below in figure
-\ref{epidemic_model}.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.6\textwidth]{figs/graphviz/epidemic.pdf}
-    \caption{Epidemic Model}\label{epidemic_model}
-\end{figure}
-
-The model is based on reaction-diffusion model\cite{perumalla-12}. The reaction process
-models the behavior of the disease within a person as well as the transmission of the
-disease between people within the same location. A probabilistic reaction function defines
-the behavior of the disease between individuals\cite{barrett-08}. The disease within an
-individual is modeled by a Probabilistic Timed Transition System (PTTS)\cite{barrett-08}
-which is a finite state machine describing the disease states and transitions between states.
-Together, the interhost and intrahost models of the disease form the \emph{disease model}.
-The diffusion network models the social interactions of people between locations and between
-region\cite{barrett-08}.
-
-\subsection{Airport}
-
-The airport model describes the departure and arrivals of airplanes between a connected
-set of airports. The logical processes represent airports and the events are simply
-departures and arrivals. For simplicity, the airports are connected in a rectangular grid
-and can only fly to aiports to the north, east, south, or west of the aiport departed from.
-The time spent between takeoff and landing and between landing and takeoff both follow an
-exponential distributions.
-
 \chapter{\textsc{warped2} Data Structures and Their Organization}\label{warped2_ds}
 
 \section{Pending Event Set Data Structures}
@@ -1351,84 +1153,28 @@ tagged in the event when it is sent and used for comparison at the receiver.
 
 \subsection{LTSF Replication}
 
+\textsc{warped2} allows the user to choose the number of LTSF queues 
 If all worker threads share a single LTSF queue then a huge contention point is created and
 performance will suffer. At the opposite extreme, however, with all worker threads processing
 events from a seperate LTSF queue, the the critical path of the simulation will be spread out
 and the number of rollbacks can increase significantly.
 
-To make matters more complicated this
-tradeoff can vary as the event processing algorithms and LTSF Queue data structures in
-\textsc{warped2} evolve.
-
 %% Explain plots
-
+The plots below show the speedup and rollback changes as the number of LTSF queues change for
+some of the \textsc{warped2} models.
 
 %% Explain results
 From these results it is apparent that contention to the LTSF queues outweigh the extra time
 needed to process a larger number of rollbacks. This can be explained by looking back at the
 event processing loop back in algorithm \ref{warped2_processing}. The lines with a number on the
 margin indicate possible access to the LTSF queue. For every event the LTSF queue is accessed
-at least 3 times: \begin{inparaenum}[(1)] \item obtaining the next event; \item sending new
-events; and \item rescheduling new events \end{inparaenum}. As the number of LTSF Queues 
+at least 3 times: \begin{inparaenum}[(1)] \item obtaining the next event, \item sending new
+events, and \item rescheduling new events \end{inparaenum}.
 
 %%TODO  ^ ^ ^ ^ ^ ^ ^ ^
 %%TODO  | | | | | | | |
 %%TODO  | | | | | | | |
 %%TODO, possibly mention this in future research
-
-\section{Protecting Access to Shared Data Structures}
-
-Worker threads must be able to access shared data structures without the possibility of
-race conditions. To deal with this, \textsc{warped2} uses mutexes to serialize worker thread
-access to any section of code that accesses the LTSF queue. This method, however significantly
-slows down access to the LTSF queues. With the results from the last section, it is obvious
-that quick access to the LTSF queues is necessary for the best performance. This section
-describes the use of spinlocks as an alternative to the standard blocking mutexes.
-
-\subsection{Spinlocks}
-
-Traditionally, mutexes are implemented in such a way that if a thread cannot acquire the
-lock, the thread is put to sleep and rescheduled for execution at a later time. If the locks
-are usually held for a short period, yielding the processor can waist more time than is necessary
-to wait for the lock to be free. \textsc{warped2} is a perfect example of this type of behavior
-since accesses to the LTSF queues only perform very simple and fast operations.
-
-A \emph{spinlock} is a type of mutex that does not force threads to be rescheduled but
-instead continue to attempt to aqcuire the lock over and over until it successfully acquires
-the lock or the timeslice of the thread expires. The downside of spinlocks is that the CPU time
-can be waised, especially as the number of contending threads increase. Furthermore, if the
-number of total threads is larger than the number of available processors, spinlocks are
-event worse because a thread can be involuntarily pre-empted while holding the lock.
-
-\subsection{Spinlocks in \textsc{warped2}}
-
-There are many ways to implement spinlocks with all varying attributes and complexities.
-Ticket locks were chosen for \textsc{warped2} because they are simple to implement, provide
-fairness, and generally have good performance for a small number of threads\cite{lockless-10}.
-The psuedocode below in algorithm \ref{ticket_lock} describes the acquisition and release
-procedures for a typical ticket lock implementation which is also how it is implemented in
-\textsc{warped2}.
-
-\begin{algorithm}
-\DontPrintSemicolon
-\SetKwFunction{fetchAndIncrement}{fetchAndIncrement}
-\SetKwBlock{Acquire}{lock}{end}
-\SetKwBlock{Release}{unlock}{end}
-\SetAlgoVlined
-
-    \Acquire{
-        $my\_number \gets \fetchAndIncrement{next\_number}$\;
-        \Repeat{$ticket = my\_number$}{\tcp{Do nothing}}
-    }\;
-
-    \Release{
-        $\fetchAndIncrement{ticket}$
-    }
-
-    \caption{Ticket Lock Procedures}\cite{wiki:ticketlock-15}\label{ticket_lock}
-\end{algorithm}
-
-%% Analysis of spinlocks in warped2
 
 \section{Data Structures to Support Rollback and Cancellation}
 
@@ -1473,9 +1219,7 @@ scheme.
 
 
 
-\chapter{Partitioning}\label{partitioning}
-
-\section{Overview}
+\subsection{Partitioning}\label{partitioning}
 
 Partitioning the work in a distributed system is always important to minimize interprocess
 communication. In parallel discrete event simulation, the work is usually partitioned by
@@ -1493,7 +1237,7 @@ Although it may not reduce the total number of accesses to a data structure, it 
 worker threads to access the same subset of data structures reducing contention. This can
 also enhance the number of cache hits by increasing locality.
 
-\section{Partitioning in \textsc{warped2}}
+\subsubsection{Partitioning in \textsc{warped2}}
 
 \textsc{warped2} uses multiple worker threads that communicate through shared data structures
 within processes that communicate through message passing. Therefore, to get the best
@@ -1511,19 +1255,11 @@ threads fit with it.
 \textsc{warped2} currently supports thee types of partitioning: \begin{inparaenum}[(1)]
 \item round-robin, \item model-specific \item profile-guided \end{inparaenum}.
 
-\subsection{Process Partitioning}
-
-%% More description of profile-guided?
-
-%% Plots
-
-\subsection{LTSF Queue Partitioning}
-
 Each process further partitions the LPs by the LTSF Queue that the LPs schedule their
 events to. It is effectively partioning among worker threads if each worker thread has its
 own LTSF Queue and has no effect if a single LTSF is shared among worker threads.
 
-%% Plots
+
 
 \chapter{GVT and Termination Detection}\label{gvt_termination}
 
@@ -2057,9 +1793,6 @@ precisely in the implementation of the simulation model.
 regardless of the simulation model and it can be implemented transparently in the simulation
 kernel.
 
-%% State saving period analysis
-\showPlots{State Saving Performance.pdf}{ssp_performance}{State Saving Performances}
-
 \section{Fossil Collection}
 
 When the events and states in the processed queues, output queues, and state queues are
@@ -2098,8 +1831,6 @@ time. Furthermore, this will require extra synchronization for all of the LPs pr
 queues, state queues, and output queues since they would no longer be dedicated to a single
 thread.
 
-%% Manager thread versus Worker Threads Plots
-
 \section{Memory Allocation}
 
 Parallel discrete event simulation systems must frequently allocate and free memory for
@@ -2118,6 +1849,238 @@ Custom memory management is usually not necessary because modern implementations
 usually manage memory efficiently. Furthermore, the default allocator can be overriden by
 other allocators such as tcmalloc, jemalloc, hoard, etc.
 
+
+
+\chapter{Experimental Analysis}\label{experimental_analysis}
+
+This chapter will focus on analyzing the behavior of \textsc{warped2} to find the best parameters
+to fine tune the simulations for best performance. The focus will be on single x86 SMP nodes
+and x86 clusters for now and in chapter \ref{big_little_platform}, some experiments will be
+run on ARM nodes.
+
+\section{x86 SMP Nodes and Cluster}
+
+Experiments with x86 platforms will consist of a set of experiments targeted at a single node
+SMP processor and a set of experiments targeted at a beowulf cluster. The goal for all x86
+experiments will be to figure out how to configure the \textsc{warped2} simulation kernel for
+the best performance while keeping memory requirements and stability in mind.
+
+The single node SMP experiments will be run on an Intel Xeon X5675 processor. The intel X5675
+has 6 cores with hyperthreading so that 12 simultaneous threads are supported.
+Cluster experiments will be run on Intel Xeon E5410. The Intel Xeon E5410 is a quad core processor
+but our system contains two sockets per machine so that 8 cores per machine are available.
+A summary of the architectural features of both machines that used are shown in table
+\ref{x86_platform}.
+
+\pagebreak
+
+\begin{table}
+    \centering
+    \begin{tabular}{|| l | l | c | c ||}
+    \hline
+    & & Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} X5675 &
+        Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} E5410 \\ [0.5ex]
+        \hline\hline
+        \multirow{8}{*}{Processor}
+            & ISA           & x86\_64   & x86\_64   \\
+            & \# Cores      & 6         & 8         \\
+            & \# Threads    & 12        & 8         \\
+            & \# Sockets    & 1         & 2         \\
+            & Frequency     & 3.06 GHz  & 2.33 GHz  \\
+            & L1 Data Cache & 32kB      & 32kB      \\
+            & L1 Inst Cache & 32kB      & 32kB      \\
+            & L2 Cache      & 256kB     & 6MB       \\
+            & L3 Cache      & 12MB      & N/A       \\
+        \hline
+        \multirow{3}{*}{Runtime}
+            & Compiler      & GCC v4.9.2 & ? \\
+            & MPI Version   & MPICH v3.1 & ? \\
+            & Malloc        & TCMalloc v2.4 & \\
+        \hline
+    \end{tabular}
+    \caption{x86 Assessment Platforms}\label{x86_platform}
+\end{table}
+
+\section{Simulation Models}
+
+\subsection{PCS}
+
+The model describes a type of wireless communication network known as a Portable Cellular
+Service (PCS) network. A PCS network provides services for a number of \emph{portables} which
+are the subscribers to the network. The service area of the network is divided into
+\emph{cells} and a single \emph{port} covers a cell which has a certain number channels that
+it can allocate for calls. When an incoming or outgoing call is made, a port must allocate
+a channel from the port if one cannot be allocated then the call is \emph{blocked}\cite{lin-96b}.
+The only type of logical processes in the PCS simulation are the cells. The cells in the
+\textsc{warped2} model form a rectangular grid as shown in figure \ref{pcs_model_lps}.
+Portables can only move to other cells from an adjacent cell with a wrap around occuring
+at the edges.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{figs/graphviz/pcs_model.pdf}
+    \caption{PCS Model Logical Processes}\label{pcs_model_lps}
+\end{figure}
+
+The portables stay within a cell for a period of time which follows a poisson distribution
+before moving to another cell. If the all cells are busy in the cell that the portable
+is moving to then the call is dropped. This is called a \emph{handoff block}.
+
+Every LP keeps track of the following state variables:
+\begin{itemize}
+    \item Number of idle channels
+    \item Number of call attempts
+    \item Number of channel blocks
+    \item Number of handoff blocks
+\end{itemize}
+
+\noindent
+Call arrivals to a portable also follow a poisson distribution. The cells in the model
+generate all of their own incoming calls in a self-initiating process.
+Four types of events are used to model the network: \begin{inparaenum}[(1)] \item NextCall,
+\item CallCompletion, \item PortableMoveOut, and \item PortableMoveIn \end{inparaenum}.
+The NextCall, CallCompletion, and PortableMoveOut events are all sent to self whereas
+the PortableMoveIn event is sent to an adjacent cell based on a random variable with
+uniform probability.
+
+\subsection{Traffic}
+
+The traffic model describes a grid of intersections and the movement of cars through
+the intersection and between the intersections. All intersections are four way intersections
+and have three lanes in each direction. The LPs in the traffic model are the intersections
+and form a rectangular grid in the same way as that of the PCS model.
+
+The simulation starts with a uniform distribution of cars at each intersection and each
+car is a assigned a destination which it finishes at. With each arrival at an intersection
+the car always goes in the direction that gets it closer to its destination.
+The number of cars going out of an intersection in the same direction is limited to a
+maximum number due traffic on the approaching road. An incoming car that cannot travel in
+a specific direction is forced back in the same direction it came from and tries another
+route. For each intersection, the state consists of:
+
+\begin{itemize}
+    \item Number of cars coming into the intersection from each direction
+    \item Number of cars going out of the intersection to each direction
+    \item Total cars arrived at the intersection
+    \item Total cars finished at the intersection
+\end{itemize}
+
+A car goes through three event phase in every intersection as shown in figure
+\ref{traffic_events}. The three types of events are: \begin{inparaenum}[(1)] \item Arrival,
+\item Direction Select, and \item Departure \end{inparaenum}. The arrival and departure
+events are mainly used for simple state updates and timing of the next events.
+The direction select event is where the complexity of the simulation is and determines the
+direction that the car should go in order to reach its destination or whether the car should
+take another route due to traffic on the road.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{figs/graphviz/traffic_events.pdf}
+    \caption{Intersection Event Sequence}\label{traffic_events}
+\end{figure}
+
+All events in the traffic model follow an exponential distribution and a single event
+is generated with the processing of each event. The departure and direction select events
+are self-generated but the arrival event is from an adjacent intersection.
+
+\subsection{Epidemic}
+
+The epidemic model describes the spreading of an infectious disease across a set of
+geographic locations in a region and across a set of regions. The logical processes in
+the simulation are geographic locations which represent a portion of the population. The
+interactions between people in different geographic locations and regions are modeled with
+a diffusion network. An abstract view of the simulation model is shown below in figure
+\ref{epidemic_model}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{figs/graphviz/epidemic.pdf}
+    \caption{Epidemic Model}\label{epidemic_model}
+\end{figure}
+
+The model is based on reaction-diffusion model\cite{perumalla-12}. The reaction process
+models the behavior of the disease within a person as well as the transmission of the
+disease between people within the same location. A probabilistic reaction function defines
+the behavior of the disease between individuals\cite{barrett-08}. The disease within an
+individual is modeled by a Probabilistic Timed Transition System (PTTS)\cite{barrett-08}
+which is a finite state machine describing the disease states and transitions between states.
+Together, the interhost and intrahost models of the disease form the \emph{disease model}.
+The diffusion network models the social interactions of people between locations and between
+region\cite{barrett-08}.
+
+\subsection{Airport}
+
+The airport model describes the departure and arrivals of airplanes between a connected
+set of airports. The logical processes represent airports and the events are simply
+departures and arrivals. For simplicity, the airports are connected in a rectangular grid
+and can only fly to aiports to the north, east, south, or west of the aiport departed from.
+The time spent between takeoff and landing and between landing and takeoff both follow an
+exponential distributions.
+
+\section{State Saving}
+
+The first aspect of \textsc{warped2} that will be analyzed will be the state 
+
+\section{Fossil Collection}
+
+
+\section{Pending Event Set}
+
+Worker threads must be able to access shared data structures without the possibility of
+race conditions. To deal with this, \textsc{warped2} uses mutexes to serialize worker thread
+access to any section of code that accesses the LTSF queue. This method, however significantly
+slows down access to the LTSF queues. With the results from the last section, it is obvious
+that quick access to the LTSF queues is necessary for the best performance. This section
+describes the use of spinlocks as an alternative to the standard blocking mutexes.
+
+\subsection{Spinlocks}
+
+Traditionally, mutexes are implemented in such a way that if a thread cannot acquire the
+lock, the thread is put to sleep and rescheduled for execution at a later time. If the locks
+are usually held for a short period, yielding the processor can waist more time than is necessary
+to wait for the lock to be free. \textsc{warped2} is a perfect example of this type of behavior
+since accesses to the LTSF queues only perform very simple and fast operations.
+
+A \emph{spinlock} is a type of mutex that does not force threads to be rescheduled but
+instead continue to attempt to aqcuire the lock over and over until it successfully acquires
+the lock or the timeslice of the thread expires. The downside of spinlocks is that the CPU time
+can be waised, especially as the number of contending threads increase. Furthermore, if the
+number of total threads is larger than the number of available processors, spinlocks are
+event worse because a thread can be involuntarily pre-empted while holding the lock.
+
+\subsection{Spinlocks in \textsc{warped2}}
+
+There are many ways to implement spinlocks with all varying attributes and complexities.
+Ticket locks were chosen for \textsc{warped2} because they are simple to implement, provide
+fairness, and generally have good performance for a small number of threads\cite{lockless-10}.
+The psuedocode below in algorithm \ref{ticket_lock} describes the acquisition and release
+procedures for a typical ticket lock implementation which is also how it is implemented in
+\textsc{warped2}.
+
+\begin{algorithm}
+\DontPrintSemicolon
+\SetKwFunction{fetchAndIncrement}{fetchAndIncrement}
+\SetKwBlock{Acquire}{lock}{end}
+\SetKwBlock{Release}{unlock}{end}
+\SetAlgoVlined
+
+    \Acquire{
+        $my\_number \gets \fetchAndIncrement{next\_number}$\;
+        \Repeat{$ticket = my\_number$}{\tcp{Do nothing}}
+    }\;
+
+    \Release{
+        $\fetchAndIncrement{ticket}$
+    }
+
+    \caption{Ticket Lock Procedures}\cite{wiki:ticketlock-15}\label{ticket_lock}
+\end{algorithm}
+
+\section{Partitioning}
+
+
+\section{Memory Allocation}
+
 \subsection{Thread-Caching Malloc (TCMalloc)}
 
 TCMalloc is a memory allocator that is designed to efficiently allocate memory in
@@ -2125,7 +2088,38 @@ multi-threaded applications such as \textsc{warped2}. In TCMalloc, seperate thre
 caches of free memory are maintained to avoid contention that would be caused by shared
 caches.
 
-\chapter{Observations with the ARM big.LITTLE Platform}\label{big_little_platform}
+\chapter{ARM big.LITTLE Platform}\label{big_little_platform}
+
+\pagebreak
+
+\begin{table}
+    \centering
+    \begin{tabular}{|| l | l | c c ||}
+    \hline
+        \multicolumn{2}{|l|}{} & \multicolumn{2}{c||}{Exynos 5422} \\ \cline{3-4}
+        \multicolumn{2}{|l|}{} & Cortex-A15 & Cortex-A7 \\ [0.5ex]
+        \hline\hline
+        \multirow{8}{*}{Processor}
+            & ISA           & \multicolumn{2}{c||}{ARMv7} \\
+            & \# Cores      & 4         & 4 \\
+            & \# Threads    & \multicolumn{2}{c||}{8} \\
+            & Frequency     & 2.0 GHz   & 1.4 GHz \\
+            & L1 Data Cache & 32kB      & 32kB \\
+            & L1 Inst Cache & 32kB      & 32kB \\
+            & L2 Cache      & 2MB       & 512kB\\
+        \hline
+        \multirow{2}{*}{Memory}
+            & Type          & \multicolumn{2}{c||}{2 x LPDDR3-933} \\
+            & Max Bandwidth & \multicolumn{2}{c||}{14.9 GB/s} \\
+        \hline
+        \multirow{2}{*}{Runtime}
+            & Compiler      & \multicolumn{2}{c||}{?} \\
+            & MPI Version   & \multicolumn{2}{c||}{?} \\
+        \hline
+    \end{tabular}
+    \caption{ODROID XU3 Platforms}\label{odroid_platform}
+\end{table}
+
 
 
 \chapter[Conclusions \& Future Research]{Conclusions and Suggestions for Future Research}
