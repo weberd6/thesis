@@ -36,7 +36,7 @@
 \setlength{\headsep}{25pt}
 \setlength{\headheight}{14pt}
 
-\newcommand{\showPlots}[3]{
+\newcommand{\showPlotsByModel}[3]{
   \begin{figure}
     \begin{minipage}{.5\textwidth}
       \begin{center}
@@ -1151,7 +1151,13 @@ memory systems to differentiate between the same events which could be resent af
 keeps track of the number of events that have been sent from the LP. The count is then
 tagged in the event when it is sent and used for comparison at the receiver.
 
-\subsection{LTSF Replication}
+\subsection{Performance Tuning Parameters}
+
+To allow \textsc{warped2} to run on a large range of machines with different architectures and
+characteristics, a number of parameters are provided for the user to tune the simulation mechanism
+for their needs. 
+
+\subsubsection{Worker Threads and LTSF Queues}
 
 \textsc{warped2} allows the user to choose the number of LTSF queues 
 If all worker threads share a single LTSF queue then a huge contention point is created and
@@ -1159,22 +1165,58 @@ performance will suffer. At the opposite extreme, however, with all worker threa
 events from a seperate LTSF queue, the the critical path of the simulation will be spread out
 and the number of rollbacks can increase significantly.
 
-%% Explain plots
-The plots below show the speedup and rollback changes as the number of LTSF queues change for
-some of the \textsc{warped2} models.
+\subsubsection{State Saving Period}
 
-%% Explain results
-From these results it is apparent that contention to the LTSF queues outweigh the extra time
-needed to process a larger number of rollbacks. This can be explained by looking back at the
-event processing loop back in algorithm \ref{warped2_processing}. The lines with a number on the
-margin indicate possible access to the LTSF queue. For every event the LTSF queue is accessed
-at least 3 times: \begin{inparaenum}[(1)] \item obtaining the next event, \item sending new
-events, and \item rescheduling new events \end{inparaenum}.
 
-%%TODO  ^ ^ ^ ^ ^ ^ ^ ^
-%%TODO  | | | | | | | |
-%%TODO  | | | | | | | |
-%%TODO, possibly mention this in future research
+\subsection{Spinlocks}
+
+Worker threads must be able to access shared data structures without the possibility of
+race conditions. To deal with this, \textsc{warped2} uses mutexes to serialize worker thread
+access to any section of code that accesses the LTSF queue. This method, however significantly
+slows down access to the LTSF queues. With the results from the last section, it is obvious
+that quick access to the LTSF queues is necessary for the best performance. This section
+describes the use of spinlocks as an alternative to the standard blocking mutexes.
+
+Traditionally, mutexes are implemented in such a way that if a thread cannot acquire the
+lock, the thread is put to sleep and rescheduled for execution at a later time. If the locks
+are usually held for a short period, yielding the processor can waist more time than is necessary
+to wait for the lock to be free. \textsc{warped2} is a perfect example of this type of behavior
+since accesses to the LTSF queues only perform very simple and fast operations.
+
+A \emph{spinlock} is a type of mutex that does not force threads to be rescheduled but
+instead continue to attempt to aqcuire the lock over and over until it successfully acquires
+the lock or the timeslice of the thread expires. The downside of spinlocks is that the CPU time
+can be waised, especially as the number of contending threads increase. Furthermore, if the
+number of total threads is larger than the number of available processors, spinlocks are
+event worse because a thread can be involuntarily pre-empted while holding the lock.
+
+\subsection{Spinlocks in \textsc{warped2}}
+
+There are many ways to implement spinlocks with all varying attributes and complexities.
+Ticket locks were chosen for \textsc{warped2} because they are simple to implement, provide
+fairness, and generally have good performance for a small number of threads\cite{lockless-10}.
+The psuedocode below in algorithm \ref{ticket_lock} describes the acquisition and release
+procedures for a typical ticket lock implementation which is also how it is implemented in
+\textsc{warped2}.
+
+\begin{algorithm}
+\DontPrintSemicolon
+\SetKwFunction{fetchAndIncrement}{fetchAndIncrement}
+\SetKwBlock{Acquire}{lock}{end}
+\SetKwBlock{Release}{unlock}{end}
+\SetAlgoVlined
+
+    \Acquire{
+        $my\_number \gets \fetchAndIncrement{next\_number}$\;
+        \Repeat{$ticket = my\_number$}{\tcp{Do nothing}}
+    }\;
+
+    \Release{
+        $\fetchAndIncrement{ticket}$
+    }
+
+    \caption{Ticket Lock Procedures}\cite{wiki:ticketlock-15}\label{ticket_lock}
+\end{algorithm}
 
 \section{Data Structures to Support Rollback and Cancellation}
 
@@ -1216,8 +1258,6 @@ access to memory, especially in a multiprocessor system. Secondly, it adds some 
 when freeing memory used by events. To solve this problem though, \textsc{warped2} uses the
 smart pointers offered by the standard C++11 libraries which employ a reference counting
 scheme.
-
-
 
 \subsection{Partitioning}\label{partitioning}
 
@@ -1787,11 +1827,7 @@ random number generator is required. These are both practical requirements, thou
 problem with this approach is the necessity to understand forward and reverse computation
 precisely in the implementation of the simulation model.
 
-\subsection{State Saving in \textsc{warped2}}
 
-\textsc{warped2} currently implements periodic state saving because it can work well
-regardless of the simulation model and it can be implemented transparently in the simulation
-kernel.
 
 \section{Fossil Collection}
 
@@ -1819,35 +1855,30 @@ is based on a statistical bound for rollbacks. It is still possible that memory 
 fossil collected could still be used causing an OFC fault. Therefore, methods such as
 global state checkpointing must also be implemented to recover from these faults.
 
-\subsection{Fossil Collection in \textsc{warped2}}
 
-Fossil collection in \textsc{warped2} is currently based on GVT. When the GVT is determined
-all queues are fossil collected for each LP one at a time.
-
-Although the manager thread determines the GVT, it is undecided whether the worker threads
-should fossil collect or the manager thread. If the manager thread fossil collects then
-it can slow down interprocess communication by taking up too much of the manager threads
-time. Furthermore, this will require extra synchronization for all of the LPs processed
-queues, state queues, and output queues since they would no longer be dedicated to a single
-thread.
 
 \section{Memory Allocation}
 
 Parallel discrete event simulation systems must frequently allocate and free memory for
 events and states. This can be a huge overhead if used memory and free memory is not
-maintained in an efficient way. Furthermore, memory must be allocated to deallocated from
+maintained in an efficient way. Furthermore, memory must be allocated to and deallocated from
 each process by the operating system as needed which can be even more costly.
 
-In a standard system, the application will never know when this occurs because it is handled
-by runtime libraries which provide an API for allocation/deallocation for each specific
-process. For this reason, some time warp systems allocate a large fixed sized memory space
-before the start of the simulation and use their own memory management schemes.
+In a standard system, the application will never know when memory is allocated from the operating
+system or returned to it because it is usually handled by runtime libraries for the programming
+language that is used which provide an API for allocation/deallocation for each specific
+process. To completely remove an OS overheads, some time warp systems allocate a large fixed
+sized memory space before the start of the simulation and use their own memory management
+schemes. In these time warp systems, the simulation kernel must provide a way for the simulation
+models to allocate memory for events that need to be sent instead of calling the standard programming
+language APIs.
 
 Dynamic memory management in \textsc{warped2} is achieved through the standard malloc/free
-interface just like any other C/C++ application and does not pre-allocate any memory.
-Custom memory management is usually not necessary because modern implementations of malloc/free
-usually manage memory efficiently. Furthermore, the default allocator can be overriden by
-other allocators such as tcmalloc, jemalloc, hoard, etc.
+interface just like any other C/C++ application and does not pre-allocate any memory. The
+simulation model is responsible for the allocation of all states and events. The kernel only
+receives pointers to the states and events and accesses them indirectly. By doing this, we
+allow simulation model developers to implement their own memory management schemes or override
+the default malloc with allocators such as TCMalloc, JEMalloc, Hoard, etc.
 
 
 
@@ -2019,62 +2050,134 @@ exponential distributions.
 
 \section{State Saving}
 
-The first aspect of \textsc{warped2} that will be analyzed will be the state 
+Figure \ref{ssp_analysis_smp} shows the speedup and percent memory decrease over copy state saving
+with increasing state saving periods. The memory usage measurements were obtained from malloc
+statistics so they only account for heap memory.  All runs were configured for a GVT calculation
+period of 100ms, 10 worker threads and 10 LTSF Queues. 
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio]{figs/state_saving/speedup.pdf} \\
+      Speedup \\
+    \end{center}
+  \end{minipage} \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio]{figs/state_saving/percent_memory_decrease.pdf} \\
+      Percent Decrease in Peak Memory \\
+    \end{center}
+  \end{minipage}
+  \caption{Periodic State Saving on SMP Machine}\label{ssp_analysis_smp}
+\end{figure}
+
+It is apparent that benefits of increasing the state saving period are huge for lower periods
+due to less copying and lower memory requirements. However, with larger periods the increased
+rollback length will start to counteract. The time to rollback will take longer due to longer
+coaster forwarding phases and the memory requirements will increase due to the extra processed
+events saved for coast forwarding. The increased rollback time doesn't seem to make much difference
+even at large periods but the memory footprint increases linearly so the ideal period should be
+the point at which the memory requirements are the lowest. The ideal period will be different
+for all models because it will depend on the relative size of the events and states. The period
+for the PCS, Traffic, and Airport models appears to be the best around 25 but for the Epidemic
+model which has a large state to event ratio will be much larger.
 
 \section{Fossil Collection}
 
+There are two ways that fossil collection can be achieved in \textsc{warped2}. The first way
+is to have the worker threads fossil collect one LP at a time as they process events. The last
+fossil collect time can be recorded for each LP so that the worker threads can know when fossil
+collection is needed by comparing the times to the current GVT. The second way is to have the
+manager thread fossil collect all LPs. Once the GVT is calculated, all LPs can be fossil collected
+all at once.
+
+With manager thread fossil collection, the worker threads are relieved from unnecessary work
+that can slow down event processing but extra locks will be needed to protect access to the
+processed queue, output queue, and state queue for each LP. Worker thread fossil collection
+will be the more scalable approach for both the number of LPs and the number of processes since
+the manager thread must perform other tasks such as GVT and interprocess communication.
+
+Figure \ref{fc_times} 
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \begin{tabular}{| c | c |}
+        \hline
+        Model   & Maximum Time \\
+        \hline
+        PCS     & 10,000  \\
+        Traffic & 100,000 \\
+        Epidemic& 100,000 \\
+        Airport & 100,000 \\
+        \hline
+      \end{tabular}
+    \end{center}
+  \end{minipage} \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth]{figs/fossil_collection/simulation_times.pdf}
+    \end{center}
+  \end{minipage}
+  \caption{Performance Comparison for Fossil Collection Methods}\label{fc_times}
+\end{figure}
+
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio]{figs/fossil_collection/memory_fcw.pdf} \\
+      Worker Threads \\
+    \end{center}
+  \end{minipage} \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio]{figs/fossil_collection/memory_fcm.pdf} \\
+      Manager Thread \\
+    \end{center}
+  \end{minipage}
+  \caption{Memory Comparison for Fossil Collection Methods}\label{fc_memory_analysis}
+\end{figure}
 
 \section{Pending Event Set}
 
-Worker threads must be able to access shared data structures without the possibility of
-race conditions. To deal with this, \textsc{warped2} uses mutexes to serialize worker thread
-access to any section of code that accesses the LTSF queue. This method, however significantly
-slows down access to the LTSF queues. With the results from the last section, it is obvious
-that quick access to the LTSF queues is necessary for the best performance. This section
-describes the use of spinlocks as an alternative to the standard blocking mutexes.
+\subsection{LTSF Queues}
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio]{figs/pending_event_set/ltsf_speedup.pdf} \\
+      Speedup \\
+    \end{center}
+  \end{minipage} \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio]{figs/pending_event_set/ltsf_efficiency.pdf} \\
+      Efficiency \\
+    \end{center}
+  \end{minipage}
+  \caption{LTSF Queues}\label{ltsf_analysis}
+\end{figure}
+
+%% Explain results
+From these results it is apparent that contention to the LTSF queues outweigh the extra time
+needed to process a larger number of rollbacks. This can be explained by looking back at the
+event processing loop back in algorithm \ref{warped2_processing}. The lines with a number on the
+margin indicate possible access to the LTSF queue. For every event the LTSF queue is accessed
+at least 3 times: \begin{inparaenum}[(1)] \item obtaining the next event, \item sending new
+events, and \item rescheduling new events \end{inparaenum}.
+
+%%TODO  ^ ^ ^ ^ ^ ^ ^ ^
+%%TODO  | | | | | | | |
+
+%%TODO, possibly mention this in future research
 
 \subsection{Spinlocks}
 
-Traditionally, mutexes are implemented in such a way that if a thread cannot acquire the
-lock, the thread is put to sleep and rescheduled for execution at a later time. If the locks
-are usually held for a short period, yielding the processor can waist more time than is necessary
-to wait for the lock to be free. \textsc{warped2} is a perfect example of this type of behavior
-since accesses to the LTSF queues only perform very simple and fast operations.
-
-A \emph{spinlock} is a type of mutex that does not force threads to be rescheduled but
-instead continue to attempt to aqcuire the lock over and over until it successfully acquires
-the lock or the timeslice of the thread expires. The downside of spinlocks is that the CPU time
-can be waised, especially as the number of contending threads increase. Furthermore, if the
-number of total threads is larger than the number of available processors, spinlocks are
-event worse because a thread can be involuntarily pre-empted while holding the lock.
-
-\subsection{Spinlocks in \textsc{warped2}}
-
-There are many ways to implement spinlocks with all varying attributes and complexities.
-Ticket locks were chosen for \textsc{warped2} because they are simple to implement, provide
-fairness, and generally have good performance for a small number of threads\cite{lockless-10}.
-The psuedocode below in algorithm \ref{ticket_lock} describes the acquisition and release
-procedures for a typical ticket lock implementation which is also how it is implemented in
-\textsc{warped2}.
-
-\begin{algorithm}
-\DontPrintSemicolon
-\SetKwFunction{fetchAndIncrement}{fetchAndIncrement}
-\SetKwBlock{Acquire}{lock}{end}
-\SetKwBlock{Release}{unlock}{end}
-\SetAlgoVlined
-
-    \Acquire{
-        $my\_number \gets \fetchAndIncrement{next\_number}$\;
-        \Repeat{$ticket = my\_number$}{\tcp{Do nothing}}
-    }\;
-
-    \Release{
-        $\fetchAndIncrement{ticket}$
-    }
-
-    \caption{Ticket Lock Procedures}\cite{wiki:ticketlock-15}\label{ticket_lock}
-\end{algorithm}
+\begin{figure}
+\centering
+  \includegraphics[width=0.5\textwidth]{figs/pending_event_set/spinlock_speedup.pdf}
+\end{figure}
 
 \section{Partitioning}
 
