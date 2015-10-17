@@ -498,71 +498,6 @@ in figure \ref{communication}.
     \caption{Message Passing and Shared Memory Communication}\label{communication}
 \end{figure}
 
-\section{ARM big.LITTLE}
-
-ARM big.LITTLE is a computer architecture design which uses a combination of powerful
-processor cores that use a lot of power (big) with slower, more power-efficient processor
-cores (LITTLE). The purpose of this design is to allow good performance when the system load
-is heavy by running tasks on the big cores while also allowing power savings when the system
-load is low by running tasks on the LITTLE cores. The operating system CPU scheduler can
-make use of the big.LITTLE architecture in multiple ways by using different task allocation
-and switching policies. The three main methods that are currently being used in practice
-are cluster switching, CPU migration, and heterogeneous multi-processing. The remainder of
-this section describes the three methods in more detail.
-
-\subsection{Cluster Switching}
-
-With cluster switching, the LITTLE cores and big cores are grouped into \emph{clusters} with
-the big cores in one cluster and the LITTLE cores in another cluster. At any point in time,
-the OS scheduler will only schedule tasks to cores within a single cluster. When the system
-gains enough load so that a big core is needed, then the OS scheduler must switch to the big
-cluster and only use the big cores. This is the simplest method but can still waist a lot
-power by unnecessarily switching to the big cluster. Furthermore, only half of the cores are
-available at time which prohibits the use of full computational capacity. A diagram that
-illustrates cluster migration is shown in figure \ref{cluster_switching}.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth]{figs/graphviz/cluster_switching.pdf}
-    \caption{Cluster Switching}\label{cluster_switching}
-\end{figure}
-
-\subsection{CPU Migration}
-
-CPU migration is the next step up from cluster switching. With CPU migration, each big
-core is paired with a LITTLE core and the OS treats them as a single virtual core. At any
-point in time, the OS scheduler will only schedule tasks to only one of the physical cores
-within each virtual core. The advantage of this approach over cluster switching is that if
-the load on the system is only large enough so that a single big core is needed then power
-isn't waisted because only a single big core will be switched on. Like cluster switching
-though, only half the of CPU cores are available at a time which still prohibits full
-computational capacity of the system. A diagram that illustrates cpu migration is shown in
-figure \ref{cpu_migration}.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth]{figs/graphviz/in_kernel_switcher.pdf}
-    \caption{CPU Migration}\label{cpu_migration}
-\end{figure}
-
-\subsection{Heterogeneous Multi-Processing (HMP)}
-
-Heterogeneous Multi-Processing or Global Task Scheduling (GTS) allows simultaneously
-scheduling to all CPU cores at the same time. The tasks that have a higher priority or
-require more processing power will be scheduled to the big cores whereas the tasks with
-low priority that don't require much processing power, such as background tasks can be
-scheduled to the LITTLE cores. This is the most complex approach and is hard to implement
-because the OS scheduler must not treat all cores the same. Policies to allocate tasks
-must be implemented in the proper manner as well as policies for migration of task to and
-from the big cores and LITTLE cores. Much research is still in progress to determine the
-right policies. A diagram that illustrates HMP is shown in figure \ref{global_task_scheduling}.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth]{figs/graphviz/global_task_scheduling.pdf}
-    \caption{Heterogeneous Multi-Processing}\label{global_task_scheduling}
-\end{figure}
-
 
 
 \chapter{Related Work}\label{related_work}
@@ -812,18 +747,73 @@ state saving.
 
 \subsection{Global Time Warp Components and Communication Manager}
 
-The GVT manager implements an algorithm for determining the Global Virtual Time of the simulation.
-Because of the nature of \textsc{warped2}, the GVT algorithm has a base message passing algorithm
-with a shared memory subalgorithm. The termination manager impements an algorithm for determining
-when all processes become inactive and initiates termination when that occurs. A more detailed
-description of the GVT and termination detection algorithms used in \textsc{warped2} are given
-in chapter \ref{gvt_termination}. The Time Warp statistics manager keeps track of all local
-statistics and provides methods for global reductions on the them.
-
 The communication manager provides an interface between the underlying message passing library
 and the global time warp components in the \textsc{warped2} simulation kernel. Any interprocess
 communication must go through the communication manager, including remote events that must be
-sent to another process or received from another process.
+sent to another process or received from another process. Any class that has to do interprocess
+communication must register message types and a recieve callback function for each type with
+the communication manager.
+
+The GVT manager is actually two classes that implement two algorithms for determining the Global
+Virtual Time of the simulation. Because of the nature of \textsc{warped2}, the GVT algorithm has
+a message passing algorithm to use between the set of processes and shared memory subalgorithm
+to used between worker threads. The termination manager impements an algorithm for determining
+when all processes become inactive and initiates termination when that occurs. A more detailed
+description of the GVT and termination detection algorithms used in \textsc{warped2} are given
+in chapter \ref{gvt_termination}. The Time Warp statistics manager keeps track of all local
+statistics and provides methods for global reductions on the them. 
+
+\section{Message Passing Communication}
+
+Message passing between processes is achieved with MPI which is hidden through the communication
+manager interface.  All communication between processes in \textsc{warped2} is completely
+asynchronous except for initialization and finalization when some sanity checks are performed
+and statistics are calculated. However, the complexities of asynchronous communication are all
+handled by the manager thread so that worker threads can process events faster. When any thread,
+manager or worker, needs to send a message to another process, it is inserted into a single
+message queue which is protected from race conditions. The manager thread does everything else
+with sending, receiving, and buffer management.
+
+Periodically, the manager thread will remove all messages in the send queue, serialize them
+into a set of buffers, and pass the buffers to the MPI layer to be sent. Because asynchronous
+communication is used, the buffers are all saved into a send buffer queue. Then, at some point
+later, the send request can be tested for completion and the memory can be freed.
+
+For receiving messages, the manager thread must also periodically probe the MPI layer for
+received messages. When, a message has been received, a buffer is allocated, the buffer is added
+to a receive buffer queue, and a receive request is made to the MPI layer to retrieve the message
+in the buffer. At some point later, the request is tested for completion and the message is
+deserialized and added into a receive message queue. The messages are then taken one at a time,
+and passed to the message receive callback of the receiving object which is determine by the
+type of message.
+
+To summarize, the manager thread handles all communication in five different steps:
+\begin{enumerate}
+    \item Test for completed receive requests and deserialize messages.
+    \item Test for completed send requests and free memory.
+    \item Probe for received messages, allocate buffers, and request receives.
+    \item Serialize messages and request sends
+    \item Pass deserialized messages to the receiving object.
+\end{enumerate}
+
+\section{Interprocess Partitioning}
+
+Partitioning the work in a distributed system is important to minimize interprocess
+communication. In parallel discrete event simulation, the work is usually partitioned by
+the LPs so that each process in the system can process events from a dedicated subset of LPs.
+
+A good partitioning scheme will decrease interprocess communication by keeping LPs that communicate
+within a single process. This will create a much more stable simulation because communication
+latency is much larger than the frequency of computation and this disparity increases the chances
+of rollbacks occuring.
+
+\subsection{Interprocess Partitioning in \textsc{warped2}}
+
+By default, the LPs are allocated to processes using a round-robin partitioning scheme. While
+this may work well for some models with a certain number of processes, it will usually not
+be the ideal partitioning. For this reason, \textsc{warped2} offers two alternatives for the
+user: \begin{inparaenum} \item profile-guided partitioning and \item model-specific partitioning
+\end{inparaenum}. 
 
 \section{The Modeling API of \textsc{warped2}}
 
@@ -971,7 +961,9 @@ If the simulation model must use random number generators, then they must all be
 with the warped2 kernel so that the state of the random number generator can be saved and
 restored in case of rollbacks and provide deterministic result. The random number generators
 can be any type as long as they implement the \texttt{<< operator} and \texttt{>> operator} to
-allow the kernel to save and restore the internal state of the random number generator. To
+allow the kernel to save and restore the internal state of the random number generator. The
+random number generators in the C++11 standard libraries\cite{c++11-rng} all fit this requirement
+and can all be used so it is not necessary to always build a custom random number generator. To
 register the random number generator, the registerRNG template function must be used which is
 a member of the LogicalProcess class. All LP's must have separate random number generators and
 must be registered in the initializeLP callback function as shown in listing \ref{lp_example}.
@@ -1026,7 +1018,7 @@ int main(int argc, const char **argv) {
 
 
 
-\chapter{\textsc{warped2} Data Structures and Their Organization}\label{warped2_ds}
+\chapter{\textsc{warped2} Data Structures and Organization}\label{warped2_ds}
 
 \section{Pending Event Set Data Structures}
 
@@ -1080,10 +1072,10 @@ cancelled out. The event is first checked against the last processed event of th
 to see if it is a straggler, and rolled back if necessary. An anti-message is also considered to
 be a straggler if its positive counterpart was the last processed event for the LP since
 \textsc{warped2} makes the assumption that message order will always be preserved.
-Therefore, if the event is an anti-message, the positive counterpart is assumed to be in the LPs
+So if the event is an anti-message, the positive counterpart is assumed to be in the LPs
 unprocessed queue after rolling back and is cancelled out and a new event is scheduled into the
 LTSF queue if another event is pending. If the event is positive then it is processed normally,
-the state of the LP is saved, and new events are sent to other LPs. The event is then inserted
+the state of the LP is saved, and new events are sent to other LPs. The event is then moved
 into the processed queue and a new event is scheduled into the LTSF queue. To summarize the
 worker thread processing loop is shown in psuedocode in algorithm \ref{warped2_processing}.
 
@@ -1119,8 +1111,8 @@ worker thread processing loop is shown in psuedocode in algorithm \ref{warped2_p
 %% Sending events
 When events are inserted into the unprocessed queues, they are compared to the currently
 scheduled event for the LP. If there is no currently scheduled event or the new event is less
-than the currently scheduled event, then the new event is scheduled, thus preventing and
-unnecessary rollbacks.
+than the currently scheduled event, then the new event is scheduled to prevent a rollback from
+occuring.
 
 \subsection{Ordering of Events}
 
@@ -1155,49 +1147,70 @@ tagged in the event when it is sent and used for comparison at the receiver.
 
 To allow \textsc{warped2} to run on a large range of machines with different architectures and
 characteristics, a number of parameters are provided for the user to tune the simulation mechanism
-for their needs. 
+for their needs. In the current implementation, the four main parameters that will determine
+performance are the number of worker threads, the number of LTSF Queues, the LTSF partitioning
+method, and the state saving period.
 
 \subsubsection{Worker Threads and LTSF Queues}
 
-\textsc{warped2} allows the user to choose the number of LTSF queues 
+The number of worker threads that should be used will depend on the number of processors of the
+machine so it is left as a tunable parameter. \textsc{warped2} also allows the user to choose
+the number of LTSF queues. The user can specify any number of LTSF queues, however, it should
+be smaller than the number of worker threads and also a factor. 
+
 If all worker threads share a single LTSF queue then a huge contention point is created and
 performance will suffer. At the opposite extreme, however, with all worker threads processing
 events from a seperate LTSF queue, the the critical path of the simulation will be spread out
-and the number of rollbacks can increase significantly.
+and the number of rollbacks can increase significantly. The extent to which these matter could
+also vary as the data structures and algorithms evolve.
+
+\subsection{LTSF Queue Partitioning}
+
+
 
 \subsubsection{State Saving Period}
 
+Instead of saving the state of the LPs after every processed event processed for them, \textsc{warped2}
+allows the user to choose a state saving period value, $N$, so that each LP only has its state
+saved every $N$ events. A larger the value of $N$ reduces the amount of time taken to copy states
+and thus speeds up forward computation. The downside is that it also increases rollback time
+since not all states are available to roll back to so more events will have to be processed to
+get to the necessary state. The total time spent rolling back, however, is small compared to the
+time taken for forward computation
 
-\subsection{Spinlocks}
+\subsection{Protecting Access to LTSF Queues}
 
 Worker threads must be able to access shared data structures without the possibility of
 race conditions. To deal with this, \textsc{warped2} uses mutexes to serialize worker thread
-access to any section of code that accesses the LTSF queue. This method, however significantly
-slows down access to the LTSF queues. With the results from the last section, it is obvious
-that quick access to the LTSF queues is necessary for the best performance. This section
-describes the use of spinlocks as an alternative to the standard blocking mutexes.
-
-Traditionally, mutexes are implemented in such a way that if a thread cannot acquire the
-lock, the thread is put to sleep and rescheduled for execution at a later time. If the locks
-are usually held for a short period, yielding the processor can waist more time than is necessary
-to wait for the lock to be free. \textsc{warped2} is a perfect example of this type of behavior
-since accesses to the LTSF queues only perform very simple and fast operations.
+access to any section of code that accesses the LTSF queue. This method, however can significantly
+slows down access to the LTSF queues. In the default configuration, blocking mutexes are used
+which means that if a thread cannot aqcuire a the lock, it will be put to sleep and rescheduled
+for execution at a later time. However, this method can waiste a lot of exta time if access to the
+critical section is quick. By looking back at figure \ref{warped2_processing}, we can see all
+the critical points where worker threads can access the LTSF queues. The lines with a number on
+the margin indicate possible access to the LTSF queue. For every event the LTSF queue is accessed
+at least 3 times: \begin{inparaenum}[(1)] \item obtaining the next event, \item sending new
+events, and \item rescheduling new events \end{inparaenum}. All of these accesses are quick so
+the lock should only held for a short period of time.
 
 A \emph{spinlock} is a type of mutex that does not force threads to be rescheduled but
 instead continue to attempt to aqcuire the lock over and over until it successfully acquires
 the lock or the timeslice of the thread expires. The downside of spinlocks is that the CPU time
 can be waised, especially as the number of contending threads increase. Furthermore, if the
 number of total threads is larger than the number of available processors, spinlocks are
-event worse because a thread can be involuntarily pre-empted while holding the lock.
+even worse because a thread can be involuntarily pre-empted while holding the lock and entire
+timeslices can be waisted.
 
-\subsection{Spinlocks in \textsc{warped2}}
+\subsubsection{Spinlocks in \textsc{warped2}}
 
+\textsc{warped2} allows the user to optionally build the kernel to use spinlocks instead of
+blocking mutexes. It is not set as the default because spinlocks do not work well in all cases
+such as with a system that is running more threads than processors.
 There are many ways to implement spinlocks with all varying attributes and complexities.
 Ticket locks were chosen for \textsc{warped2} because they are simple to implement, provide
-fairness, and generally have good performance for a small number of threads\cite{lockless-10}.
-The psuedocode below in algorithm \ref{ticket_lock} describes the acquisition and release
-procedures for a typical ticket lock implementation which is also how it is implemented in
-\textsc{warped2}.
+fairness to all threads, and generally have good performance for a small number of threads
+\cite{lockless-10}. A short psuedocode algorithm to illustrate the ticket lock aqcuisition and
+release procedures is shown below in algorithm \ref{ticket_lock}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -1208,7 +1221,7 @@ procedures for a typical ticket lock implementation which is also how it is impl
 
     \Acquire{
         $my\_number \gets \fetchAndIncrement{next\_number}$\;
-        \Repeat{$ticket = my\_number$}{\tcp{Do nothing}}
+        \Repeat{$ticket = my\_number$}{\tcp{do nothing}}
     }\;
 
     \Release{
@@ -1217,6 +1230,14 @@ procedures for a typical ticket lock implementation which is also how it is impl
 
     \caption{Ticket Lock Procedures}\cite{wiki:ticketlock-15}\label{ticket_lock}
 \end{algorithm}
+
+\noindent
+To acquire the lock, each thread atomically increments a counter and takes the old value as
+a "ticket" to provide first in first out order. Then when the ticket value reaches that
+of the waiting thread, access to the critical section is given. To release the lock, the thread
+simply increments the ticket number and allows the next thread to access the critical section.
+If there is no contention for the lock, the next number will be equal to the ticket number and
+a thread can access the critical section immediately.
 
 \section{Data Structures to Support Rollback and Cancellation}
 
@@ -1258,46 +1279,6 @@ access to memory, especially in a multiprocessor system. Secondly, it adds some 
 when freeing memory used by events. To solve this problem though, \textsc{warped2} uses the
 smart pointers offered by the standard C++11 libraries which employ a reference counting
 scheme.
-
-\subsection{Partitioning}\label{partitioning}
-
-Partitioning the work in a distributed system is always important to minimize interprocess
-communication. In parallel discrete event simulation, the work is usually partitioned by
-the LPs. Each process in the system can then process events from a dedicated subset of LPs.
-
-In a message based system, communication latency is much larger than the frequency of
-computation. The disparity of of communication time and compute time greatly increases
-the chances of rollbacks occuring in a time warp system. Partitioning can greatly reduce
-communication between processes, effictively pushing each process closer to a sequential
-simulation.
-
-In a shared memory system, partitioning can aid reducing the number of simulateous accesses
-to shared data structures (e.g. unprocessed queues) by localizing access to less threads.
-Although it may not reduce the total number of accesses to a data structure, it can force
-worker threads to access the same subset of data structures reducing contention. This can
-also enhance the number of cache hits by increasing locality.
-
-\subsubsection{Partitioning in \textsc{warped2}}
-
-\textsc{warped2} uses multiple worker threads that communicate through shared data structures
-within processes that communicate through message passing. Therefore, to get the best
-performance, two levels of partitioning should be done. The first level of partitioning is
-for allocating LPs to processes and the second level is for allocating LPs to LTSF queues.
-Figure \ref{partitioning_fig} illustrates partitioning in \textsc{warped2} and how worker
-threads fit with it.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth]{figs/graphviz/partitioning.pdf}
-    \caption{Partitioning in \textsc{warped2}}\label{partitioning_fig}
-\end{figure}
-
-\textsc{warped2} currently supports thee types of partitioning: \begin{inparaenum}[(1)]
-\item round-robin, \item model-specific \item profile-guided \end{inparaenum}.
-
-Each process further partitions the LPs by the LTSF Queue that the LPs schedule their
-events to. It is effectively partioning among worker threads if each worker thread has its
-own LTSF Queue and has no effect if a single LTSF is shared among worker threads.
 
 
 
@@ -1465,32 +1446,34 @@ which is broadcast to all processes. This algorithm is efficient when time warp 
 are run on large supercomputing platforms like the blue gene machine which perform collective
 operations very quickly.
 
-\subsection{GVT Calculation in \textsc{Warped2}}
+\subsection{GVT in \textsc{Warped2}}
 
 To calculate the GVT in \textsc{warped2}, Fujimoto's shared memory algorithm is used between
 worker threads and a variation of Mattern's algorithm with scalar message counters is used
-between processes. Hence, Fujimoto's algorithm is a subalgorithm of Mattern's algorithm.
-The details of the Mattern's algorithm implementation in \textsc{warped2} is detailed below
-as well as how it is used with Fujimoto's algorithm.
+between processes. Fujimoto's algorithm is a subalgorithm of Mattern's algorithm. The details
+of the Mattern's algorithm implementation in \textsc{warped2} is detailed below as well as how
+it is used with Fujimoto's algorithm. More details on Fujimoto's algorithm will not be detailed
+but they can be found by reading \cite{fujimoto-94}.
 
 In the \textsc{warped2} implementation, scalar counters are used to keep track of message
 that are sent that carry the initial color. That means that each process keeps track of
 the number of sent messages minus the number of received messages to and from all other
-process as a single counter. The reason that scalar counters are used over vector counters
+process as a single count. The reason that scalar counters are used over vector counters
 is that vector counters require that communication is stopped after receiving a control token
-until all known transient messages bound for the receiving process are received. With scalar
-counters, this is not possible because it is only a single counter. However, it is possible
-that more than two rounds of the control token will be necessary. This is usually not a
-problem in practice though since two rounds is usually sufficient. With scalar counters,
-each process must maintain a counter for both white messages \emph{and} red messages so
-that counters can be consistent between multiple runs of the algorithm. Moreover, the role
-of colors must be switched between successive runs.
+until all known transient messages that are bound for the receiving process are received. With
+scalar counters, this is not possible because all counts are combined into a single counter.
+However, with scalar counters it is possible that more than two rounds of the control token will
+be necessary. This is usually not a problem in practice though since two rounds is usually
+sufficient. Also, each process must maintain a counter for both white messages \emph{and} red
+messages so that counters can be consistent between multiple runs of the algorithm. The roles of
+the colors must also be switched between successive runs.
 
 In the description of the \textsc{warped2} algorithm, the colors will be described as
-\emph{initial} and \emph{final}. Each process also keeps track of its current color, a
-minimum timestamp of an event received with the final color, and temporary variables to
-hold accumulated values from the token. The variables that are maintained at each
-process and are used in the succeeding discussion are listed below in algorithm
+\emph{initial} and \emph{final}, where the \emph{initial} color is the starting color for each
+process before receiving a token and the \emph{final} color is the color after receiving the
+token. Each process keeps track of its current color, a minimum timestamp of an event received
+with the final color, and temporary variables to hold accumulated values from the token. The
+variables that will be used in the following discussion are listed below in algorithm
 \ref{process_variables}.
 
 \begin{algorithm}
@@ -1500,15 +1483,14 @@ process and are used in the succeeding discussion are listed below in algorithm
     \boldmath$color_{initial}:$ Intial color of all processes\;
     \boldmath$msgcount_{initial}:$ Messages sent minus messages received with initial color\;
     \boldmath$msgcount_{final}:$ Messages sent minus messages received with final color\;
-    \boldmath$clock_{min}:$ Temporary variable to hold accumulated minimum clock from all
-        processes\;
+    \boldmath$clock_{min}:$ Temporary variable to hold accumulated minimum clock from all processes\;
     \boldmath$msgcount:$ Temporary variable to hold accumulated initial color message count
         from all processes\;
 \caption{Process Variables in \textsc{warped2} Mattern Implementation}\label{process_variables}
 \end{algorithm}
 
 \noindent
-The event messages that are sent between processes contain the format:
+The event messages that are sent between processes have the format:
 
     $<sender, receiver, mcolor,...>$
 
@@ -1516,7 +1498,7 @@ The event messages that are sent between processes contain the format:
 where $sender$ is the id of the sender process, $receiver$ is the id of the reciever process,
 and $mcolor$ is the color of the message. The message color is the color of the sending
 process at the time it is sent. The message count for the current color is also incremented
-when it is sent. Psuedocode illustrating this procedure is shown in algorithm \ref{gvt_event_send}.
+when it is sent. The event sending procedure is shown below in algorithm \ref{gvt_event_send}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -1531,11 +1513,10 @@ when it is sent. Psuedocode illustrating this procedure is shown in algorithm \r
 \caption{Event Message Send}\label{gvt_event_send}
 \end{algorithm}
 
-When an event is received by a process the message count for the current color of the process
-is decremented. If the color carried by the message is the final color in the algorithm,
-indicating that the sender has already reported a local minimum value, then the timestamp
-of the event is recorded as $ts_{min}$. Psuedocode illustrating the receiving procedure is
-show in algorithm \ref{gvt_event_receive}.
+When an event is received by a process, the message count for the current color of the process
+is decremented. If the color carried by the message is the final color indicating that the
+sender has already reported a local minimum value, then the timestamp of the event is recorded.
+The procedure for receiving an event is shown below in algorithm \ref{gvt_event_receive}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -1551,24 +1532,23 @@ show in algorithm \ref{gvt_event_receive}.
 \end{algorithm}
 
 \noindent
-The control token that is sent between processes contains the format:
+The control token that is sent between processes has the format:
 
     $<sender, receiver, mclock, msend, mcount>$
 
 \noindent
 where $mclock$ is an accumulated minimum of all local minimum clocks at all processes
 visited by the token, $msend$ is an accumulated minimum of all $ts_{min}$ values at all
-processes visited by the token, and $mcount$ is an accumulated sum of $msgcount_{final}$
-from all processes visited by the token.
+processes visited by the token, and $mcount$ is an accumulated sum of the final message count
+($msgcount_{final}$) from all processes visited by the token.
 
-In the \textsc{warped2} implementation, the token is passed in logical ring fashion to
-increasing process ids and is initiated by process with id 0. When the token reaches
-process $N-1$, where $N$ is the number of processes in the system, it is sent back to
-process 0. To start the algorithm, process 0 toggles its color, resets minim values to
-infinity, stores the initial color message count into a temporary variable $msgcount$, and
-starts Fujimoto's algorithm. When Fujimoto's algorithm is complete, it will send the token
-$<0, 1, lvt_{min}, ts_{min}, msgcount>$ with $lvt_{min}$ being the result of Fujimoto's
-algorithm. Psuedocode illustrating the start procedure is shown in algorithm \ref{gvt_start}.
+The token is passed in logical ring fashion to increasing process ids and is initiated by process
+with id 0. When the token reaches process $N-1$, where $N$ is the number of processes, it is
+sent back to process 0. To start the algorithm, the initiating process toggles its color, resets
+minim values to infinity, stores the initial color message count into a temporary variable
+($msgcount$), and starts Fujimoto's algorithm. When Fujimoto's algorithm is complete, it will
+send the token $<0, 1, lvt_{min}, ts_{min}, msgcount>$ with $lvt_{min}$ being the result of
+Fujimoto's algorithm. The start procedure is illustrated below in algorithm \ref{gvt_start}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -1592,11 +1572,11 @@ algorithm. Psuedocode illustrating the start procedure is shown in algorithm \re
 When a token is received at a process that is not the initiator and it still has the initial
 color then the color is toggled. Then, the minimum timestamp received from final colored
 messages, the minimum clock value, and the initial message count for the process are
-accumulated with the token's value. The initial message count is then reset so it will not
+accumulated with the token's values. The initial message count is then reset so it will not
 be used in the next round and Fujimoto's algorithm is initiated. When Fujimoto's algorithm
 is completed, the token is sent to the next process with all of the accumulated values
-including $lvt_{min}$ calculated from Fujimoto's algorithm. This procedure is illustrated
-in psuedocode shown in algorithm \ref{gvt_receive_noninit}.
+including $lvt_{min}$ calculated from Fujimoto's algorithm. The token receive procedure for
+non-initiator processes is illustrated below in algorithm \ref{gvt_receive_noninit}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -1626,9 +1606,9 @@ for the initial color has reached zero, then the GVT can be appoximated and the 
 is terminated. If there are still transient message that were not accounted for, the initiator
 process initiates a new round until the resulting message count accumulation is zero
 when received at the initiator. The GVT is approximated at the initiator by taking the
-minimum of the accumulated minimum clock values and the accumulated minimum timestamp values
-and broadcast to the rest of the processes. This procedure is illustrated in the psuedocode
-in algorithm \ref{gvt_receive_init}.
+minimum of the accumulated minimum clock values and the accumulated minimum timestamp values.
+The estimated GVT value is then broadcast to the rest of the processes. The token receiving procedure
+for the initiator process is illustrated below in algorithm \ref{gvt_receive_init}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -1668,22 +1648,22 @@ When all processes in the system become passive and no messages are left in tran
 the system should be terminated. The purpose of the termination detection algorithm is to
 determine when this occurs. A passive process can become active with the arrival of an
 \emph{activation message}. For parallel discrete event simulation the basic computation is
-event processing and the activation messages are events. A termination detection for any
-parallel discrete event simulation must satisfy the following properties:
+event processing and the activation messages are events. A termination detection algorithm for
+any parallel discrete event simulation must satisfy the following properties:
 
 \begin{description}
-    \item[Safety:] Termination will not be detected if any unprocessed event is still present
-        in system including all local pending event sets and events still in transit.
-    \item[Liveness:] Termination will be detected at some finite amount of time after all
-        events have been processed.
+    \item[Safety Property:] Termination will not be detected if any unprocessed event is still
+        present in system which includes all local pending event sets and events still in transit.
+    \item[Liveness Property:] Termination will be detected at some finite amount of time after
+        all events have been processed.
 \end{description}
 
 Just like GVT algorithms, termination detection algorithms can implemented with message
-passing or shared memory. Termination algorithms vary widely because different systems
-can define termination conditions in such different ways. Furthermore, termination usually
-does not affect system performance so correctness is more important than optimization.
-For these reasons only the termination algorithm that is implemented in \textsc{warped2}
-will be discussed any further.
+passing or shared memory communication. Termination algorithms vary widely because different
+systems can define termination conditions in such different ways. Furthermore, termination
+usually does not affect system performance as long it does not block event processing so
+correctness is more important than optimization. The rest of this section will only focus
+on the algorithms that are implemented in \textsc{warped2}.
 
 \subsection{Termination in \textsc{warped2}}
 
@@ -1696,19 +1676,21 @@ algorithm.
 
 The purpose of the shared memory algorithm is to determine when all of the worker threads
 in a process become passive (inactive). The algorithm is fairly straightforward and uses
-just a single shared counter variable to keep track of the number of active worker threads
-and a boolean array to keep track of which worker threads are active. Worker threads can
-only read or write to their own status values. The counter is updated atomically to avoid
-possible race condtions.
+just a shared counter variable to keep track of the number of active worker threads and a
+boolean array to keep track of which worker threads are active. Worker threads update their own
+state when they change and atomically update the counter. The manager thread periodically
+checks to see if the counter has reached zero. If the count has reached zero and the process
+is the master, then the interprocess message passing alorithm is initiated.
 
-The safety property is achieved because there can be no transient messages. If a thread
-sends an event to an LP that will be processed by another thread and then becomes inactive,
-false termination cannot detected because the receiving thread becomes active again after
-seeing the event. Come back to this, it may not be accurate.
-The liveness property is achieved because the manager thread periodically checks the
-active worker thread count so the inactivity of all worker threads will eventually be
-discovered. If the count is zero, then the message passing algorithm will be initiated
-between processes.
+The safety property is not necessarily achieved because it is possible that the last active
+thread sends an event to another LP which will be processed by another thread. Then if the sending
+thread becomes inactive, all threads can be temporarily inactive and the manager thread can
+falsely detect termination. However, it is very unlikely that the sending thread will report
+itself as passive before the receiving thread gets the event and reports itself as active.
+Furthermore, the manager thread is forced to check the active thread counter at least twice with
+no changes in any worker thread state. The liveness property is achieved because the manager
+thread periodically checks the active worker thread count so the inactivity of all worker threads
+will eventually be discovered.
 
 \subsubsection{Message Passing Algorithm}
 
@@ -1782,6 +1764,8 @@ It should also be noted that this algorithm is only guarenteed to work if the me
 is preserved. If that is not the case, then message counters are necessary to ensure
 transient activation messages are not missed.
 
+
+
 \chapter{Memory Management}\label{memory_management}
 
 This chapter will focus on main topics related to memory management in a time warp system
@@ -1790,6 +1774,8 @@ collection and memory allocation. Different methods for each of these topics hav
 time and memory requirements and vary greatly in complexity.
 
 \section{State Saving}
+
+\subsection{State Saving Techniques}
 
 \paragraph{Copy-state Saving} is the classic state saving technique that saves every past
 state of every LP and requires that the all states are copied and saved into the state queues.
@@ -1827,6 +1813,8 @@ random number generator is required. These are both practical requirements, thou
 problem with this approach is the necessity to understand forward and reverse computation
 precisely in the implementation of the simulation model.
 
+\subsection{State Saving in \textsc{warped2}}
+
 
 
 \section{Fossil Collection}
@@ -1835,6 +1823,8 @@ When the events and states in the processed queues, output queues, and state que
 no longer needed, the memory that they consume is no longer needed and can either be freed
 or reused. Fossil collection is the process of reclaiming memory for future use. There
 are many methods of fossil collection that have been used in practice.
+
+\subsection{Fossil Collection Techniques}
 
 \paragraph{GVT-based Fossil Collection} is the traditional method of fossil collection.
 Since rollbacks cannot occur past the GVT, it can be used be used as a marker to indicate
@@ -1854,6 +1844,8 @@ aims to reuse memory instead of explicitly freeing it. However, optimistic fossi
 is based on a statistical bound for rollbacks. It is still possible that memory that was
 fossil collected could still be used causing an OFC fault. Therefore, methods such as
 global state checkpointing must also be implemented to recover from these faults.
+
+\subsection{Fossil Collection in \textsc{warped2}}
 
 
 
@@ -1879,6 +1871,19 @@ simulation model is responsible for the allocation of all states and events. The
 receives pointers to the states and events and accesses them indirectly. By doing this, we
 allow simulation model developers to implement their own memory management schemes or override
 the default malloc with allocators such as TCMalloc, JEMalloc, Hoard, etc.
+
+
+\section{Memory Tuning Parameters in \textsc{warped2}}
+
+
+
+\subsection{State Saving Period}
+
+
+
+\subsection{GVT Period}
+
+
 
 
 
@@ -2161,11 +2166,7 @@ Figure \ref{fc_times}
 
 %% Explain results
 From these results it is apparent that contention to the LTSF queues outweigh the extra time
-needed to process a larger number of rollbacks. This can be explained by looking back at the
-event processing loop back in algorithm \ref{warped2_processing}. The lines with a number on the
-margin indicate possible access to the LTSF queue. For every event the LTSF queue is accessed
-at least 3 times: \begin{inparaenum}[(1)] \item obtaining the next event, \item sending new
-events, and \item rescheduling new events \end{inparaenum}.
+needed to process a larger number of rollbacks.
 
 %%TODO  ^ ^ ^ ^ ^ ^ ^ ^
 %%TODO  | | | | | | | |
@@ -2223,7 +2224,13 @@ caches.
     \caption{ODROID XU3 Platforms}\label{odroid_platform}
 \end{table}
 
+\section{Load Distribution}
 
+\section{CPU Affinity}
+
+\section{Large Page Size}
+
+\section{Memory Bandwidth Benchmarks}
 
 \chapter[Conclusions \& Future Research]{Conclusions and Suggestions for Future Research}
 \label{conclude}
