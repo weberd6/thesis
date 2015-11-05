@@ -129,7 +129,17 @@
 %% why existing solutions are insufficient, it must describe your approach to a
 %% solution and what your primary results are.  whew!!
 
+Parallel Discrete Event Simulation (PDES) systems have traditionally been designed for either
+clusters using message passing for communication or for shared-memory multiprocessors using shared
+data structures for communication. PDES appications are fine-grained which makes the high
+communication latencies of message passing a limiting factor in the rate at which events can
+be processed but allows the system to scale to essentially any size. On the other hand, PDES
+systems that use shared memory have very low communication latencies and prevent unnecessary
+copying, but do not scale very well.
 
+To get the best of both forms of communication, \textsc{warped2} uses a hybrid approach where
+a set of mulithreaded processes communication with message passing but threads make use of shared
+data structures.
 
 \chapter*{Acknowledgments}
 
@@ -157,11 +167,14 @@ on parallel computing platforms. The field of study that deals with parallel alg
 to speed up discrete event simulations is known as Parallel Discrete Event Simulation (PDES).
 
 Parallel algorithms can be written for many different architectures that support parallelism
-such as shared memory architectures, clusters, or any other type of system that support
+such as shared memory multiprocessors, clusters, or any other type of system that support
 parallel execution. Furthermore, communication between concurrent workers in the system can
 be achieved by using shared data structures or by passing explicit messages between workers.
 
-%% Problem Statement
+The Time Warp Mechanism\cite{jefferson-85}, which is the focus of this text, is one approach
+to PDES where causal dependencies of events are not enforced before processing an event. A method
+of undoing erroneous computation and cancelling incorrectly sent events must be implemented in
+a time warp system.
 Some time warp systems are designed for only shared memory multiprocessors. These systems
 minimize communication latencies and allow very fast, simple algorithm because everything
 can run in a single address space and use shared data structrures with pointers to prevent
@@ -172,10 +185,10 @@ of exhchanging messages. However, this approach introduces high communication la
 
 %% Solution
 The \textsc{warped2} simulation kernel, which is a reimplementation of the original
-\textsc{warped} simulation kernel, is an entirely different approach which uses shared
-memory between a set of \emph{worker threads} in a single process to eliminate communication
-overheads, but uses message passing between processes to allow the system to scale to larger
-sizes. A dedicated \emph{manager thread} handles all message passing communication between
+\textsc{warped} simulation kernel, uses a hybrid approach by using shared memory between a set
+of \emph{worker threads} in a single process to eliminate communication overheads, but uses
+message passing between processes to allow the system to scale to larger sizes. A dedicated
+\emph{manager thread} handles all message passing communication between
 processes. Figure \ref{warped2_communication} illustrates the communication model that is
 used in \textsc{warped2}.
 
@@ -763,58 +776,6 @@ description of the GVT and termination detection algorithms used in \textsc{warp
 in chapter \ref{gvt_termination}. The Time Warp statistics manager keeps track of all local
 statistics and provides methods for global reductions on the them. 
 
-\section{Message Passing Communication}
-
-Message passing between processes is achieved with MPI which is hidden through the communication
-manager interface.  All communication between processes in \textsc{warped2} is completely
-asynchronous except for initialization and finalization when some sanity checks are performed
-and statistics are calculated. However, the complexities of asynchronous communication are all
-handled by the manager thread so that worker threads can process events faster. When any thread,
-manager or worker, needs to send a message to another process, it is inserted into a single
-message queue which is protected from race conditions. The manager thread does everything else
-with sending, receiving, and buffer management.
-
-Periodically, the manager thread will remove all messages in the send queue, serialize them
-into a set of buffers, and pass the buffers to the MPI layer to be sent. Because asynchronous
-communication is used, the buffers are all saved into a send buffer queue. Then, at some point
-later, the send request can be tested for completion and the memory can be freed.
-
-For receiving messages, the manager thread must also periodically probe the MPI layer for
-received messages. When, a message has been received, a buffer is allocated, the buffer is added
-to a receive buffer queue, and a receive request is made to the MPI layer to retrieve the message
-in the buffer. At some point later, the request is tested for completion and the message is
-deserialized and added into a receive message queue. The messages are then taken one at a time,
-and passed to the message receive callback of the receiving object which is determine by the
-type of message.
-
-To summarize, the manager thread handles all communication in five different steps:
-\begin{enumerate}
-    \item Test for completed receive requests and deserialize messages.
-    \item Test for completed send requests and free memory.
-    \item Probe for received messages, allocate buffers, and request receives.
-    \item Serialize messages and request sends
-    \item Pass deserialized messages to the receiving object.
-\end{enumerate}
-
-\section{Interprocess Partitioning}
-
-Partitioning the work in a distributed system is important to minimize interprocess
-communication. In parallel discrete event simulation, the work is usually partitioned by
-the LPs so that each process in the system can process events from a dedicated subset of LPs.
-
-A good partitioning scheme will decrease interprocess communication by keeping LPs that communicate
-within a single process. This will create a much more stable simulation because communication
-latency is much larger than the frequency of computation and this disparity increases the chances
-of rollbacks occuring.
-
-\subsection{Interprocess Partitioning in \textsc{warped2}}
-
-By default, the LPs are allocated to processes using a round-robin partitioning scheme. While
-this may work well for some models with a certain number of processes, it will usually not
-be the ideal partitioning. For this reason, \textsc{warped2} offers two alternatives for the
-user: \begin{inparaenum} \item profile-guided partitioning and \item model-specific partitioning
-\end{inparaenum}. 
-
 \section{The Modeling API of \textsc{warped2}}
 
 The modeling interface of warped2 is a set of abstract base classes that contain methods
@@ -1284,6 +1245,53 @@ access to memory, especially in a multiprocessor system. Secondly, it adds some 
 when freeing memory used by events. To solve this problem though, \textsc{warped2} uses the
 smart pointers offered by the standard C++11 libraries which employ a reference counting
 scheme.
+
+
+\chapter{Message Passing Communication and Interprocess Partitioning}
+
+The MPI standard specifies four level of thread support that each implementation may support:
+
+\begin{description}
+    \item[MPI\_THREAD\_SINGLE:] The application uses only a single thread.
+    \item[MPI\_THREAD\_FUNNELED:] The application is multithreaded but only a single thread will
+        make MPI calls.
+    \item[MPI\_THREAD\_SERIALIZED:] The application is multithreaded but only a single thread at
+        a time will make MPI calls.
+    \item[MPI\_THREAD\_MULTIPLE:] The application is multithreaded and threads have no restrictions.
+\end{description}
+
+The choice of which is better for a fine-grained multi-threaded applications like \textsc{warped2}
+is largely dependent on the underlying MPI implementation. Funnelling the communication to the
+manager thread can increase latency because an extra step for temporarily queueing the message
+is necessary. Furthermore, with too fine of a granularity, the number of messages can increase
+pile up and create a bottleneck in the communication and cause instability. Serialized or full
+multiple thread communication, however, can increase contention for access to MPI library calls
+and slow down the worker threads. Furthermore, it forces worker threads to take more time for
+serialization, deserialization, and memory allocation.
+
+The plots in figure \ref{communication_models} summarizes the performance of funnelled, serialized,
+and multiple thread communication. For serialized communication, a single global spinlock is
+used to protect access to all MPI library calls.
+
+\section{Interprocess Partitioning}
+
+Partitioning the work in a distributed system is important to minimize latency costs incurred
+from interprocess communication. In parallel discrete event simulation, the work is usually
+partitioned by the LPs so that each process in the system can process events from a dedicated
+subset of LPs.
+
+A good partitioning scheme will decrease interprocess communication by keeping LPs that communicate
+within a single process. This will create a much more stable simulation since the communication
+latency is much larger than the frequency of computation on each of the local machines and this
+disparity increases the chances of rollbacks occuring.
+
+\subsection{Interprocess Partitioning in \textsc{warped2}}
+
+By default, the LPs are allocated to processes using a round-robin partitioning scheme. While
+this may work well for some models with a certain number of processes, it will usually not
+be the ideal partitioning. For this reason, \textsc{warped2} offers two alternatives for the
+user: \begin{inparaenum} \item profile-guided partitioning and \item model-specific partitioning
+\end{inparaenum}.
 
 
 
@@ -1952,7 +1960,7 @@ A summary of the architectural features of both machines that used are summarize
             & L3 Cache      & 12MB      & N/A       \\
         \hline
         \multirow{3}{*}{Runtime}
-            & Compiler          & GCC v4.9.2    & GCC v5.1.0    \\
+            & Compiler          & GCC v4.9.2    & GCC v4.8.5    \\
             & MPI               & MPICH v3.1    & MPICH v1.5    \\
             & Memory Allocator  & TCMalloc v2.4 & TCMalloc v2.4 \\
         \hline
@@ -2118,7 +2126,7 @@ with the parameters shown in figure \ref{model_params} unless noted otherwise.
             \hline\hline
             \multirow{26}{*}{Epidemic}
                 & \multirow{2}{*}{Diffusion}    & K                         & 8     \\
-                &                               & Beta                      & 0.1   \\ \cline{2-4}
+                &                               & $\beta$                   & 0.1   \\ \cline{2-4}
                 & \multirow{15}{*}{Disease}     & Transmissibility          & 0.12  \\
                 &                               & Latent Dwell Time         & 200   \\
                 &                               & Latent Infectivity        & 0     \\
@@ -2149,24 +2157,49 @@ with the parameters shown in figure \ref{model_params} unless noted otherwise.
 \caption{Model Parameters}\label{model_params}
 \end{figure}
 
-\section{State Saving}
+\section{State Saving}\label{ssp_analysis}
 
 Figure \ref{ssp_analysis_smp} shows the speedup and percent memory decrease over copy state saving
 as the state saving period is increased for all models. The memory usage measurements were obtained
 from malloc statistics so they only account for heap memory.  All runs were configured for a GVT
-calculation period of 100ms, 10 worker threads and 10 LTSF Queues. 
+calculation period of 100ms, 10 worker threads and 10 LTSF Queues.
+
+$$ Speedup_{CSS} = runtime_{1}/runtime_{N} $$
+
+\noindent
+where $runtime_{1}$ is the runtime with every state saved and $runtime_{N}$ is runtime with the
+state saving period of $N$. Another measure called the \emph{efficiency} is defined as:
+
+$$ Efficiency = {events_{committed}}/{events_{processed}} $$
+
+\noindent
+where $events_{processed}$ is the total number of events that are processed and $events_{committed}$
+is the number of events that are processed and not rolled back. The efficiency is therefore
+a measure of the percent of events that are processed without being rolled back.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio]{figs/state_saving/speedup.pdf} \\
-      Speedup \\
+      $Speedup_{CSS}$ \\
     \end{center}
   \end{minipage} \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio]{figs/state_saving/percent_memory_decrease.pdf} \\
-      Percent Decrease in Peak Memory \\
+      \% Decrease in Average Peak Memory \\
+    \end{center}
+  \end{minipage}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio]{figs/state_saving/average_cf.pdf} \\
+      Average Coast Forward Events
+    \end{center}
+  \end{minipage} \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio]{figs/state_saving/efficiency.pdf} \\
+      $Efficiency$ \\
     \end{center}
   \end{minipage}
   \caption{Periodic State Saving on SMP Machine}\label{ssp_analysis_smp}
@@ -2174,14 +2207,14 @@ calculation period of 100ms, 10 worker threads and 10 LTSF Queues.
 
 It is apparent these results that the benefits of increasing the state saving period are very good
 for lower periods due to less copying and lower memory requirements. However, with larger periods
-the increased rollback length will start to counteract the copying and memory overheads. The time
-to rollback will take longer due to longer coaster forwarding phases and the memory requirements
-will increase due to the extra processed events saved for coast forwarding. The increased rollback
-time doesn't seem to make much difference even at large periods but the memory footprint increases
-linearly so the ideal period should be the point at which the memory requirements are the lowest.
-The ideal period will be different for all models because it will depend on the relative size
-of the events and states. The period for the PCS, Traffic, and Airport models appears to be the
-best around 25 but for the Epidemic model which has a large state to event ratio will be much larger.
+the increased number of coast foward events will start to counteract the copying and memory
+overheads. The memory requirements will increase due to the extra processed events saved for
+coast forwarding. The increased rollback time doesn't seem to make much difference even at large
+periods but the memory footprint increases linearly so the ideal period should be the point at
+which the memory requirements are the lowest. The ideal period will be different for all models
+because it will depend on the relative size of the events and states. The period for the PCS,
+Traffic, and Airport models appears to be the best around 25 but for the Epidemic model which
+has a large state to event ratio will be much larger.
 
 \section{Fossil Collection}
 
@@ -2214,13 +2247,13 @@ Figure \ref{fc_times} shows how the simulation times compare in a single SMP mac
         Airport & 100,000 \\
         \hline
       \end{tabular}\\
-      (a) Termination GVT
+      (a) Termination Times
     \end{center}
   \end{minipage} \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
       \includegraphics[width=\textwidth]{figs/fossil_collection/simulation_times.pdf}\\
-      (b) Simulation Times
+      (b) Simulation Run Times
     \end{center}
   \end{minipage}
   \caption{Performance Comparison for Fossil Collection Methods}\label{fc_times}
@@ -2264,22 +2297,30 @@ performance is only worsened by a very small amount.
 
 \section{Pending Event Set}
 
-The plots shown in figure \ref{ltsf_analysis} below illustrate the effect of increasing the
-number of worker threads per LTSF queues.
+In this section, the pending event set will be analyzed for all models with a varying number of
+LTSF queues. For all runs, 10 worker threads are used so the valid number of LTSF queues are
+1, 2, 5, and 10. For this analysis, speedup will be defined as:
 
-\subsection{LTSF Queues}
+$$ Speedup_{LTSF} = runtime_{1}/runtime_{n} $$
+
+\noindent
+where $runtime_{1}$ is the run time for a single LTSF queue and $runtime_{n}$ is the runtime
+for $n$ LTSF queues. The speedup is a better measure over runtime because it is shows relative
+performances so that multiple simulation models can be compared. The plots shown in figure
+\ref{ltsf_analysis} illustrate the effects of increasing the number of worker threads per LTSF
+queues.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio]{figs/pending_event_set/ltsf_speedup.pdf} \\
-      Speedup \\
+      $Speedup_{LTSF}$ \\
     \end{center}
   \end{minipage} \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio]{figs/pending_event_set/ltsf_efficiency.pdf} \\
-      Efficiency \\
+      $Efficiency$ \\
     \end{center}
   \end{minipage}
   \begin{minipage}{.5\textwidth}
@@ -2294,25 +2335,32 @@ number of worker threads per LTSF queues.
       Total Rollbacks \\
     \end{center}
   \end{minipage}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/pending_event_set/ltsf_event_rate.pdf} \\
-      Event Rate \\
-    \end{center}
-  \end{minipage} \hfill
   \caption{Comparison With Varying LTSF Queues}\label{ltsf_analysis}
 \end{figure}
 
-%% Explain results
-From these results it is apparent that contention to the LTSF queues outweigh the extra time
-needed to process a larger number of rollbacks.
-
-%%TODO  ^ ^ ^ ^ ^ ^ ^ ^
-%%TODO  | | | | | | | |
-
-%%TODO, possibly mention this in future research
+%% Speedup with LTSF Queues
+There are lots of interesting things that are apparent from these plots. First, even though
+the number of total rollbacks increase with more LTSF queues, there is still a growing speedup.
+That means that the contention of the LTSF queue locks always outweighs the extra time needed
+to process more rollbacks. More strangely, the models with a larger speedup tend to have more
+rollbacks and by looking back at figure \ref{ssp_analysis}, also tend to have a worse speedup
+from an increased state saving period. This is most likely due to differences in the time it
+takes for memory allocation, deallocation, and copying. PCS has a really small state whereas
+epidemic has a very large state. The last thing to take from these plots is that the memory
+requirement increases as the number of LTSF queues increases. This is simply because rollbacks
+are much more likely to occur when the critical path is spread out so the GVT increases more
+slowly. A lot more extra states and events will be need to be saved without being fossil collected.
 
 \subsection{Spinlocks}
+
+All previous experiments were run with the default blocking mutexes in which threads will yield
+the processor when a lock is contended. To reduce the average lock acquisition latency, the
+kernel can be configured with spinlocks instead. Figure \ref{spinlock_speedup} shows the speedup
+for all models and varying number of LTSF queues. As expected, the speedup is much greater with
+more contention when there are more worker threads per LTSF queue. It can also be seen that all
+models except for epidemic have very similar speedups. This is probably due to the high cost
+of saving such a large complex state. Contention becomes less of a concern if the event processing
+is slowed down by other computation.
 
 \begin{figure}
 \centering
@@ -2330,6 +2378,10 @@ needed to process a larger number of rollbacks.
   \caption{Speedup with Profile-Guided Partitioning}\label{ltsf_partitioning}
 \end{figure}
 
+\subsection{Interprocess Parttioning}
+
+
+
 \section{Memory Allocation}
 
 \subsection{Thread-Caching Malloc (TCMalloc)}
@@ -2338,6 +2390,7 @@ TCMalloc is a memory allocator that is designed to efficiently allocate memory i
 multi-threaded applications liked \textsc{warped2}. In TCMalloc, seperate thread-local
 caches of free memory are maintained to avoid contention when allocating and freeing memory.
 
+All results shown before now have all been with TCMalloc
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -2384,27 +2437,88 @@ caches of free memory are maintained to avoid contention when allocating and fre
             & L2 Cache      & 2MB       & 512kB\\
         \hline
         \multirow{2}{*}{Memory}
-            & Type          & \multicolumn{2}{c||}{2 x LPDDR3-933} \\
-            & Max Bandwidth & \multicolumn{2}{c||}{14.9 GB/s} \\
+            & Type          & \multicolumn{2}{c||}{2 x LPDDR3-933}  \\
+            & Max Bandwidth & \multicolumn{2}{c||}{14.9 GB/s}       \\
         \hline
-        \multirow{2}{*}{Runtime}
-            & Compiler      & \multicolumn{2}{c||}{?} \\
-            & MPI Version   & \multicolumn{2}{c||}{?} \\
+        \multirow{3}{*}{Runtime}
+            & Compiler          & \multicolumn{2}{c||}{GCC v4.8.2}      \\
+            & MPI               & \multicolumn{2}{c||}{OpenMPI v1.8.5a1}\\
+            & Memory Allocator  & \multicolumn{2}{c||}{TCMalloc v2.4}   \\
         \hline
     \end{tabular}
     \caption{ODROID XU3 Platforms}\label{odroid_platform}
 \end{table}
 
-\section{Load Distribution}
+\section{Comparison of Big and LITTLE Performances}
 
-\section{CPU Affinity}
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/pcs_rr.pdf} \\
+      PCS \\
+    \end{center}
+  \end{minipage} \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/traffic_rr.pdf} \\
+      Traffic \\
+    \end{center}
+  \end{minipage}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/epidemic_rr.pdf} \\
+      Epidemic \\
+    \end{center}
+  \end{minipage} \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/airport_rr.pdf} \\
+      Airport \\
+    \end{center}
+  \end{minipage}
+\end{figure}
 
-\section{Large Page Size}
+\section{CPU Affinity and LTSF Queue Partitioning}
 
-\section{Memory Bandwidth Benchmarks}
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/os_partitioning_times.pdf}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/os_partitioning_rbs.pdf}
+\end{figure}
+
+\section{Atomic Instructions on ODROID XU3}
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/fetchadd.eps} \\
+      Fetch and add \\
+    \end{center}
+  \end{minipage} \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/fetchsub.eps} \\
+      Fetch and subtract \\
+    \end{center}
+  \end{minipage}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/sharedptr_copy.eps} \\
+      Shared\_ptr copy \\
+    \end{center} \hfill
+  \end{minipage}
+\end{figure}
 
 \chapter[Conclusions \& Future Research]{Conclusions and Suggestions for Future Research}
 \label{conclude}
+
+%% Can we lower contention with fewer LTSF queues so that rollbacks are minimized???
+
+%% MPI latency and MPI lock contention
 
 \section{Summary of Findings}
 
