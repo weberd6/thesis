@@ -1,0 +1,359 @@
+#!/usr/bin/python
+
+import numpy as np
+import matplotlib.pyplot as plt
+import re
+
+models = ["epidemic", "pcs", "traffic", "airport"];
+mallocs = ["tcm", "ptm"];
+
+warped_data_path = "/home/weberd6/warped2-data.hagar/memory_allocation"
+
+def filenames():
+    for wt in range(1, 11):
+        filename = "1n{}wt{}sq25ssp100gvtp_pg.csv".format(wt, wt)
+        yield filename
+
+def filter_total_lines(f):
+    for line in f:
+        if "Total" in line:
+            yield line
+
+def addPlotXY(plots, title, xlab, ylab, lines):
+    new_plot = {"title": title, "xlabel": xlab, "ylabel": ylab, "lines": lines}
+    plots.append(new_plot)
+
+def addLineXY(lines, xvals, yvals, std, leg):
+    new_line = {"xvals": xvals, "yvals": yvals, "std": std, "legend_title": leg}
+    lines.append(new_line)
+
+def autolabel(rects):
+    # attach some text labels
+    for rect in rects:
+        height = rect.get_height()
+        if rect.get_y() >= 0:
+            plt.text(rect.get_x()+rect.get_width()/2.0, 1.05*height, '%.02f'%float(height), ha='center', va='bottom')
+        else:
+            plt.text(rect.get_x()+rect.get_width()/2.0, -1.25*height, '%.02f'%float(-height), ha='center', va='bottom')
+
+def main():
+
+    plots = list()
+
+    for malloc in mallocs:
+
+        memory_lines = list()
+        time_lines = list()
+        efficiency_lines = list()
+
+        for m in models:
+            wt_x = list()
+            mem_y = list()
+            mem_std = list()
+            time_y = list()
+            time_std = list()
+            proc_y = list()
+            comm_y = list()
+
+            f = filenames()
+            for filename in f:
+                # obtain configs from filename
+                nodes, wt, sq, ssp, gvtp = re.findall(r'\d+', filename)
+
+                with open("{}/{}/{}/{}".format(warped_data_path, m, malloc, filename)) as plotpoint:
+                    ydata = np.genfromtxt(filter_total_lines(plotpoint), delimiter=",",
+                        names=['node', 'time', 'objects', 'localp', 'remotep', 'localn', 'remoten',
+                               'prollbacks', 'srollbacks', 'coasted','cancelled', 'processed',
+                               'committed', 'memory'])
+
+                wt_x.append(wt)
+                proc_y.append(np.mean(ydata['processed']))
+                comm_y.append(np.mean(ydata['committed']))
+                mem_y.append(np.mean(ydata['memory']))
+                mem_std.append(np.std(ydata['memory']))
+                time_y.append(np.mean(ydata['time']))
+                time_std.append(np.std(ydata['time']))
+
+            efficiency_y = [a / b for a, b in zip(comm_y, proc_y)]
+
+            addLineXY(memory_lines, wt_x, mem_y, mem_std, m)
+            addLineXY(time_lines, wt_x, time_y, mem_std, m)
+            addLineXY(efficiency_lines, wt_x, efficiency_y, None, m)
+
+        addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Efficiency", efficiency_lines)
+        addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Average Peak Memory", memory_lines)
+        addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Simulation Time (s)", time_lines)
+
+    one_times_by_model_tcm = list()
+    two_times_by_model_tcm = list()
+    three_times_by_model_tcm = list()
+    four_times_by_model_tcm = list()
+    five_times_by_model_tcm = list()
+    six_times_by_model_tcm = list()
+    seven_times_by_model_tcm = list()
+    eight_times_by_model_tcm = list()
+    nine_times_by_model_tcm = list()
+    ten_times_by_model_tcm = list()
+
+    one_times_by_model_ptm = list()
+    two_times_by_model_ptm = list()
+    three_times_by_model_ptm = list()
+    four_times_by_model_ptm = list()
+    five_times_by_model_ptm = list()
+    six_times_by_model_ptm = list()
+    seven_times_by_model_ptm = list()
+    eight_times_by_model_ptm = list()
+    nine_times_by_model_ptm = list()
+    ten_times_by_model_ptm = list()
+
+    for m in models:
+        for malloc in mallocs:
+            f = filenames()
+            for filename in f:
+                # obtain configs from filename
+                nodes, wt, sq, ssp, gvtp = re.findall(r'\d+', filename)
+
+                with open("{}/{}/{}/{}".format(warped_data_path, m, malloc, filename)) as plotpoint:
+                    ydata = np.genfromtxt(filter_total_lines(plotpoint), delimiter=",",
+                        names=['node', 'time', 'objects', 'localp', 'remotep', 'localn', 'remoten',
+                               'prollbacks', 'srollbacks', 'coasted','cancelled', 'processed',
+                               'committed', 'memory'])
+
+                time = np.mean(ydata['time'])
+
+                if malloc == "ptm":
+                    if wt == '1':
+                        one_times_by_model_ptm.append(time)
+                    elif wt == '2':
+                        two_times_by_model_ptm.append(time)
+                    elif wt == '3':
+                        three_times_by_model_ptm.append(time)
+                    elif wt == '4':
+                         four_times_by_model_ptm.append(time)
+                    elif wt == '5':
+                        five_times_by_model_ptm.append(time)
+                    elif wt == '6':
+                        six_times_by_model_ptm.append(time)
+                    elif wt == '7':
+                        seven_times_by_model_ptm.append(time)
+                    elif wt == '8':
+                        eight_times_by_model_ptm.append(time)
+                    elif wt == '9':
+                        nine_times_by_model_ptm.append(time)
+                    elif wt == '10':
+                        ten_times_by_model_ptm.append(time)
+
+                elif malloc == "tcm":
+                    if wt == '1':
+                        one_times_by_model_tcm.append(time)
+                    elif wt == '2':
+                        two_times_by_model_tcm.append(time)
+                    elif wt == '3':
+                        three_times_by_model_tcm.append(time)
+                    elif wt == '4':
+                        four_times_by_model_tcm.append(time)
+                    elif wt == '5':
+                        five_times_by_model_tcm.append(time)
+                    elif wt == '6':
+                        six_times_by_model_tcm.append(time)
+                    elif wt == '7':
+                        seven_times_by_model_tcm.append(time)
+                    elif wt == '8':
+                        eight_times_by_model_tcm.append(time)
+                    elif wt == '9':
+                        nine_times_by_model_tcm.append(time)
+                    elif wt == '10':
+                        ten_times_by_model_tcm.append(time)
+
+    one_speedup_tcm = [a / b for a, b in zip(one_times_by_model_ptm, one_times_by_model_tcm)]
+    two_speedup_tcm = [a / b for a, b in zip(two_times_by_model_ptm, two_times_by_model_tcm)]
+    three_speedup_tcm = [a / b for a, b in zip(three_times_by_model_ptm, three_times_by_model_tcm)]
+    four_speedup_tcm = [a / b for a, b in zip(four_times_by_model_ptm, four_times_by_model_tcm)]
+    five_speedup_tcm = [a / b for a, b in zip(five_times_by_model_ptm, five_times_by_model_tcm)]
+    six_speedup_tcm = [a / b for a, b in zip(six_times_by_model_ptm, six_times_by_model_tcm)]
+    seven_speedup_tcm = [a / b for a, b in zip(seven_times_by_model_ptm, seven_times_by_model_tcm)]
+    eight_speedup_tcm = [a / b for a, b in zip(eight_times_by_model_ptm, eight_times_by_model_tcm)]
+    nine_speedup_tcm = [a / b for a, b in zip(nine_times_by_model_ptm, nine_times_by_model_tcm)]
+    ten_speedup_tcm = [a / b for a, b in zip(ten_times_by_model_ptm, ten_times_by_model_tcm)]
+
+    index = np.arange(4)
+    index = 4*index
+    bar_width = 0.35
+    rects1 = plt.bar(index+bar_width, one_speedup_tcm, bar_width, color='b', label='1', alpha=0.7)
+    rects2 = plt.bar(index+2*bar_width, two_speedup_tcm, bar_width, color='g', label='2', alpha=0.7)
+    rects3 = plt.bar(index+3*bar_width, three_speedup_tcm, bar_width, color='r', label='3', alpha=0.7)
+    rects4 = plt.bar(index+4*bar_width, four_speedup_tcm, bar_width, color='c', label='4', alpha=0.7)
+    rects5 = plt.bar(index+5*bar_width, five_speedup_tcm, bar_width, color='m', label='5', alpha=0.7)
+    rects6 = plt.bar(index+6*bar_width, six_speedup_tcm, bar_width, color='y', label='6', alpha=0.7)
+    rects7 = plt.bar(index+7*bar_width, seven_speedup_tcm, bar_width, color='k', label='7', alpha=0.7)
+    rects8 = plt.bar(index+8*bar_width, eight_speedup_tcm, bar_width, color='w', label='8', alpha=0.7)
+    rects9 = plt.bar(index+9*bar_width, nine_speedup_tcm, bar_width, color='b', label='9', alpha=0.7)
+    rects10 = plt.bar(index+10*bar_width, ten_speedup_tcm, bar_width, color='g', label='10', alpha=0.7)
+
+    autolabel(rects1)
+    autolabel(rects2)
+    autolabel(rects3)
+    autolabel(rects4)
+    autolabel(rects5)
+    autolabel(rects6)
+    autolabel(rects7)
+    autolabel(rects8)
+    autolabel(rects9)
+    autolabel(rects10)
+
+    plt.xlim(-bar_width, len(index)*12*bar_width)
+    plt.xlabel('Model')
+    plt.ylabel('Speedup')
+    plt.xticks(index+6*bar_width, models)
+    plt.legend()
+    plt.show()
+
+    one_mem_by_model_tcm = list()
+    two_mem_by_model_tcm = list()
+    three_mem_by_model_tcm = list()
+    four_mem_by_model_tcm = list()
+    five_mem_by_model_tcm = list()
+    six_mem_by_model_tcm = list()
+    seven_mem_by_model_tcm = list()
+    eight_mem_by_model_tcm = list()
+    nine_mem_by_model_tcm = list()
+    ten_mem_by_model_tcm = list()
+
+    one_mem_by_model_ptm = list()
+    two_mem_by_model_ptm = list()
+    three_mem_by_model_ptm = list()
+    four_mem_by_model_ptm = list()
+    five_mem_by_model_ptm = list()
+    six_mem_by_model_ptm = list()
+    seven_mem_by_model_ptm = list()
+    eight_mem_by_model_ptm = list()
+    nine_mem_by_model_ptm = list()
+    ten_mem_by_model_ptm = list()
+
+    for m in models:
+        for malloc in mallocs:
+            f = filenames()
+            for filename in f:
+                # obtain configs from filename
+                nodes, wt, sq, ssp, gvtp = re.findall(r'\d+', filename)
+
+                with open("{}/{}/{}/{}".format(warped_data_path, m, malloc, filename)) as plotpoint:
+                    ydata = np.genfromtxt(filter_total_lines(plotpoint), delimiter=",",
+                        names=['node', 'time', 'objects', 'localp', 'remotep', 'localn', 'remoten',
+                               'prollbacks', 'srollbacks', 'coasted','cancelled', 'processed',
+                               'committed', 'memory'])
+
+                time = np.mean(ydata['memory'])
+
+                if malloc == "ptm":
+                    if wt == '1':
+                        one_mem_by_model_ptm.append(time)
+                    elif wt == '2':
+                        two_mem_by_model_ptm.append(time)
+                    elif wt == '3':
+                        three_mem_by_model_ptm.append(time)
+                    elif wt == '4':
+                         four_mem_by_model_ptm.append(time)
+                    elif wt == '5':
+                        five_mem_by_model_ptm.append(time)
+                    elif wt == '6':
+                        six_mem_by_model_ptm.append(time)
+                    elif wt == '7':
+                        seven_mem_by_model_ptm.append(time)
+                    elif wt == '8':
+                        eight_mem_by_model_ptm.append(time)
+                    elif wt == '9':
+                        nine_mem_by_model_ptm.append(time)
+                    elif wt == '10':
+                        ten_mem_by_model_ptm.append(time)
+
+                elif malloc == "tcm":
+                    if wt == '1':
+                        one_mem_by_model_tcm.append(time)
+                    elif wt == '2':
+                        two_mem_by_model_tcm.append(time)
+                    elif wt == '3':
+                        three_mem_by_model_tcm.append(time)
+                    elif wt == '4':
+                        four_mem_by_model_tcm.append(time)
+                    elif wt == '5':
+                        five_mem_by_model_tcm.append(time)
+                    elif wt == '6':
+                        six_mem_by_model_tcm.append(time)
+                    elif wt == '7':
+                        seven_mem_by_model_tcm.append(time)
+                    elif wt == '8':
+                        eight_mem_by_model_tcm.append(time)
+                    elif wt == '9':
+                        nine_mem_by_model_tcm.append(time)
+                    elif wt == '10':
+                        ten_mem_by_model_tcm.append(time)
+
+    one_memreduction = [(a - b) / a * 100 for a, b in zip(one_mem_by_model_ptm, one_mem_by_model_tcm)]
+    two_memreduction = [(a - b) / a * 100 for a, b in zip(two_mem_by_model_ptm, two_mem_by_model_tcm)]
+    three_memreduction = [(a - b) / a * 100 for a, b in zip(three_mem_by_model_ptm, three_mem_by_model_tcm)]
+    four_memreduction = [(a - b) / a * 100 for a, b in zip(four_mem_by_model_ptm, four_mem_by_model_tcm)]
+    five_memreduction = [(a - b) / a * 100 for a, b in zip(five_mem_by_model_ptm, five_mem_by_model_tcm)]
+    six_memreduction = [(a - b) / a * 100 for a, b in zip(six_mem_by_model_ptm, six_mem_by_model_tcm)]
+    seven_memreduction = [(a - b) / a * 100 for a, b in zip(seven_mem_by_model_ptm, seven_mem_by_model_tcm)]
+    eight_memreduction = [(a - b) / a * 100 for a, b in zip(eight_mem_by_model_ptm, eight_mem_by_model_tcm)]
+    nine_memreduction = [(a - b) / a * 100 for a, b in zip(nine_mem_by_model_ptm, nine_mem_by_model_tcm)]
+    ten_memreduction = [(a - b) / a * 100 for a, b in zip(ten_mem_by_model_ptm, ten_mem_by_model_tcm)]
+
+    index = np.arange(4)
+    index = 4*index
+    bar_width = 0.35
+    rects1 = plt.bar(index+bar_width, one_memreduction, bar_width, color='b', label='1', alpha=0.7)
+    rects2 = plt.bar(index+2*bar_width, two_memreduction, bar_width, color='g', label='2', alpha=0.7)
+    rects3 = plt.bar(index+3*bar_width, three_memreduction, bar_width, color='r', label='3', alpha=0.7)
+    rects4 = plt.bar(index+4*bar_width, four_memreduction, bar_width, color='c', label='4', alpha=0.7)
+    rects5 = plt.bar(index+5*bar_width, five_memreduction, bar_width, color='m', label='5', alpha=0.7)
+    rects6 = plt.bar(index+6*bar_width, six_memreduction, bar_width, color='y', label='6', alpha=0.7)
+    rects7 = plt.bar(index+7*bar_width, seven_memreduction, bar_width, color='k', label='7', alpha=0.7)
+    rects8 = plt.bar(index+8*bar_width, eight_memreduction, bar_width, color='w', label='8', alpha=0.7)
+    rects9 = plt.bar(index+9*bar_width, nine_memreduction, bar_width, color='b', label='9', alpha=0.7)
+    rects10 = plt.bar(index+10*bar_width, ten_memreduction, bar_width, color='g', label='10', alpha=0.7)
+
+    autolabel(rects1)
+    autolabel(rects2)
+    autolabel(rects3)
+    autolabel(rects4)
+    autolabel(rects5)
+    autolabel(rects6)
+    autolabel(rects7)
+    autolabel(rects8)
+    autolabel(rects9)
+    autolabel(rects10)
+
+    plt.xlim(-bar_width, len(index)*12*bar_width)
+    plt.xlabel('Model')
+    plt.ylabel('% decrease')
+    plt.xticks(index+6*bar_width, models)
+    plt.legend()
+    plt.show()
+
+
+    for i, p in enumerate(plots):
+        fig = plt.figure(i)
+        plt.title(p["title"])
+        plt.xlabel(p["xlabel"])
+        plt.ylabel(p["ylabel"])
+        
+        legend_entries = list()
+        for l in p["lines"]:
+            if (l["std"] == None):
+                plt.plot(l["xvals"], l["yvals"], marker='o')
+            else:
+                plt.errorbar(l["xvals"], l["yvals"], l["std"], marker='o')
+            legend_entries.append(l["legend_title"])
+
+        plt.legend(legend_entries) 
+
+    plt.show()
+
+
+
+if __name__ == '__main__':
+    main()
+
+

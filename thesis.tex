@@ -1247,7 +1247,9 @@ smart pointers offered by the standard C++11 libraries which employ a reference 
 scheme.
 
 
-\chapter{Message Passing Communication and Interprocess Partitioning}
+\chapter{Message Passing Communication and Partitioning}
+
+\section{Hybrid Communication Model}
 
 The MPI standard specifies four level of thread support that each implementation may support:
 
@@ -1273,25 +1275,33 @@ The plots in figure \ref{communication_models} summarizes the performance of fun
 and multiple thread communication. For serialized communication, a single global spinlock is
 used to protect access to all MPI library calls.
 
-\section{Interprocess Partitioning}
+\section{Partitioning}
 
 Partitioning the work in a distributed system is important to minimize latency costs incurred
 from interprocess communication. In parallel discrete event simulation, the work is usually
 partitioned by the LPs so that each process in the system can process events from a dedicated
-subset of LPs.
+subset of LPs. This is realized by using a SPMD programming model, where each process runs exactly
+same program with different data.
 
 A good partitioning scheme will decrease interprocess communication by keeping LPs that communicate
 within a single process. This will create a much more stable simulation since the communication
 latency is much larger than the frequency of computation on each of the local machines and this
 disparity increases the chances of rollbacks occuring.
 
-\subsection{Interprocess Partitioning in \textsc{warped2}}
+\subsection{Partitioning in \textsc{warped2}}
 
-By default, the LPs are allocated to processes using a round-robin partitioning scheme. While
-this may work well for some models with a certain number of processes, it will usually not
-be the ideal partitioning. For this reason, \textsc{warped2} offers two alternatives for the
-user: \begin{inparaenum} \item profile-guided partitioning and \item model-specific partitioning
-\end{inparaenum}.
+Currently, \textsc{warped2} supports round-robin partitioning, profile-guided partitioning,
+profile-guided partitioning, and custom partitioning. The custom partitioning is currently
+not being used in any \textsc{warped2} simulation models.
+
+Round-robin partitioning can be configured with a block size, where the block size determines
+how many LPs are allocated to each process at a time. A valid block size must be between 1
+and $NumLPs \over NumProcs$, where the former is a true round robin partitioning scheme and the
+latter is block partitioning scheme. Profile-guided guided partitioning is based on profile data
+that must be collected with a sequential simulation. The profile data contains a count of events
+for each communication pair of LPs and the partitioner uses that data to build a weighted graph.
+Then, the partitioner uses a graph partitioning tool to create partitions that minimize the cut-set.
+A detailed analysis of the partitioning methods will be provided in chapter \ref{experimental analysis}.
 
 
 
@@ -1960,9 +1970,11 @@ A summary of the architectural features of both machines that used are summarize
             & L3 Cache      & 12MB      & N/A       \\
         \hline
         \multirow{3}{*}{Runtime}
-            & Compiler          & GCC v4.9.2    & GCC v4.8.5    \\
-            & MPI               & MPICH v3.1    & MPICH v1.5    \\
-            & Memory Allocator  & TCMalloc v2.4 & TCMalloc v2.4 \\
+            & OS Kernel         & Linux 3.16.0-4-amd64          & 3.5.0-41-generic  \\
+            & C Library         & Debian GLIBC 2.19-18+deb8u1   & Ubuntu EGLIBC 2.15-0ubuntu20.1 \\ 
+            & Compiler          & GCC v4.9.2                    & GCC v4.8.5        \\
+            & MPI               & MPICH v3.1                    & MPICH v1.5        \\
+            & Memory Allocator  & TCMalloc v2.4                 & TCMalloc v2.4     \\
         \hline
     \end{tabular}
     \caption{x86 Assessment Platforms}\label{x86_platform}
@@ -2378,7 +2390,7 @@ is slowed down by other computation.
   \caption{Speedup with Profile-Guided Partitioning}\label{ltsf_partitioning}
 \end{figure}
 
-\subsection{Interprocess Parttioning}
+\subsection{Process Parttioning}
 
 
 
@@ -2441,9 +2453,11 @@ All results shown before now have all been with TCMalloc
             & Max Bandwidth & \multicolumn{2}{c||}{14.9 GB/s}       \\
         \hline
         \multirow{3}{*}{Runtime}
-            & Compiler          & \multicolumn{2}{c||}{GCC v4.8.2}      \\
-            & MPI               & \multicolumn{2}{c||}{OpenMPI v1.8.5a1}\\
-            & Memory Allocator  & \multicolumn{2}{c||}{TCMalloc v2.4}   \\
+            & OS Kernel         & \multicolumn{2}{c||}{Linux 3.10.82}                   \\
+            & C Library         & \multicolumn{2}{c||}{Ubuntu EGLIBC 2.19-0ubuntu6.1}   \\
+            & Compiler          & \multicolumn{2}{c||}{GCC v4.8.2}                      \\
+            & MPI               & \multicolumn{2}{c||}{OpenMPI v1.8.5a1}                \\
+            & Memory Allocator  & \multicolumn{2}{c||}{TCMalloc v2.4}                   \\
         \hline
     \end{tabular}
     \caption{ODROID XU3 Platforms}\label{odroid_platform}

@@ -1,0 +1,382 @@
+#!/usr/bin/python
+
+import numpy as np
+import matplotlib.pyplot as plt
+import re
+
+sq_list = [1, 2, 5, 10];
+models = ["epidemic", "pcs", "traffic", "airport"];
+locktypes = ["mutexes", "spinlocks"];
+parttypes = ["rr", "pg"];
+
+warped_data_path = "/home/doug/warped2-data.bc/pending_event_set"
+
+def filenames():
+    for sq in sq_list:
+        for pt in parttypes:
+            filename = "1n10wt{}sq25ssp100gvtp_{}.csv".format(sq, pt)
+            yield filename
+
+def filter_total_lines(f):
+    for line in f:
+        if "Total" in line:
+            yield line
+
+def addPlotXY(plots, title, xlab, ylab, lines):
+    new_plot = {"title": title, "xlabel": xlab, "ylabel": ylab, "lines": lines}
+    plots.append(new_plot)
+
+def addLineXY(lines, xvals, yvals, leg):
+    new_line = {"xvals": xvals, "yvals": yvals, "legend_title": leg}
+    lines.append(new_line)
+
+def autolabel(rects):
+    # attach some text labels
+    for rect in rects:
+        height = rect.get_height()
+        plt.text(rect.get_x()+rect.get_width()/2.0, 1.05*height, '%.02f'%float(height), ha='center', va='bottom')
+
+def main():
+
+    plots = list()
+
+    ##
+    ## Increasing LTSF Queues
+    ##
+
+    event_rate_lines = list()
+    efficiency_lines = list()
+    trollback_lines = list()
+    prollback_lines = list()
+    srollback_lines = list()
+    speedup_lines = list()
+    memory_lines = list()
+
+    for m in models:
+
+        sq_x = list()
+        time_y = list()
+        comm_y = list()
+        proc_y = list()
+        prb_y = list()
+        srb_y = list()
+        mem_y = list()
+        time_single = 0
+
+        f = filenames()
+        for filename in f:
+            # obtain configs from filename
+            nodes, wt, sq, ssp, gvtp = re.findall(r'\d+', filename)
+
+            if ("rr" in filename):
+                continue
+
+            with open("{}/{}/mutexes/{}".format(warped_data_path, m, filename)) as plotpoint:
+                ydata = np.genfromtxt(filter_total_lines(plotpoint), delimiter=",",
+                    names=['node', 'time', 'objects', 'localp', 'remotep', 'localn', 'remoten',
+                           'prollbacks', 'srollbacks', 'coasted','cancelled', 'processed',
+                            'committed', 'memory'])
+
+            sq_x.append(sq)
+
+            if sq == '1':
+                time_single = np.mean(ydata['time'])
+
+            time_y.append(np.mean(ydata['time']))
+            comm_y.append(np.mean(ydata['committed']))
+            proc_y.append(np.mean(ydata['processed']))
+            prb_y.append(np.mean(ydata['prollbacks']))
+            srb_y.append(np.mean(ydata['srollbacks']))
+            mem_y.append(np.mean(ydata['memory']))
+
+        speedup = [time_single / a for a in time_y]
+        rollbacks = [a + b for a, b in zip(prb_y, srb_y)]
+        event_rate = [a / b for a, b in zip(comm_y, time_y)]
+        efficiency = [a / b for a, b in zip(comm_y, proc_y)]
+
+        addLineXY(memory_lines, sq_x, mem_y, m)
+        addLineXY(efficiency_lines, sq_x, efficiency, m)
+        addLineXY(event_rate_lines, sq_x, event_rate, m)
+        addLineXY(trollback_lines, sq_x, rollbacks, m)
+        addLineXY(prollback_lines, sq_x, prb_y, m)
+        addLineXY(srollback_lines, sq_x, srb_y, m)
+        addLineXY(speedup_lines, sq_x, speedup, m)
+
+    addPlotXY(plots, "", "# LTSF Queues", "Average Peak Memory", memory_lines)
+    addPlotXY(plots, "", "# LTSF Queues", "TotalRollbacks", trollback_lines)
+#    addPlotXY(plots, "", "# LTSF Queues", "Primary Rollbacks", prollback_lines)
+#    addPlotXY(plots, "", "# LTSF Queues", "Secondary Rollbacks", srollback_lines)
+    addPlotXY(plots, "", "# LTSF Queues", "Efficiency (%)", efficiency_lines)
+    addPlotXY(plots, "", "# LTSF Queues", "Event Rate", event_rate_lines)
+    addPlotXY(plots, "", "# LTSF Queues", "Speedup", speedup_lines)
+
+
+    ##
+    ##  Spinlocks vs Mutexes
+    ##
+
+    one_times_by_model_mut = list()
+    two_times_by_model_mut = list()
+    five_times_by_model_mut = list()
+    ten_times_by_model_mut = list()
+
+    one_times_by_model_sp = list()
+    two_times_by_model_sp = list()
+    five_times_by_model_sp = list()
+    ten_times_by_model_sp = list()
+
+    for m in models:
+        for lt in locktypes:
+            f = filenames()
+            for filename in f:
+                # obtain configs from filename
+                nodes, wt, sq, ssp, gvtp = re.findall(r'\d+', filename)
+
+                if "rr" in filename:
+                    continue
+
+                with open("{}/{}/{}/{}".format(warped_data_path, m, lt, filename)) as plotpoint:
+                    ydata = np.genfromtxt(filter_total_lines(plotpoint), delimiter=",",
+                        names=['node', 'time', 'objects', 'localp', 'remotep', 'localn', 'remoten',
+                               'prollbacks', 'srollbacks', 'coasted','cancelled', 'processed',
+                                'committed', 'memory'])
+
+                if lt == "mutexes":
+                    if sq == '1':
+                        one_times_by_model_mut.append(np.mean(ydata['time']))
+                    elif sq == '2':
+                        two_times_by_model_mut.append(np.mean(ydata['time']))
+                    elif sq == '5':
+                        five_times_by_model_mut.append(np.mean(ydata['time']))
+                    else:
+                        ten_times_by_model_mut.append(np.mean(ydata['time']))
+
+                elif lt == "spinlocks":
+                    if sq == '1':
+                        one_times_by_model_sp.append(np.mean(ydata['time']))
+                    elif sq == '2':
+                        two_times_by_model_sp.append(np.mean(ydata['time']))
+                    elif sq == '5':
+                        five_times_by_model_sp.append(np.mean(ydata['time']))
+                    else:
+                        ten_times_by_model_sp.append(np.mean(ydata['time']))
+
+    one_speedup_by_model = [a / b for a, b in zip(one_times_by_model_mut, one_times_by_model_sp)]
+    two_speedup_by_model = [a / b for a, b in zip(two_times_by_model_mut, two_times_by_model_sp)]
+    five_speedup_by_model = [a / b for a, b in zip(five_times_by_model_mut, five_times_by_model_sp)]
+    ten_speedup_by_model = [a / b for a, b in zip(ten_times_by_model_mut, ten_times_by_model_sp)]
+
+    index = np.arange(4)
+    index = 2*index
+    bar_width = 0.40
+    rects1 = plt.bar(index, one_speedup_by_model, bar_width,
+            color='g', label='1 LTSF Queue', alpha=0.7)
+    rects2 = plt.bar(index+bar_width, two_speedup_by_model, bar_width,
+            color='b', label = '2 LTSF Queues', alpha=0.7)
+    rects3 = plt.bar(index+2*bar_width, five_speedup_by_model, bar_width,
+            color='r', label = '5 LTSF Queues', alpha=0.7)
+    rects4 = plt.bar(index+3*bar_width, ten_speedup_by_model, bar_width,
+            color='c', label = '10 LTSF Queues', alpha=0.7)
+
+    autolabel(rects1)
+    autolabel(rects2)
+    autolabel(rects3)
+    autolabel(rects4)
+    plt.xlim(-bar_width, len(index)+10*bar_width)
+    plt.ylim(0.0, 3.0)
+    plt.xlabel('Model')
+    plt.ylabel('Speedup')
+    plt.xticks(index+2*bar_width, ('Epidemic', 'PCS', 'Traffic', 'Airport'))
+    plt.legend()
+    plt.show()
+
+
+    ##
+    ## Partitioning among LTSF Queues
+    ##
+
+    one_times_by_model_rr = list()
+    two_times_by_model_rr = list()
+    five_times_by_model_rr = list()
+    ten_times_by_model_rr = list()
+
+    one_times_by_model_pg = list()
+    two_times_by_model_pg = list()
+    five_times_by_model_pg = list()
+    ten_times_by_model_pg = list()
+
+    one_rbs_by_model_rr = list()
+    two_rbs_by_model_rr = list()
+    five_rbs_by_model_rr = list()
+    ten_rbs_by_model_rr = list()
+
+    one_rbs_by_model_pg = list()
+    two_rbs_by_model_pg = list()
+    five_rbs_by_model_pg = list()
+    ten_rbs_by_model_pg = list()
+
+    for m in models:
+        f = filenames()
+        for filename in f:
+            # obtain configs from filename
+            nodes, wt, sq, ssp, gvtp = re.findall(r'\d+', filename)
+
+            with open("{}/{}/mutexes/{}".format(warped_data_path, m, filename)) as plotpoint:
+                ydata = np.genfromtxt(filter_total_lines(plotpoint), delimiter=",",
+                    names=['node', 'time', 'objects', 'localp', 'remotep', 'localn', 'remoten',
+                           'prollbacks', 'srollbacks', 'coasted','cancelled', 'processed',
+                           'committed', 'memory'])
+
+            rbs = np.mean(ydata['srollbacks'])# + np.mean(ydata['srollbacks'])
+
+            if "rr" in filename:
+                if sq == '1':
+                    one_times_by_model_rr.append(np.mean(ydata['time']))
+                    one_rbs_by_model_rr.append(rbs)
+                elif sq == '2':
+                    two_times_by_model_rr.append(np.mean(ydata['time']))
+                    two_rbs_by_model_rr.append(rbs)
+                elif sq == '5':
+                    five_times_by_model_rr.append(np.mean(ydata['time']))
+                    five_rbs_by_model_rr.append(rbs)
+                else:
+                    ten_times_by_model_rr.append(np.mean(ydata['time']))
+                    ten_rbs_by_model_rr.append(rbs)
+
+            elif "pg" in filename:
+                if sq == '1':
+                    one_times_by_model_pg.append(np.mean(ydata['time']))
+                    one_rbs_by_model_pg.append(rbs)
+                elif sq == '2':
+                    two_times_by_model_pg.append(np.mean(ydata['time']))
+                    two_rbs_by_model_pg.append(rbs)
+                elif sq == '5':
+                    five_times_by_model_pg.append(np.mean(ydata['time']))
+                    five_rbs_by_model_pg.append(rbs)
+                else:
+                    ten_times_by_model_pg.append(np.mean(ydata['time']))
+                    ten_rbs_by_model_pg.append(rbs)
+
+    one_speedup_by_model    = [a / b for a, b in zip(one_times_by_model_rr, one_times_by_model_pg)]
+    two_speedup_by_model    = [a / b for a, b in zip(two_times_by_model_rr, two_times_by_model_pg)]
+    five_speedup_by_model   = [a / b for a, b in zip(five_times_by_model_rr, five_times_by_model_pg)]
+    ten_speedup_by_model    = [a / b for a, b in zip(ten_times_by_model_rr, ten_times_by_model_pg)]
+
+    rects1 = plt.bar(index, one_speedup_by_model, bar_width,
+            color='g', label='1 LTSF Queue', alpha=0.7)
+    rects2 = plt.bar(index+bar_width, two_speedup_by_model, bar_width,
+            color='b', label = '2 LTSF Queues', alpha=0.7)
+    rects3 = plt.bar(index+2*bar_width, five_speedup_by_model, bar_width,
+            color='r', label = '5 LTSF Queues', alpha=0.7)
+    rects4 = plt.bar(index+3*bar_width, ten_speedup_by_model, bar_width,
+            color='c', label = '10 LTSF Queues', alpha=0.7)
+
+    autolabel(rects1)
+    autolabel(rects2)
+    autolabel(rects3)
+    autolabel(rects4)
+    plt.xlim(-bar_width, len(index)+10*bar_width)
+    plt.ylim(0.0, 3.0)
+    plt.xlabel('Model')
+    plt.ylabel('Speedup')
+    plt.xticks(index+2*bar_width, ('Epidemic', 'PCS', 'Traffic', 'Airport'))
+    plt.legend()
+    plt.show()
+
+
+
+    one_rbdecrease_by_model    = [a if a == 0 else (a - b) / a for a, b in
+            zip(one_rbs_by_model_rr, one_rbs_by_model_pg)]
+    two_rbdecrease_by_model    = [a if a == 0 else (a - b) / a for a, b in
+            zip(two_rbs_by_model_rr, two_rbs_by_model_pg)]
+    five_rbdecrease_by_model   = [a if a == 0 else (a - b) / a for a, b in
+            zip(five_rbs_by_model_rr, five_rbs_by_model_pg)]
+    ten_rbdecrease_by_model    = [a if a == 0 else (a - b) / a for a, b in
+            zip(ten_rbs_by_model_rr, ten_rbs_by_model_pg)]
+
+    rects1 = plt.bar(index, one_rbdecrease_by_model, bar_width,
+            color='g', label='1 LTSF Queue', alpha=0.7)
+    rects2 = plt.bar(index+bar_width, two_rbdecrease_by_model, bar_width,
+            color='b', label = '2 LTSF Queues', alpha=0.7)
+    rects3 = plt.bar(index+2*bar_width, five_rbdecrease_by_model, bar_width,
+            color='r', label = '5 LTSF Queues', alpha=0.7)
+    rects4 = plt.bar(index+3*bar_width, ten_rbdecrease_by_model, bar_width,
+            color='c', label = '10 LTSF Queues', alpha=0.7)
+
+    autolabel(rects1)
+    autolabel(rects2)
+    autolabel(rects3)
+    autolabel(rects4)
+    plt.xlim(-bar_width, len(index)+10*bar_width)
+    plt.xlabel('Model')
+    plt.ylabel('% Decrease')
+    plt.xticks(index+2*bar_width, ('Epidemic', 'PCS', 'Traffic', 'Airport'))
+    plt.legend()
+    plt.show()
+
+
+    times_by_model_rr = list()
+    times_by_model_pg = list()
+
+    rbs_by_model_rr = list()
+    rbs_by_model_pg = list()
+
+    for m in models:
+        f = filenames()
+        for filename in f:
+            # obtain configs from filename
+            nodes, wt, sq, ssp, gvtp = re.findall(r'\d+', filename)
+
+            with open("{}/{}/mutexes/{}".format(warped_data_path, m, filename)) as plotpoint:
+                ydata = np.genfromtxt(filter_total_lines(plotpoint), delimiter=",",
+                    names=['node', 'time', 'objects', 'localp', 'remotep', 'localn', 'remoten',
+                           'prollbacks', 'srollbacks', 'coasted','cancelled', 'processed',
+                           'committed', 'memory'])
+
+            rbs = np.mean(ydata['srollbacks']) + np.mean(ydata['srollbacks'])
+
+            if "rr" in filename:
+                if sq == '10':
+                    times_by_model_rr.append(np.mean(ydata['time']))
+                    rbs_by_model_rr.append(rbs)
+            elif "pg" in filename:
+                if sq == '10':
+                    times_by_model_pg.append(np.mean(ydata['time']))
+                    rbs_by_model_pg.append(rbs)
+
+    rects1 = plt.bar(index, times_by_model_rr, bar_width,
+            color='g', label='Round-Robin', alpha=0.7)
+    rects2 = plt.bar(index+bar_width, times_by_model_pg, bar_width,
+            color='b', label = 'Profile-Guided', alpha=0.7)
+
+    autolabel(rects1)
+    autolabel(rects2)
+    plt.xlim(-bar_width, len(index)+10*bar_width)
+    plt.xlabel('Model')
+    plt.ylabel('Speedup')
+    plt.xticks(index+2*bar_width, ('Epidemic', 'PCS', 'Traffic', 'Airport'))
+    plt.legend()
+    plt.show()
+
+
+    for i, p in enumerate(plots):
+        fig = plt.figure(i)
+        plt.title(p["title"])
+        plt.xlabel(p["xlabel"])
+        plt.ylabel(p["ylabel"])
+        
+        legend_entries = list()
+        for l in p["lines"]:
+            plt.plot(l["xvals"], l["yvals"], marker='o')
+            legend_entries.append(l["legend_title"])
+
+        plt.legend(legend_entries) 
+
+    plt.show()
+
+
+
+if __name__ == '__main__':
+    main()
+
+

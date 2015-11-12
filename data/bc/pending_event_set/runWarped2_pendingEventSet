@@ -1,0 +1,90 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+my $processes = 1;
+my $hostfile = "/home/weberd6/mpi_hosts";
+my $mpirun_options = "-hostfile $hostfile";
+my $simulation_type = "time-warp";
+my $workerthreads = 10;
+my $model_path = "/home/weberd6/warped2-models/models/";
+my $runs_per_cfg = 10;
+
+my @model = ("pcs", "traffic", "epidemic", "airport");
+my @schedule_queues = (1, 2, 5, 10);
+my @partitioning_type = ("round-robin", "profile-guided");
+
+my %max_sim_time = (
+    "pcs"       => 10_000,
+    "traffic"   => 100_000,
+    "epidemic"  => 100_000,
+    "airport"   => 100_000,
+);
+
+my $gvtperiod = 100;
+my $ss_period = 25;
+
+sub run() {
+
+    my @run_queue;
+
+    for my $model (@model) {
+        my $model_run = "$model_path"."$model/$model"."_sim";
+        my $partitioning_file = "$model_path"."$model/statistics.out";
+        my $model_options = "";
+
+        my $max_sim_time = $max_sim_time{$model};
+
+        foreach my $schedule_queues (@schedule_queues) {
+            foreach my $partitioning_type (@partitioning_type) {
+
+                my $part = undef;
+                if ($partitioning_type eq "round-robin") {
+                    $part = "rr";
+                } elsif ($partitioning_type eq "profile-guided") {
+                    $part = "pg"
+                }
+
+                my $output_file = "$model/".
+                                  "${processes}n${workerthreads}wt${schedule_queues}sq".
+                                  "${ss_period}ssp${gvtperiod}gvtp_${part}.csv";
+
+                my $kernel_run = "--max-sim-time $max_sim_time ".
+                                 "--simulation-type $simulation_type ".
+                                 "--time-warp-worker-threads $workerthreads ".
+                                 "--time-warp-scheduler-count $schedule_queues ".
+                                 "--time-warp-lp-migration off ".
+                                 "--time-warp-state-saving-period $ss_period ".
+                                 "--partitioning-type $partitioning_type ".
+                                 "--partitioning-file $partitioning_file ".
+                                 "--time-warp-statistics-file $output_file ".
+                                 "--time-warp-gvt-calculation-period $gvtperiod ".
+                                 "--time-warp-config-output-file none";
+
+                my $run = "mpirun -n $processes $mpirun_options $model_run $model_options $kernel_run";
+
+                foreach (1..$runs_per_cfg) {
+                    push @run_queue, $run;
+                }
+            }
+        }
+    }
+
+    my $num_runs = @run_queue;
+    my $i = 0;
+
+    foreach (@run_queue) {
+        ++$i;
+        print "$i/$num_runs\n";
+        print "$_\n";
+        my $output = `$_`;
+        my @lines = split("\n", $output);
+        for (@lines) {
+            print "$_\n\n" if /Simulation completed in/;
+        }
+        sleep 10;
+    }
+}
+
+run();
+
