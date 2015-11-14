@@ -9,7 +9,7 @@ models = ["epidemic", "pcs", "traffic", "airport"];
 locktypes = ["mutexes", "spinlocks"];
 parttypes = ["rr", "pg"];
 
-warped_data_path = "/home/doug/warped2-data.bc/pending_event_set"
+warped_data_path = "."
 
 def filenames():
     for sq in sq_list:
@@ -353,7 +353,21 @@ def main():
     autolabel(rects2)
     plt.xlim(-bar_width, len(index)+10*bar_width)
     plt.xlabel('Model')
-    plt.ylabel('Speedup')
+    plt.ylabel('Simulation Time (s)')
+    plt.xticks(index+2*bar_width, ('Epidemic', 'PCS', 'Traffic', 'Airport'))
+    plt.legend()
+    plt.show()
+
+    rects1 = plt.bar(index, rbs_by_model_rr, bar_width,
+            color='g', label='Round-Robin', alpha=0.7)
+    rects2 = plt.bar(index+bar_width, rbs_by_model_pg, bar_width,
+            color='b', label = 'Profile-Guided', alpha=0.7)
+
+    autolabel(rects1)
+    autolabel(rects2)
+    plt.xlim(-bar_width, len(index)+10*bar_width)
+    plt.xlabel('Model')
+    plt.ylabel('Simulation Time (s)')
     plt.xticks(index+2*bar_width, ('Epidemic', 'PCS', 'Traffic', 'Airport'))
     plt.legend()
     plt.show()

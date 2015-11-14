@@ -4,14 +4,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import re
 
-ss_period_list = [1, 5, 10, 25, 50, 100, 150, 200];
-models = ["epidemic", "pcs", "traffic", "airport"];
+ss_period_list = [1, 5, 10, 25, 50, 100, 150, 200, 250, 300, 350, 400];
+models = ["pcs", "traffic", "epidemic"];
 
 warped_data_path = "."
 
 def filenames():
     for ssp in ss_period_list:
-        filename = "1n10wt10sq{}ssp100gvtp_pg.csv".format(ssp)
+        filename = "8n7wt7sq{}ssp1000gvtp_block.csv".format(ssp)
         yield filename
 
 def filter_total_lines(f):
@@ -37,6 +37,8 @@ def main():
     event_rate_lines = list()
     coasted_lines = list()
     rollback_lines = list()
+    premote_lines = list()
+    remote_lines = list()
 
     time_css = 0
     mem_css = 0
@@ -55,6 +57,10 @@ def main():
         comm_y = list()
         proc_y = list()
         coast_y = list()
+        localp_y = list()
+        remotep_y = list()
+        localn_y = list()
+        remoten_y = list()
 
         f = filenames()
         for filename in f:
@@ -80,6 +86,10 @@ def main():
             comm_y.append(np.mean(ydata['committed']))
             proc_y.append(np.mean(ydata['processed']))
             coast_y.append(np.mean(ydata['coasted']))
+            localp_y.append(np.mean(ydata['localp']))
+            remotep_y.append(np.mean(ydata['remotep']))
+            localn_y.append(np.mean(ydata['localn']))
+            remoten_y.append(np.mean(ydata['remoten']))
 
         speedup_y = [time_css / y for y in time_y]
         event_rate = [a / b for a, b in zip(comm_y, time_y)]
@@ -87,20 +97,26 @@ def main():
         efficiency = [a / b for a, b in zip(comm_y, proc_y)]
         rb_y = [a + b for a, b in zip(prb_y, srb_y)]
         average_coasted = [0 if b == 0 else a / b for a, b in zip(coast_y, rb_y)]
+        premote = [(a + b) / (a + b + c + d) for a, b, c, d in zip(remotep_y, remoten_y, localp_y, localn_y)]
+        remote = [(a + b) for a, b in zip(remotep_y, remoten_y)]
 
         addLineXY(speedup_lines, ssp_x, speedup_y, m)
         addLineXY(memory_lines, ssp_x, mem_reduction, m)
         addLineXY(efficiency_lines, ssp_x, efficiency, m)
-        addLineXY(event_rate_lines, ssp_x, event_rate, m)
+#        addLineXY(event_rate_lines, ssp_x, event_rate, m)
         addLineXY(rollback_lines, ssp_x, rb_y, m)
-        addLineXY(coasted_lines, ssp_x, average_coasted, m)
+#        addLineXY(coasted_lines, ssp_x, average_coasted, m)
+#        addLineXY(premote_lines, ssp_x, premote, m)
+        addLineXY(remote_lines, ssp_x, remote, m)
 
     addPlotXY(plots, "", "State Saving Period", "Speedup", speedup_lines)
     addPlotXY(plots, "", "State Saving Period", "% Decrease", memory_lines)
-    addPlotXY(plots, "", "State Saving Period", "Average Coast Forward Events", coasted_lines)
+#    addPlotXY(plots, "", "State Saving Period", "Average Coast Forward Events", coasted_lines)
     addPlotXY(plots, "", "State Saving Period", "Efficiency", efficiency_lines)
     addPlotXY(plots, "", "State Saving Period", "Total Rollbacks", rollback_lines)
-#    addPlotXY(plots, "Performance", "State Saving Period", "Event Rate", event_rate_lines)
+#    addPlotXY(plots, "", "State Saving Period", "Event Rate", event_rate_lines)
+#    addPlotXY(plots, "", "State Saving Period", "% Remote", premote_lines)
+    addPlotXY(plots, "", "State Saving Period", "Remote Events", remote_lines)
 
     for i, p in enumerate(plots):
         fig = plt.figure(i)
