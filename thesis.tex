@@ -1,5 +1,7 @@
 \documentclass[11pt]{book}
 
+\overfullrule=2cm
+
 \usepackage{fullpage}
 \usepackage{graphicx}
 \usepackage{cite}
@@ -14,7 +16,6 @@
 \usepackage[section]{placeins}
 \usepackage{xtab}
 \usepackage{url}
-\usepackage[space]{grffile}
 \usepackage[ruled]{algorithm2e}
 \usepackage{float}
 \usepackage{multirow}
@@ -36,35 +37,8 @@
 \setlength{\headsep}{25pt}
 \setlength{\headheight}{14pt}
 
-\newcommand{\showPlotsByModel}[3]{
-  \begin{figure}
-    \begin{minipage}{.5\textwidth}
-      \begin{center}
-        \includegraphics[width=\textwidth,keepaspectratio]{figs/traffic/#1} \\
-        Traffic Model \\
-      \end{center}
-    \end{minipage} \hfill
-    \begin{minipage}{.5\textwidth}
-      \begin{center}
-        \includegraphics[width=\textwidth,keepaspectratio]{figs/pcs/#1} \\
-        PCS Model \\
-      \end{center}
-    \end{minipage}
-    \begin{minipage}{.5\textwidth}
-      \begin{center}
-        \includegraphics[width=\textwidth,keepaspectratio]{figs/epidemic/#1} \\
-        Epidemic Model \\
-      \end{center}
-    \end{minipage} \hfill
-    \begin{minipage}{.5\textwidth}
-      \begin{center}
-        \includegraphics[width=\textwidth,keepaspectratio]{figs/airport/#1} \\
-        Airport Model \\
-      \end{center}
-    \end{minipage}
-    \caption{#3}\label{#2}
-  \end{figure}
-}
+\pdfsuppresswarningpagegroup=1
+\vbadness=10000
 
 \definecolor{dkgreen}{rgb}{0,0.6,0}
 \definecolor{gray}{rgb}{0.5,0.5,0.5}
@@ -194,7 +168,7 @@ used in \textsc{warped2}.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{figs/graphviz/warped_communication.pdf}
+    \includegraphics[width=\textwidth,quiet]{figs/graphviz/warped_communication.pdf}
     \caption{Communication Model of \textsc{warped2}}\label{warped2_communication}
 \end{figure}
 
@@ -411,7 +385,7 @@ like.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.75\textwidth]{figs/graphviz/smp.pdf}
+    \includegraphics[width=0.75\textwidth,quiet]{figs/graphviz/smp.pdf}
     \caption{SMP System}\label{smp}
 \end{figure}
 
@@ -427,7 +401,7 @@ NUMA system might look like.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{figs/graphviz/distributed.pdf}
+    \includegraphics[width=\textwidth,quiet]{figs/graphviz/distributed.pdf}
     \caption{NUMA System}\label{distributed}
 \end{figure}
 
@@ -443,7 +417,7 @@ of a beowulf cluster.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.6\textwidth]{figs/graphviz/beowulf.pdf}
+    \includegraphics[width=0.6\textwidth,quiet]{figs/graphviz/beowulf.pdf}
     \caption{Beowulf Cluster}\label{beowulf}
 \end{figure}
 
@@ -507,7 +481,7 @@ in figure \ref{communication}.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{figs/graphviz/parallel_communication.pdf}
+    \includegraphics[width=\textwidth,quiet]{figs/graphviz/parallel_communication.pdf}
     \caption{Message Passing and Shared Memory Communication}\label{communication}
 \end{figure}
 
@@ -722,7 +696,7 @@ how they depend on eachother are illustrated in figure \ref{warped2_architecture
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{figs/graphviz/warped2_overview.pdf}
+    \includegraphics[width=\textwidth,quiet]{figs/graphviz/warped2_overview.pdf}
     \caption{Time Warp Components in \textsc{warped2}}\label{warped2_architecture}
 \end{figure}
 
@@ -977,6 +951,166 @@ int main(int argc, const char **argv) {
 }
 \end{lstlisting}
 
+\section{Simulation Models}
+
+\subsection{PCS}
+
+The model describes a type of wireless communication network known as a Portable Cellular
+Service (PCS) network. A PCS network provides services for a number of \emph{portables} which
+are the subscribers to the network. The service area of the network is divided into
+\emph{cells} and a single \emph{port} covers a single cell which has a certain number channels that
+it can allocate for calls. When an incoming or outgoing call is made, a port must allocate
+a channel from the port and if one cannot be allocated then the call is \emph{blocked}\cite{lin-96b}.
+The only type of logical processes in the PCS simulation are the cells. The cells in the
+\textsc{warped2} model form a rectangular grid as shown in figure \ref{pcs_model_lps}.
+Portables can only move to other cells from an adjacent cell with a wrap around occuring
+at the edges.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth,quiet]{figs/graphviz/pcs_model.pdf}
+    \caption{PCS Model Logical Processes}\label{pcs_model_lps}
+\end{figure}
+
+The portables stay within a cell for a period of time which follows a poisson distribution
+before moving to another cell. If the all cells are busy in the cell that the portable
+is moving to then the call is dropped. This is called a \emph{handoff block}.
+
+Every LP keeps track of the following state variables:
+\begin{itemize}
+    \item Number of idle channels
+    \item Number of call attempts
+    \item Number of channel blocks
+    \item Number of handoff blocks
+\end{itemize}
+
+\noindent
+Call arrivals to a portable also follow a poisson distribution. The cells in the model
+generate all of their own incoming calls in a self-initiating process.
+Four types of events are used to model the network: \begin{inparaenum}[(1)] \item NextCall,
+\item CallCompletion, \item PortableMoveOut, and \item PortableMoveIn \end{inparaenum}.
+The NextCall, CallCompletion, and PortableMoveOut events are all sent to self whereas
+the PortableMoveIn event is sent to an adjacent cell based on a random variable with
+uniform probability.
+
+\subsection{Traffic}
+
+The traffic model describes a grid of intersections and the movement of cars through
+the intersections and between the intersections. All intersections are four way intersections
+and have three lanes in each direction. The LPs in the traffic model are the intersections
+and form a rectangular grid in the same way as that of the PCS model.
+
+The simulation starts with a uniform distribution of cars at each intersection and each
+car is a assigned a destination which it finishes at. With each arrival at an intersection
+the car always goes in the direction that gets it closer to its destination.
+The number of cars going out of an intersection in the same direction is limited to a
+maximum number due to traffic on the destination road. An incoming car that cannot travel in
+a specific direction is forced back in the same direction it came from and tries another
+route. For each intersection, the state consists of:
+
+\begin{itemize}
+    \item Number of cars coming into the intersection from each direction
+    \item Number of cars going out of the intersection to each direction
+    \item Total cars arrived at the intersection
+    \item Total cars finished at the intersection
+\end{itemize}
+
+A car goes through three event phase in every intersection as shown in figure
+\ref{traffic_events}. The three types of events are: \begin{inparaenum}[(1)] \item Arrival,
+\item Direction Select, and \item Departure \end{inparaenum}. The arrival and departure
+events are mainly used for simple state updates and timing of the next events.
+The direction select event is where the complexity of the simulation is and determines the
+direction that the car should go in order to reach its destination or whether the car should
+take another route due to traffic.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth,quiet]{figs/graphviz/traffic_events.pdf}
+    \caption{Intersection Event Sequence}\label{traffic_events}
+\end{figure}
+
+All events in the traffic model follow an exponential distribution and a single event
+is generated with the processing of each event. The departure and direction select events
+are self-generated but the arrival event is from an adjacent intersection.
+
+\subsection{Epidemic}
+
+The epidemic model describes the spreading of an infectious disease across a set of
+geographic locations in a region and across a set of regions. The logical processes in
+the simulation are geographic locations which represent a portion of the population. The
+interactions between people in different geographic locations and regions are modeled with
+a diffusion network. An abstract view of the simulation model is shown below in figure
+\ref{epidemic_model}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth,quiet]{figs/graphviz/epidemic.pdf}
+    \caption{Epidemic Model}\label{epidemic_model}
+\end{figure}
+
+The model is based on reaction-diffusion model\cite{perumalla-12}. A reaction process
+models the behavior of the disease within a person as well as the transmission of the
+disease between people within the same location. A probabilistic reaction function defines
+the behavior of the disease between individuals\cite{barrett-08}. The disease within an
+individual is modeled by a Probabilistic Timed Transition System (PTTS)\cite{barrett-08}
+which is a finite state machine describing states of the disease and the transitions between states.
+Together, the reaction function and PTTS models of the disease form the \emph{disease model}.
+The diffusion network models the social interactions of people between locations and between
+regions\cite{barrett-08}.
+
+\subsection{Airport}
+
+The airport model describes the departure and arrivals of airplanes between a connected
+set of airports. The logical processes represent airports and the events are simply
+departures and arrivals. For simplicity, the airports are connected in a rectangular grid
+and can only fly to aiports to the north, east, south, or west of the aiport departed from.
+The time spent between takeoff and landing and between landing and takeoff both follow an
+exponential distributions.
+
+\section{Multithreaded Message Passing with MPI}
+
+The MPI standard specifies four level of thread support that each implementation may support:
+
+\begin{description}
+    \item[MPI\_THREAD\_SINGLE:] The application uses only a single thread.
+    \item[MPI\_THREAD\_FUNNELED:] The application is multithreaded but only a single thread will
+        make MPI calls.
+    \item[MPI\_THREAD\_SERIALIZED:] The application is multithreaded but only a single thread at
+        a time will make MPI calls.
+    \item[MPI\_THREAD\_MULTIPLE:] The application is multithreaded and threads have no restrictions.
+\end{description}
+
+The choice of which is better for a fine-grained multi-threaded applications like \textsc{warped2}
+is largely dependent on the underlying MPI implementation. Funnelling the communication to the
+manager thread can increase latency because an extra step for temporarily queueing the message
+is necessary. Furthermore, with too fine of a granularity, the number of messages can increase
+pile up and create a bottleneck in the communication and cause instability. Serialized or full
+multiple thread communication, however, can increase contention for access to MPI library calls
+and slow down the worker threads. Furthermore, it forces worker threads to take more time for
+serialization, deserialization, and memory allocation.
+
+In general, MPI implementations are usually designed for coarse-grained parallelism with large
+message sizes.
+
+\section{Partitioning}
+
+Currently, \textsc{warped2} supports block, round-robin, profile-guided, and custom partitioning.
+A detailed analysis of the partitioning methods with different models will be provided in
+chapter \ref{experimental_analysis} but a short description of each will be described now. 
+
+Block partitioning is actually just a special case of round-robin partitioning with an extra
+block size parameter. The block size is the number of contiguous LPs that are allocated to a
+partition at a time. The block size can be between 1 and $NumLPs$/$NumProcesses$ where the
+former is a true round-robin partitioning scheme and the latter is a true block partitioning
+scheme.
+
+Profile-guided guided partitioning is based on profile data that must be collected with a
+sequential simulation. The profile data contains a count of events for each communication pair
+of LPs. The partitioner uses that data to build a weighted graph and uses a graph partitioning
+tool to create partitions that minimize the cut-set.
+
+Profile guided partitioning is good for any number of partitions!!!!
+
 
 
 \chapter{\textsc{warped2} Data Structures and Organization}\label{warped2_ds}
@@ -1020,7 +1154,7 @@ Figure \ref{pending_event_set} illustrates the pending event set data structures
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.75\textwidth]{figs/graphviz/pending_event_set.pdf}
+    \includegraphics[width=0.75\textwidth,quiet]{figs/graphviz/pending_event_set.pdf}
     \caption{\textsc{warped2} Pending Event Set Data Structures}\label{pending_event_set}
 \end{figure}
 
@@ -1235,7 +1369,7 @@ queue for a single LP is illustrated in figure \ref{rollback_ds}.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{figs/graphviz/rollback_ds.pdf}
+    \includegraphics[width=\textwidth,quiet]{figs/graphviz/rollback_ds.pdf}
     \caption{Rollback and Cancellation Data Structures in \textsc{warped2}}\label{rollback_ds}
 \end{figure}
 
@@ -1245,63 +1379,6 @@ access to memory, especially in a multiprocessor system. Secondly, it adds some 
 when freeing memory used by events. To solve this problem though, \textsc{warped2} uses the
 smart pointers offered by the standard C++11 libraries which employ a reference counting
 scheme.
-
-
-\chapter{Message Passing Communication and Partitioning}
-
-\section{Hybrid Communication Model}
-
-The MPI standard specifies four level of thread support that each implementation may support:
-
-\begin{description}
-    \item[MPI\_THREAD\_SINGLE:] The application uses only a single thread.
-    \item[MPI\_THREAD\_FUNNELED:] The application is multithreaded but only a single thread will
-        make MPI calls.
-    \item[MPI\_THREAD\_SERIALIZED:] The application is multithreaded but only a single thread at
-        a time will make MPI calls.
-    \item[MPI\_THREAD\_MULTIPLE:] The application is multithreaded and threads have no restrictions.
-\end{description}
-
-The choice of which is better for a fine-grained multi-threaded applications like \textsc{warped2}
-is largely dependent on the underlying MPI implementation. Funnelling the communication to the
-manager thread can increase latency because an extra step for temporarily queueing the message
-is necessary. Furthermore, with too fine of a granularity, the number of messages can increase
-pile up and create a bottleneck in the communication and cause instability. Serialized or full
-multiple thread communication, however, can increase contention for access to MPI library calls
-and slow down the worker threads. Furthermore, it forces worker threads to take more time for
-serialization, deserialization, and memory allocation.
-
-The plots in figure \ref{communication_models} summarizes the performance of funnelled, serialized,
-and multiple thread communication. For serialized communication, a single global spinlock is
-used to protect access to all MPI library calls.
-
-\section{Partitioning}
-
-Partitioning the work in a distributed system is important to minimize latency costs incurred
-from interprocess communication. In parallel discrete event simulation, the work is usually
-partitioned by the LPs so that each process in the system can process events from a dedicated
-subset of LPs. This is realized by using a SPMD programming model, where each process runs exactly
-same program with different data.
-
-A good partitioning scheme will decrease interprocess communication by keeping LPs that communicate
-within a single process. This will create a much more stable simulation since the communication
-latency is much larger than the frequency of computation on each of the local machines and this
-disparity increases the chances of rollbacks occuring.
-
-\subsection{Partitioning in \textsc{warped2}}
-
-Currently, \textsc{warped2} supports round-robin partitioning, profile-guided partitioning,
-profile-guided partitioning, and custom partitioning. The custom partitioning is currently
-not being used in any \textsc{warped2} simulation models.
-
-Round-robin partitioning can be configured with a block size, where the block size determines
-how many LPs are allocated to each process at a time. A valid block size must be between 1
-and $NumLPs \over NumProcs$, where the former is a true round robin partitioning scheme and the
-latter is block partitioning scheme. Profile-guided guided partitioning is based on profile data
-that must be collected with a sequential simulation. The profile data contains a count of events
-for each communication pair of LPs and the partitioner uses that data to build a weighted graph.
-Then, the partitioner uses a graph partitioning tool to create partitions that minimize the cut-set.
-A detailed analysis of the partitioning methods will be provided in chapter \ref{experimental analysis}.
 
 
 
@@ -1974,127 +2051,11 @@ A summary of the architectural features of both machines that used are summarize
             & C Library         & Debian GLIBC 2.19-18+deb8u1   & Ubuntu EGLIBC 2.15-0ubuntu20.1 \\ 
             & Compiler          & GCC v4.9.2                    & GCC v4.8.5        \\
             & MPI               & MPICH v3.1                    & MPICH v1.5        \\
-            & Memory Allocator  & TCMalloc v2.4                 & TCMalloc v2.4     \\
+            & Malloc            & TCMalloc v2.4                 & TCMalloc v2.4     \\
         \hline
     \end{tabular}
     \caption{x86 Assessment Platforms}\label{x86_platform}
 \end{table}
-
-\section{Simulation Models}
-
-\subsection{PCS}
-
-The model describes a type of wireless communication network known as a Portable Cellular
-Service (PCS) network. A PCS network provides services for a number of \emph{portables} which
-are the subscribers to the network. The service area of the network is divided into
-\emph{cells} and a single \emph{port} covers a single cell which has a certain number channels that
-it can allocate for calls. When an incoming or outgoing call is made, a port must allocate
-a channel from the port and if one cannot be allocated then the call is \emph{blocked}\cite{lin-96b}.
-The only type of logical processes in the PCS simulation are the cells. The cells in the
-\textsc{warped2} model form a rectangular grid as shown in figure \ref{pcs_model_lps}.
-Portables can only move to other cells from an adjacent cell with a wrap around occuring
-at the edges.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.6\textwidth]{figs/graphviz/pcs_model.pdf}
-    \caption{PCS Model Logical Processes}\label{pcs_model_lps}
-\end{figure}
-
-The portables stay within a cell for a period of time which follows a poisson distribution
-before moving to another cell. If the all cells are busy in the cell that the portable
-is moving to then the call is dropped. This is called a \emph{handoff block}.
-
-Every LP keeps track of the following state variables:
-\begin{itemize}
-    \item Number of idle channels
-    \item Number of call attempts
-    \item Number of channel blocks
-    \item Number of handoff blocks
-\end{itemize}
-
-\noindent
-Call arrivals to a portable also follow a poisson distribution. The cells in the model
-generate all of their own incoming calls in a self-initiating process.
-Four types of events are used to model the network: \begin{inparaenum}[(1)] \item NextCall,
-\item CallCompletion, \item PortableMoveOut, and \item PortableMoveIn \end{inparaenum}.
-The NextCall, CallCompletion, and PortableMoveOut events are all sent to self whereas
-the PortableMoveIn event is sent to an adjacent cell based on a random variable with
-uniform probability.
-
-\subsection{Traffic}
-
-The traffic model describes a grid of intersections and the movement of cars through
-the intersections and between the intersections. All intersections are four way intersections
-and have three lanes in each direction. The LPs in the traffic model are the intersections
-and form a rectangular grid in the same way as that of the PCS model.
-
-The simulation starts with a uniform distribution of cars at each intersection and each
-car is a assigned a destination which it finishes at. With each arrival at an intersection
-the car always goes in the direction that gets it closer to its destination.
-The number of cars going out of an intersection in the same direction is limited to a
-maximum number due to traffic on the destination road. An incoming car that cannot travel in
-a specific direction is forced back in the same direction it came from and tries another
-route. For each intersection, the state consists of:
-
-\begin{itemize}
-    \item Number of cars coming into the intersection from each direction
-    \item Number of cars going out of the intersection to each direction
-    \item Total cars arrived at the intersection
-    \item Total cars finished at the intersection
-\end{itemize}
-
-A car goes through three event phase in every intersection as shown in figure
-\ref{traffic_events}. The three types of events are: \begin{inparaenum}[(1)] \item Arrival,
-\item Direction Select, and \item Departure \end{inparaenum}. The arrival and departure
-events are mainly used for simple state updates and timing of the next events.
-The direction select event is where the complexity of the simulation is and determines the
-direction that the car should go in order to reach its destination or whether the car should
-take another route due to traffic.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.6\textwidth]{figs/graphviz/traffic_events.pdf}
-    \caption{Intersection Event Sequence}\label{traffic_events}
-\end{figure}
-
-All events in the traffic model follow an exponential distribution and a single event
-is generated with the processing of each event. The departure and direction select events
-are self-generated but the arrival event is from an adjacent intersection.
-
-\subsection{Epidemic}
-
-The epidemic model describes the spreading of an infectious disease across a set of
-geographic locations in a region and across a set of regions. The logical processes in
-the simulation are geographic locations which represent a portion of the population. The
-interactions between people in different geographic locations and regions are modeled with
-a diffusion network. An abstract view of the simulation model is shown below in figure
-\ref{epidemic_model}.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.6\textwidth]{figs/graphviz/epidemic.pdf}
-    \caption{Epidemic Model}\label{epidemic_model}
-\end{figure}
-
-The model is based on reaction-diffusion model\cite{perumalla-12}. A reaction process
-models the behavior of the disease within a person as well as the transmission of the
-disease between people within the same location. A probabilistic reaction function defines
-the behavior of the disease between individuals\cite{barrett-08}. The disease within an
-individual is modeled by a Probabilistic Timed Transition System (PTTS)\cite{barrett-08}
-which is a finite state machine describing states of the disease and the transitions between states.
-Together, the reaction function and PTTS models of the disease form the \emph{disease model}.
-The diffusion network models the social interactions of people between locations and between
-regions\cite{barrett-08}.
-
-\subsection{Airport}
-
-The airport model describes the departure and arrivals of airplanes between a connected
-set of airports. The logical processes represent airports and the events are simply
-departures and arrivals. For simplicity, the airports are connected in a rectangular grid
-and can only fly to aiports to the north, east, south, or west of the aiport departed from.
-The time spent between takeoff and landing and between landing and takeoff both follow an
-exponential distributions.
 
 \section{Simulation Model Configurations}
 
@@ -2102,7 +2063,7 @@ For all experimental analysis in the following sections, the simulation models w
 with the parameters shown in figure \ref{model_params} unless noted otherwise.
 
 \begin{figure}
-  \begin{minipage}{.45\textwidth}
+    \begin{center}
         \begin{tabular}{|| c | l | c ||}
             \hline
             Model & Parameter & Value \\ [0.5ex]
@@ -2130,8 +2091,11 @@ with the parameters shown in figure \ref{model_params} unless noted otherwise.
                 & \# Airplanes per Airport  & 50    \\
             \hline
         \end{tabular}
-  \end{minipage}
-  \begin{minipage}{.45\textwidth}
+    \end{center}
+\end{figure}
+
+\begin{figure}
+    \begin{center}
         \begin{tabular}{|| c | l | l | c ||}
             \hline
             Model & Parameter Type & Parameter & Value \\ [0.5ex]
@@ -2165,8 +2129,8 @@ with the parameters shown in figure \ref{model_params} unless noted otherwise.
                 &                               & Max Loc Diffusion Interval& 500   \\
             \hline
         \end{tabular}
-  \end{minipage}
-\caption{Model Parameters}\label{model_params}
+        \caption{Model Parameters}\label{model_params}
+    \end{center}
 \end{figure}
 
 \section{State Saving}\label{ssp_analysis}
@@ -2192,25 +2156,27 @@ a measure of the percent of events that are processed without being rolled back.
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/state_saving/speedup.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/speedup.pdf} \\
       $Speedup_{CSS}$ \\
     \end{center}
-  \end{minipage} \hfill
+  \end{minipage}%
+  \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/state_saving/percent_memory_decrease.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/percent_memory_decrease.pdf} \\
       \% Decrease in Average Peak Memory \\
     \end{center}
   \end{minipage}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/state_saving/average_cf.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/average_cf.pdf} \\
       Average Coast Forward Events
     \end{center}
-  \end{minipage} \hfill
+  \end{minipage}%
+  \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/state_saving/efficiency.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/efficiency.pdf} \\
       $Efficiency$ \\
     \end{center}
   \end{minipage}
@@ -2261,10 +2227,11 @@ Figure \ref{fc_times} shows how the simulation times compare in a single SMP mac
       \end{tabular}\\
       (a) Termination Times
     \end{center}
-  \end{minipage} \hfill
+  \end{minipage}%
+  \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth]{figs/fossil_collection/simulation_times.pdf}\\
+      \includegraphics[width=\textwidth,quiet]{figs/fossil_collection/simulation_times.pdf}\\
       (b) Simulation Run Times
     \end{center}
   \end{minipage}
@@ -2296,12 +2263,13 @@ performance is only worsened by a very small amount.
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/fossil_collection/memory_fcw.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/fossil_collection/memory_fcw.pdf} \\
     \end{center}
-  \end{minipage} \hfill
+  \end{minipage}%
+  \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/fossil_collection/time_fcw.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/fossil_collection/time_fcw.pdf} \\
     \end{center}
   \end{minipage}
   \caption{Memory and Performance Comparison for Various GVT Periods}\label{fc_memory_analysis}
@@ -2325,25 +2293,27 @@ queues.
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/pending_event_set/ltsf_speedup.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/pending_event_set/ltsf_speedup.pdf} \\
       $Speedup_{LTSF}$ \\
     \end{center}
-  \end{minipage} \hfill
+  \end{minipage}%
+  \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/pending_event_set/ltsf_efficiency.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/pending_event_set/ltsf_efficiency.pdf} \\
       $Efficiency$ \\
     \end{center}
   \end{minipage}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/pending_event_set/ltsf_memory.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/pending_event_set/ltsf_memory.pdf} \\
       Average Peak Memory \\
     \end{center}
-  \end{minipage} \hfill
+  \end{minipage}%
+  \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/pending_event_set/ltsf_rollbacks.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/pending_event_set/ltsf_rollbacks.pdf} \\
       Total Rollbacks \\
     \end{center}
   \end{minipage}
@@ -2376,23 +2346,9 @@ is slowed down by other computation.
 
 \begin{figure}
 \centering
-  \includegraphics[width=0.5\textwidth]{figs/pending_event_set/spinlock_speedup.pdf}
+  \includegraphics[width=0.5\textwidth,quiet]{figs/pending_event_set/spinlock_speedup.pdf}
   \caption{Speedup with Spinlocks}\label{spinlock_speedup}
 \end{figure}
-
-\section{Partitioning}
-
-\subsection{LTSF Queue Partitioning}
-
-\begin{figure}
-\centering
-  \includegraphics[width=0.5\textwidth]{figs/pending_event_set/partitioning_speedup.pdf}
-  \caption{Speedup with Profile-Guided Partitioning}\label{ltsf_partitioning}
-\end{figure}
-
-\subsection{Process Parttioning}
-
-
 
 \section{Memory Allocation}
 
@@ -2407,13 +2363,14 @@ All results shown before now have all been with TCMalloc
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/memory_allocation/ptm_times.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/ptm_times.pdf} \\
       PTMalloc2 \\
     \end{center}
-  \end{minipage} \hfill
+  \end{minipage}%
+  \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/memory_allocation/tcm_times.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/tcm_times.pdf} \\
       TCMalloc \\
     \end{center}
   \end{minipage}
@@ -2423,8 +2380,55 @@ All results shown before now have all been with TCMalloc
 
 \begin{figure}
   \centering
-  \includegraphics[width=\textwidth]{figs/memory_allocation/tcmalloc_speedup.pdf}
+  \includegraphics[width=\textwidth,quiet]{figs/memory_allocation/tcmalloc_speedup.pdf}
   \caption{TCMalloc Speedup with Varying Worker Threads}
+\end{figure}
+
+\section{Interprocess Communication and Partitioning}
+
+The plots in figures \ref{epidemic_communication} and \ref{pcs_communication} summarizes the
+performance of single, funnelled, serialized, and multiple thread communication in \textsc{warped2}
+for the Epidemic and PCS models.
+
+For serialized communication, a single global spinlock is used to protect access to all MPI library
+calls. For the multithreaded communication models, 7 worker threads and a manager thread are used
+per noded and for single thread communication, 8 processes per node are used.
+
+\pagebreak
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_epidemic_time.pdf} \\
+      Simulation Runtime \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_epidemic_efficiency.pdf} \\
+      Efficiency
+    \end{center}
+  \end{minipage}
+  \caption{Epidemic Simulation Model}\label{epidemic_communication}
+\end{figure}
+
+The Epidemic model is an interesting model to look at because the LPs are partitioning very
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_pcs_time.pdf} \\
+      Simulation Runtime \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_pcs_efficiency.pdf} \\
+      Efficiency
+    \end{center}
+  \end{minipage}
+  \caption{PCS Simulation Model}\label{pcs_communication}
 \end{figure}
 
 
@@ -2468,25 +2472,27 @@ All results shown before now have all been with TCMalloc
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/pcs_rr.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/pcs_rr.pdf} \\
       PCS \\
     \end{center}
-  \end{minipage} \hfill
+  \end{minipage}%
+  \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/traffic_rr.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/traffic_rr.pdf} \\
       Traffic \\
     \end{center}
   \end{minipage}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/epidemic_rr.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/epidemic_rr.pdf} \\
       Epidemic \\
     \end{center}
-  \end{minipage} \hfill
+  \end{minipage}%
+  \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/airport_rr.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/airport_rr.pdf} \\
       Airport \\
     \end{center}
   \end{minipage}
@@ -2496,12 +2502,12 @@ All results shown before now have all been with TCMalloc
 
 \begin{figure}
     \centering
-    \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/os_partitioning_times.pdf}
+    \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/os_partitioning_times.pdf}
 \end{figure}
 
 \begin{figure}
     \centering
-    \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/os_partitioning_rbs.pdf}
+    \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/os_partitioning_rbs.pdf}
 \end{figure}
 
 \section{Atomic Instructions on ODROID XU3}
@@ -2509,21 +2515,23 @@ All results shown before now have all been with TCMalloc
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/fetchadd.eps} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/fetchadd.eps} \\
       Fetch and add \\
     \end{center}
-  \end{minipage} \hfill
+  \end{minipage}%
+  \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/fetchsub.eps} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/fetchsub.eps} \\
       Fetch and subtract \\
     \end{center}
-  \end{minipage}
+  \end{minipage}%
+  \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio]{figs/big_little/sharedptr_copy.eps} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/sharedptr_copy.eps} \\
       Shared\_ptr copy \\
-    \end{center} \hfill
+    \end{center}
   \end{minipage}
 \end{figure}
 
