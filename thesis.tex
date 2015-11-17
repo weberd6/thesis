@@ -96,24 +96,40 @@
 
 \chapter*{Abstract}
 
-%% the abstract covers your thesis soup to nuts.  the abstract may be published
-%% separately from the main body so it needs to be fully contained and say
-%% something about nearly everything in your thesis.  basically in 1-2 pages you
-%% need to: bring the reader into your topic, explain why it is important and
-%% why existing solutions are insufficient, it must describe your approach to a
-%% solution and what your primary results are.  whew!!
-
 Parallel Discrete Event Simulation (PDES) systems have traditionally been designed for either
-clusters using message passing for communication or for shared-memory multiprocessors using shared
-data structures for communication. PDES appications are fine-grained which makes the high
-communication latencies of message passing a limiting factor in the rate at which events can
-be processed but allows the system to scale to essentially any size. On the other hand, PDES
-systems that use shared memory have very low communication latencies and prevent unnecessary
-copying, but do not scale very well.
+clusters using message passing communication for shared-memory multiprocessors using shared
+data structures. PDES appications are an example of fine-grained parallelism which means that
+there is a high cost of communication with message passing. Message passing, however, is necessary
+to scale up the computational power and memory required for larger simulation models that would
+be limited in a single shared-memory processor. Shared memory communication, on the other hand
+significantly reduces communication costs by minimizing copying overheads with pointers and
+eliminating network latency.
 
-To get the best of both forms of communication, \textsc{warped2} uses a hybrid approach where
-a set of mulithreaded processes communication with message passing but threads make use of shared
-data structures.
+To get the best of both forms of communication, \textsc{warped2}, a new PDES simulation kernel
+which implements the time warp mechanism, uses a hybrid approach where a set of mulithreaded
+processes communicate with message passing but threads within each process communicate with
+shared data structures. If the logical processes (LPs) of the simulation model are partitioned
+well, then the interprocess communication can be minimized and the simulation models can scale
+to more reasonable levels.
+
+A hybrid communication approach, however, adds some significant problems that make it hard
+to optimize the simulation mechanism to get the best performance. The first problem that
+must be dealt with, which is common to any multithreaded application, is the high cost of thread
+synchronization to protect shared data structures. This problem not only adds significant overheads
+in the simulation mechanism (dispatching of local events and processing events) but with the
+standard runtime and message passing libraries as well. A few of the solutions what will described
+include separating data structures for thread local use to eliminate synchronization, using
+spinlocks to reduce lock aquisition latency, using alternative multithreaded memory allocators,
+and using a separate thread to handle message passing communication.
+
+The second, and more time warp specific problem arises with a hybrid communication model is with
+developing asynchronous GVT and termination detection algorithms which are usually designed for
+either shared-memory multiprocessors \emph{or} message passing systems, but not both. For both
+GVT and termination detection, a two level approach for each will be discussed and analyzed
+as well as alternative approaches.
+
+
+
 
 \chapter*{Acknowledgments}
 
@@ -2156,32 +2172,67 @@ a measure of the percent of events that are processed without being rolled back.
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/speedup.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/speedup.pdf} \\
       $Speedup_{CSS}$ \\
     \end{center}
   \end{minipage}%
   \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/percent_memory_decrease.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/percent_memory_decrease.pdf} \\
       \% Decrease in Average Peak Memory \\
     \end{center}
   \end{minipage}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/average_cf.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/average_cf.pdf} \\
       Average Coast Forward Events
     \end{center}
   \end{minipage}%
   \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/efficiency.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/efficiency.pdf} \\
       $Efficiency$ \\
     \end{center}
   \end{minipage}
   \caption{Periodic State Saving on SMP Machine}\label{ssp_analysis_smp}
 \end{figure}
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/speedup.pdf} \\
+      $Speedup_{CSS}$ \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/efficiency.pdf} \\
+      $Efficiency$ \\
+    \end{center}
+  \end{minipage}
+  \caption{Periodic State Saving on Cluster}\label{ssp_analysis_cluster}
+\end{figure}
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/rollbacks.pdf} \\
+      Rollbacks \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/remote_events.pdf} \\
+      Remote Events \\
+    \end{center}
+  \end{minipage}
+  \caption{Periodic State Saving on Cluster}\label{ssp_analysis_cluster1}
+\end{figure}
+
 
 It is apparent these results that the benefits of increasing the state saving period are very good
 for lower periods due to less copying and lower memory requirements. However, with larger periods
