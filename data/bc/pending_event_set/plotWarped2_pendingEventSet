@@ -7,7 +7,7 @@ import re
 sq_list = [1, 2, 5, 10];
 models = ["epidemic", "pcs", "traffic", "airport"];
 locktypes = ["mutexes", "spinlocks"];
-parttypes = ["rr", "pg"];
+parttypes = ["rr", "pg", "block"];
 
 warped_data_path = "."
 
@@ -68,7 +68,7 @@ def main():
             # obtain configs from filename
             nodes, wt, sq, ssp, gvtp = re.findall(r'\d+', filename)
 
-            if ("rr" in filename):
+            if ("rr" in filename or "block" in filename):
                 continue
 
             with open("{}/{}/mutexes/{}".format(warped_data_path, m, filename)) as plotpoint:
@@ -129,10 +129,10 @@ def main():
         for lt in locktypes:
             f = filenames()
             for filename in f:
-                # obtain configs from filename
+                # obtain confhttps://www.google.com/?gws_rd=ssligs from filename
                 nodes, wt, sq, ssp, gvtp = re.findall(r'\d+', filename)
 
-                if "rr" in filename:
+                if "rr" in filename or "block" in filename:
                     continue
 
                 with open("{}/{}/{}/{}".format(warped_data_path, m, lt, filename)) as plotpoint:
@@ -221,6 +221,9 @@ def main():
             # obtain configs from filename
             nodes, wt, sq, ssp, gvtp = re.findall(r'\d+', filename)
 
+            if "block" in filename:
+                continue
+
             with open("{}/{}/mutexes/{}".format(warped_data_path, m, filename)) as plotpoint:
                 ydata = np.genfromtxt(filter_total_lines(plotpoint), delimiter=",",
                     names=['node', 'time', 'objects', 'localp', 'remotep', 'localn', 'remoten',
@@ -284,7 +287,6 @@ def main():
     plt.show()
 
 
-
     one_rbdecrease_by_model    = [a if a == 0 else (a - b) / a for a, b in
             zip(one_rbs_by_model_rr, one_rbs_by_model_pg)]
     two_rbdecrease_by_model    = [a if a == 0 else (a - b) / a for a, b in
@@ -317,15 +319,20 @@ def main():
 
     times_by_model_rr = list()
     times_by_model_pg = list()
+    times_by_model_block = list()
 
     rbs_by_model_rr = list()
     rbs_by_model_pg = list()
+    rbs_by_model_block = list()
 
     for m in models:
         f = filenames()
         for filename in f:
             # obtain configs from filename
             nodes, wt, sq, ssp, gvtp = re.findall(r'\d+', filename)
+
+            if "block" in filename and sq != '10':
+                continue
 
             with open("{}/{}/mutexes/{}".format(warped_data_path, m, filename)) as plotpoint:
                 ydata = np.genfromtxt(filter_total_lines(plotpoint), delimiter=",",
@@ -343,14 +350,21 @@ def main():
                 if sq == '10':
                     times_by_model_pg.append(np.mean(ydata['time']))
                     rbs_by_model_pg.append(rbs)
+            elif "block" in filename:
+                if sq == '10':
+                    times_by_model_block.append(np.mean(ydata['time']))
+                    rbs_by_model_block.append(rbs)
 
     rects1 = plt.bar(index, times_by_model_rr, bar_width,
             color='g', label='Round-Robin', alpha=0.7)
     rects2 = plt.bar(index+bar_width, times_by_model_pg, bar_width,
             color='b', label = 'Profile-Guided', alpha=0.7)
+    rects3 = plt.bar(index+2*bar_width, times_by_model_block, bar_width,
+            color='r', label = 'Block', alpha=0.7)
 
     autolabel(rects1)
     autolabel(rects2)
+    autolabel(rects3)
     plt.xlim(-bar_width, len(index)+10*bar_width)
     plt.xlabel('Model')
     plt.ylabel('Simulation Time (s)')
@@ -362,12 +376,15 @@ def main():
             color='g', label='Round-Robin', alpha=0.7)
     rects2 = plt.bar(index+bar_width, rbs_by_model_pg, bar_width,
             color='b', label = 'Profile-Guided', alpha=0.7)
+    rects3 = plt.bar(index+2*bar_width, rbs_by_model_block, bar_width,
+            color='r', label = 'Block', alpha=0.7)
 
     autolabel(rects1)
     autolabel(rects2)
+    autolabel(rects3)
     plt.xlim(-bar_width, len(index)+10*bar_width)
     plt.xlabel('Model')
-    plt.ylabel('Simulation Time (s)')
+    plt.ylabel('Rollbacks')
     plt.xticks(index+2*bar_width, ('Epidemic', 'PCS', 'Traffic', 'Airport'))
     plt.legend()
     plt.show()

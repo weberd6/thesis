@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import re
 
 models = ["pcs", "epidemic"];
-comm_models = ["multiple", "serialized", "funnelled", "single"];
+comm_models = ["multiple", "serialized", "funnelled", "single", "funnelled-aggregate5"];
 warped_data_path = "."
 
 def filenames(comm_model):

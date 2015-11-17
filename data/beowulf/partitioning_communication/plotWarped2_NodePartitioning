@@ -6,7 +6,7 @@ import re
 
 models = ["pcs", "traffic", "epidemic"];
 parttypes = ["block", "pg", "rr"];
-warped_data_path = "/home/doug/warped2-data.beowulf/number_nodes"
+warped_data_path = "."
 
 def filenames():
     for pt in parttypes:
