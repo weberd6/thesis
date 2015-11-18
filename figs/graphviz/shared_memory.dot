@@ -1,0 +1,15 @@
+digraph shared_memory {
+
+    subgraph cluster_sm {
+        sm [label = "<n0> | <s0> Shared Memory | <n1>", shape = record, width = 5, style = filled, color = lightcyan];
+        w_0 [label = "Worker 0", style = filled, color = sandybrown];
+        w_1 [label = "Worker 1", style = filled, color = sandybrown];
+        "w_0" -> "sm":s0;
+        "w_1" -> "sm":s0;
+        style = filled;
+        color = lightgrey;
+        label = "Shared Memory";
+    }
+
+}
+

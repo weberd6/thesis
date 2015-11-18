@@ -1,0 +1,12 @@
+digraph aggregation_formate {
+    node [shape = record,height=.1];
+    nodesep = 0;
+
+    header1[label = "Num Msgs\n4 bytes", style = filled, fillcolor = cyan4];
+
+    header2[label = "Length 0 (L[0])\n4 bytes | Length 1 (L[1])\n4 bytes | Length 2 (L[2])\n4 bytes
+                    | ... ", style = filled, fillcolor = olivedrab3];
+
+    body[label = "Message 0\nL[0] | Message 1\nL[1] | Message 2\nL[2] | ...",
+         style = filled, fillcolor = orange3];
+}
