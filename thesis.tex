@@ -128,18 +128,39 @@ either shared-memory multiprocessors \emph{or} message passing systems, but not 
 GVT and termination detection, a two level approach for each will be discussed and analyzed
 as well as alternative approaches.
 
+Experimental analysis will be performed on SMP nodes and clusters to gain a better understanding
+of the tunable performance and memory parameters of \textsc{warped2}. Preliminary results
+indicate that any optimization that minimizes thread synchronization is usually preferrable on
+a single SMP node even though rollbacks usually increase and efficiency decreases. Furthermore,
+TCMalloc, a memory allocator for multithreaded applications also enhances performance.
+
+On a cluster, funneling communication to a dedicated thread increases performance over multi-thread
+communication but does not scale well due to an extreme decrease in efficiency with more nodes.
+Aggregating messages that are destined for the same node, however, significantly increases
+efficiency and performance.
 
 
 
 \chapter*{Acknowledgments}
 
+First and foremost, I would like to thank Dr. Wilsey for his guidance throughout my research
+experience. It has been a great experience working with him and I have learned more than I
+ever thought I would.
 
+I would also like to thank Sounak Gupta for his work with the pending event set in \textsc{warped2}
+and AJ Alt for his work with the initial development of \textsc{warped}. My research would not
+have been possible without them. Also, thanks to all previous students in the Experimental
+Computing Lab who contributed to the development of the original \textsc{warped} simulation
+kernel.
 
-\tableofcontents \markright{ }
-\listoffigures \markright{ }
-\listoftables \markright{ }
-\listofalgorithms \markright { }
-\lstlistoflistings \markright{ }
+Thank you to my family for being supportive throughout my entire education at the University of
+Cincinnati.
+
+\tableofcontents    \markright{ }
+\listoffigures      \markright{ }
+\listoftables       \markright{ }
+\listofalgorithms   \markright{ }
+\lstlistoflistings  \markright{ }
 
 \clearpage
 \pagenumbering{arabic} \setcounter{page}{1}
@@ -147,26 +168,27 @@ as well as alternative approaches.
 \chapter{Introduction}\label{intro}
 
 %% Background
-Many systems can be described by events that occur in discrete time intervals such as
+Many physical systems can be described by events that occur in discrete time intervals such as
 communication networks, digital logic circuits, transportation systems, or disease
-outbreak. To gain a better understanding of these systems, researchers develop models of
+outbreaks. To gain a better understanding of these systems, researchers develop models of
 the systems and perform simulations on computing platforms. These \emph{Discrete Event
-Simulations} (DESs) can take a long time to simulate large, complex systems by sequentially
-processing events which has led researchers to design parallel algorithms to run simulations
-on parallel computing platforms. The field of study that deals with parallel algorithms
+Simulation} (DES) models can take a long time to simulate large, complex systems by sequentially
+processing events which has ultimately led researchers to design parallel algorithms to run
+simulations on parallel computing platforms. The field of study that deals with parallel algorithms
 to speed up discrete event simulations is known as Parallel Discrete Event Simulation (PDES).
 
-Parallel algorithms can be written for many different architectures that support parallelism
-such as shared memory multiprocessors, clusters, or any other type of system that support
+Parallel algorithms can be written to target many different architectures that support parallelism
+such as shared-memory multiprocessors, clusters, or any other type of system that support
 parallel execution. Furthermore, communication between concurrent workers in the system can
 be achieved by using shared data structures or by passing explicit messages between workers.
 
 The Time Warp Mechanism\cite{jefferson-85}, which is the focus of this text, is one approach
 to PDES where causal dependencies of events are not enforced before processing an event. A method
 of undoing erroneous computation and cancelling incorrectly sent events must be implemented in
-a time warp system.
+a time warp system to ensure causality of events.
+
 Some time warp systems are designed for only shared memory multiprocessors. These systems
-minimize communication latencies and allow very fast, simple algorithm because everything
+minimize communication latencies and allow very fast, simple algorithms because everything
 can run in a single address space and use shared data structrures with pointers to prevent
 unnecessary copying. However, they are still limited by the computational power and memory
 size of the machine. Other time warp systems are completely based on a message passing scheme.
@@ -178,8 +200,8 @@ The \textsc{warped2} simulation kernel, which is a reimplementation of the origi
 \textsc{warped} simulation kernel, uses a hybrid approach by using shared memory between a set
 of \emph{worker threads} in a single process to eliminate communication overheads, but uses
 message passing between processes to allow the system to scale to larger sizes. A dedicated
-\emph{manager thread} handles all message passing communication between
-processes. Figure \ref{warped2_communication} illustrates the communication model that is
+\emph{manager thread} handles all message passing communication between processes.
+Figure \ref{warped2_communication} illustrates the communication model that is
 used in \textsc{warped2}.
 
 \begin{figure}[H]
@@ -196,16 +218,18 @@ since the worker threads can share a scheduling data structure to process events
 Fewer scheduling data structures creates a bottleneck since multiple worker threads cannot
 access them simultaneously without race conditions. On the other hand, more scheduling
 data structures allows more concurrency but spreads out the critical path of execution,
-allowing more rollbacks.
+allowing more rollbacks so the efficiency decreases.
 
-%% Partitioning
-To further reduce any communication overheads in both message passing and shared memorory
-communication, partitioning the work between processes will also be explored. Partitioning
+%% Partitioning and Message Aggregation
+To reduce communication overheads in both message passing and shared memorory communication,
+partitioning the work between processes and threads will also be explored. Partitioning
 the work in a parallel discrete event simulation is achieved by simply partitioning the
 LPs. In \textsc{warped2}, a two phase partitioning scheme will be explored. The first phase
-is for partitiong LPs among processes in order to minimize communication and the second
-phase is for further partioning the LPs in a process to the event scheduling data structure
-which should localize LP communication among worker threads and reduce rollbacks.
+is for partitiong LPs among processes in order to minimize interprocess communication and the
+second phase is for further partioning the LPs in a process to an event scheduling data structure
+which will localize LP communication among worker threads, allowing better cache locality,
+and lowering rollbacks. To further reduce message passing communication, messages that are
+sent to the same process are aggregated and sent together as a single larger message.
 
 %% GVT and Termination
 The combination of shared memory and message passing communication does create some
@@ -216,7 +240,7 @@ that some kind of message passing scheme would have to be implemented for worker
 to communicate. This scheme would still use shared memory for message communication but
 would still have the overheads of explicit message passing. On the contrary, it is possible
 to have a single shared memory algorithm that extends to distributed memory systems but
-would require a shared virtual memory system. A shared virtual memory system would still
+would require a shared virtual memory system. However, a shared virtual memory system would still
 have to transparently use message passing to achieve synchronization. For these reasons,
 the GVT and termination algorithms developed for \textsc{warped2} include a message
 passing algorithm and a shared memory algorithm that work in conjunction.
@@ -229,27 +253,35 @@ Chapter \ref{background} contains some background information on parallel simula
 parallel computing that is used in this thesis.
 
 Chapter \ref{related_work} reviews several of the prominent parallel simulation kernels
-that use the Time Warp synchronization protocol.  The software architecture and target
+that use the Time Warp synchronization protocol. The software architecture and target
 compute platforms for each is described.
 
 Chapter \ref{warped2_overview} introduces the software architecture and modeling API for
-the \textsc{warped2} simulation kernel.
+the \textsc{warped2} simulation kernel. A basic overview of the communication model and
+partitioning schemes will also be described.
 
-Chapter \ref{warped2_ds} describes the pending event set data structures used within
-the \textsc{warped2} kernel and provides some preliminary results in finding the best
-configurations for various models.
+Chapter \ref{partitioning_communication} describes the importance of efficient message passing
+communication and analyzes different approaches. Some preliminary results are shown analyzed
+to determining the best communication model, partitioning scheme and number of aggregated
+messages.
 
-Chapter \ref{gvt_termination} descibes various GVT and termination detection algorithms that
-have been used explains the algorithms used in \textsc{warped2}. This chapter also provides
-some preliminary results in determining the best configurations for these algorithms.
+Chapter \ref{warped2_ds} describes the basic event scheduling algorithms in \textsc{warped2}
+as well as the data structures used and the organization of the data structures. The parameters
+that can be used to tune the performance of the simulation will also be discussed.
 
-Chapter \ref{memory_management} analyzes techniques for managing memory efficiently. This
-includes state saving techniques, fossil collection, and GVT period. Some preliminary results
-are also shown for various configurations.
+Chapter \ref{gvt_termination} analyzes the probem of GVT and termination detection in distributed
+systems and describes various algorithms that have been used as well as algorithms used in
+\textsc{warped2}.
 
-Chapter \ref{experimental_analysis}
+Chapter \ref{memory_management} analyzes techniques for managing memory efficiently. A brief
+overview of state saving techniques, fossil collection, and memory allocation will be analyzed
+and some of the memory tuning parameters in \textsc{warped2} will be discussed.
 
-Chapter \ref{big_little_platform}
+Chapter \ref{experimental_analysis} provides some observations of \textsc{warped2} on x86 SMP
+nodes and clusters.
+
+Chapter \ref{big_little_platform} provides some observations of \textsc{warped2} on the
+ARM big.LITTLE architecture with Heterogeneous Multi-Processing (HMP).
 
 Finally, Chapter \ref{conclude} contains some concluding remarks and suggestions for future
 research.
@@ -260,9 +292,7 @@ research.
 
 This chapter describes some of the basics of Parallel Discrete Event Simulation (PDES) with
 a focus on the Time Warp mechanism. Then a brief overview of parallel architectures and
-parallel communication models and their strengths and weaknesses are compared. Lastly, the
-big.LITTLE platform is introduced and some different scheduling/switching mechanisms are
-described.
+parallel communication models and their strengths and weaknesses are compared.
 
 \section{Discrete Event Simulation}
 
@@ -279,8 +309,8 @@ typically contains three main data structures
 
 \noindent
 A \emph{Simulation Model} describes a physical system by a set of \emph{Logical Processes}
-(LP's). Each LP corresponds to a physical process that is part of the physical system. The
-LP's interact with timestamped events that dictate the simulation time that the event should
+(LPs). Each LP corresponds to a physical process that is part of the physical system. The
+LPs interact with timestamped events that dictate the simulation time that the event should
 be processed. With each event that occurs, and only when an event occurs, the state of the
 system is updated.
 
@@ -330,18 +360,18 @@ The current time of an LP's simulation clock in Time Warp is called the \emph{Lo
 Time} (LVT).
 
 When an a causality error is detected at an LP (next event to be processed is less than the
-simulation time) the effects of the incorrectly processed event(s) must be undone. The process
+LVT) the effects of the incorrectly processed event(s) must be undone. The process
 of undoing the effects is called a \emph{rollback} and the event that triggers a rollback
 is called a \emph{straggler event}. When a straggler event is detected at an LP, the first
 step taken during the rollback is to restore the LP's state back to a previous state before
 the incorrect event(s) were processed. Then the LP must "unsend" the events that were
 incorrectly sent by sending \emph{negative events} or \emph{anti-messages}. The negative
-event, when received by the receiving LP will stop the corresponding positive event from
+events, when received by the receiving LP will stop the corresponding positive event from
 being processed or if the corresponding positive message has already been processed at
 the receiving LP then that LP must also rollback. This processes recursively occurs until
 all causality errors are corrected. The negative messages are never processed as normal
 events but serve only to annhilate an generated event produced by an incorrectly processed
-event (causality error).
+event.
 
 Jefferson\cite{jefferson-85} describes how to support rollbacks with three main data structures:
 
@@ -362,7 +392,7 @@ rollback. The state queue contains previous states of the LP and allows the prop
 to be restored during a rollback.
 
 The \emph{Global Virtual Time} (GVT) of the simulation at a given point during the simulation
-is the minimum of all unprocessed events and the send times of all events that have been
+is the minimum of all unprocessed events and the receive times of all events that have been
 sent but not received\cite{jefferson-85}. There are numerous algorithms for determining
 the GVT which will be discussed further in chapter\ref{gvt_termination}. LP's cannot send
 events that are less than their LVT value and so the GVT acts as a lower bound on how far
@@ -382,17 +412,17 @@ periodic state saving, incremental state saving, and reverse computation.
 
 \section{Parallel Systems Architectures}
 
-Systems that support parallel processing come in many forms. They can generally be
-characterized by how processors and memories are grouped together. Shared memory
-systems are a single machine which share a common address space which can have a single
-physical memory unit or multiple memory units. On the other hand, a cluster is a system
-comprised of multiple machines with seperate address spaces. 
+Systems that support parallel processing come in many forms. They can generally be characterized
+by how processors and memories are grouped together. A shared memory systems is a single machine
+which shares a common address space for all processes and can have a either a single physical
+memory unit or multiple memory units. A cluster is a system comprised of multiple machines with
+seperate process address spaces connected over an interconnection network. 
 
 \subsection{Shared Memory Multiprocessor Systems}
 
 \paragraph{A Symmetric Multiprocessor (SMP)} is a type of shared memory multiprocessor
 system where each processor has uniform access to a single shared memory through a common
-bus. SMP systems cannot scale very large due to increasing contention as the number of
+bus. SMP systems cannot scale very large due to increasing memory contention as the number of
 processors increasing and for this reason, they usually have 8 or fewer processors.
 To increase available bandwidth in the system, each processor usually has one or two
 levels of private caches as well as a shared cache which act as a way limit the number of
@@ -407,8 +437,8 @@ like.
 
 \paragraph{A Distributed Shared Memory} sytem, also known as a Non-Uniform Memory Access
 (NUMA) system has mulitple memories that are distributed. In these systems, the memories are
-stilled shared between processors, but access to different memories may take different amounts
-of time. An interconnection network connects processors and memories together with one or
+still shared between processors, but access to different memories may have different access
+times. An interconnection network connects processors and memories together with one or
 more processors per memory. Because memory access times can vary, software on NUMA systems
 usually try to keep memory accesses local to a processor. However, NUMA systems can scale
 much larger than SMP systems because contention to single memory does not necessarily increase
@@ -427,9 +457,9 @@ NUMA system might look like.
 machine but is actually a loosely coupled set of machines connected together over a local
 network. A single program is executed by all machines concurrently by launching multiple
 processes on each machine. A program written for a beowulf cluster typically use some type
-of message passing to communicate among processes and is typically written with parallel
-communication software such as MPI or PVM. Figure \ref{beowulf} illustrates a common realization
-of a beowulf cluster.
+of message passing to communicate among processes and typically uses parallel communication
+software such as MPI or PVM. Figure \ref{beowulf} illustrates a common realization of a beowulf
+cluster.
 
 \begin{figure}[H]
     \centering
@@ -465,13 +495,13 @@ asynchronous communication allows workers to start a send and recieve operations
 continue without blocking. To allow this, temporary queues must be used to hold pending
 operations. The workers do not have to follow a predictable communication pattern in this
 case because the messages will be queued and can be processed at any time and in any order.
-The main advantage of message passing is that the number of workers can be scaled to any size
-as long as the work is partitioned in the right way. Also, he workers can execute in address
-spaces on different machines and communicate over a local network connection. The biggest
+The main advantage of message passing, in general, is that the number of workers can be scaled
+to any size as long as the work is partitioned in the right way. Also, the workers can execute
+in address spaces on different machines and communicate over a local network connection. The biggest
 disadvantage, however, is an increased communication latency which can be vary large compared
 to the speed of computation. This makes message passing especially hard for fine-grained
 parallel applications. An illustration of simple message passing is shown in figure
-\ref{communication}.
+\ref{communication} (a).
 
 \subsubsection{Message Passing Interface (MPI)}
 
@@ -485,20 +515,31 @@ The most widely used implementations used in practice include MPICH and OpenMPI.
 The workers in a parallel application can also share a common address space and communicate
 through shared data structures. The producer worker will insert data directly into the data
 structure and the consumer worker will remove the data and use it. This takes much less time
-to transmit data than with a message passing scheme. However, access to the shared data
-structures must be protected so that multiple workers do not simultaneously access the same
-data which could cause unpredictable results. Access to the data structures is usually enforced
-using lock synchronization mechanisms that protect entire sections of code that are executed by
-different workers and can end up accessing the same data structures such as mutexes or semaphores.
-Shared memory data structures may suffer from performance if lots of workers contend for the
-lock at the same time. For this reason, it is very hard to scale systems that use only shared
-memory as a means of communication. An illustration of a simple shared memory system is show
-in figure \ref{communication}.
+to transmit data than with a message passing scheme. Furthermore, pointers can be used to
+eliminate copying overheads. Access to the shared data structures, however, must be protected
+so that multiple workers do not simultaneously access the same data which could cause unpredictable
+results. Access to the data structures is usually enforced using lock synchronization mechanisms
+that protect entire sections of code that are executed by different workers and can end up accessing
+the same data structures such as mutexes or semaphores. Shared memory data structures may suffer
+from performance if lots of workers contend for the lock at the same time. For this reason, it
+is very hard to scale systems that use only shared memory as a means of communication.
+An illustration of a simple shared memory system is show in figure \ref{communication} (b).
 
 \begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth,quiet]{figs/graphviz/parallel_communication.pdf}
-    \caption{Message Passing and Shared Memory Communication}\label{communication}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      (a)
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/graphviz/message_passing.pdf}
+    \end{center}  
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      (b) 
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/graphviz/shared_memory.pdf}
+    \end{center}  
+  \end{minipage}
+  \caption{Message Passing and Shared Memory Communication}\label{communication}
 \end{figure}
 
 
@@ -514,16 +555,17 @@ as well as the strengths and weaknesses.
 
 Georgia Tech Time Warp wass a general purpose Time Warp Simulator designed specifically for
 shared memory multiprocessors. It is not used anymore, however, because it was only written
-to target SparcStation and SGI PowerChallenge which are now obsolete. Although GTW is not
-used any more, it's design has influenced the design of other simulators that are still used
-widely in practice. GTW simulation models run in a single processes, multi-threaded environment
-and uses only shared memory to communicate between threads that are bound to single processor.
+to target SparcStation and SGI PowerChallenge architectures which are now obsolete. Although
+GTW is not used any more, it's design has influenced the design of other simulators that are
+still used widely in practice. GTW simulation models run in a single processes, multi-threaded
+environment and uses only shared memory to communicate between threads that are bound to single
+processor.
 
 The LP's for all models are statically allocated to a single thread so that events for the
 LP's are processed only on a single processor. The pending event set is distributed among
 threads with each having its own data structures for the set of LPs that belong to it.
 Since the threads can only run on a single processor, the data structures also belong to a
-singl processor. The pending event set for each processor consists of three main data structures
+single processor. The pending event set for each processor consists of three main data structures
 listed below\cite{das-94}:
 
 \begin{enumerate}
@@ -531,7 +573,7 @@ listed below\cite{das-94}:
         are destined for the LP's mapped to the owning processor. Access to the message
         queue must be synchronized because it can be accessed by tasks running on any processor.
     \item The \emph{Cancel Queue} is a linked list that serves exactly the same purpose as
-        the message queue except that it containes only negative messages(anti-messages).
+        the message queue except that it contains only negative messages(anti-messages).
         Access to this queue must also be synchronized.
     \item The \emph{Event Queue} is used to hold unprocessed and processed events and is
         directly used to schedule events to be processed. The event queue is actually made
@@ -593,7 +635,7 @@ have low computational granularity and lot's of LP's which can lead to a lot of 
 and a large memory footprint in a traditional Time Warp simulator. CTW is implemented for
 shared memory multiprocessors but only uses shared memory for use with a custom message passing
 system so that it can better support NUMA architectures. It is not designed for use on a
-network of machines such as a beowulf cluster.
+a beowulf cluster.
 
 Each cluster of LPs has a timezone table, an output queue, and a set of LP's which each have an
 input queue and a state queue. The timezones in the timezone table are divided by timestamps
@@ -627,7 +669,7 @@ during state restoration.
 
 ROSS\cite{carothers-00} is a general purpose simulator that is capable of running both
 conservatively and optimistically synchronized parallel simulations as well as sequential
-simulations. It is most often used for optimistic parallel simulations which is achieved
+simulations. It is most often used for optimistic parallel simulations which is implemented
 with the time warp mechanism. ROSS started as a reimplementation of GTW and is still
 modeled after it but has had many enhancesments. The same basic event scheduling mechanism is
 used but ROSS supports different priority queue implementations and different algorithms
@@ -654,16 +696,22 @@ used in GTW but have a different naming convention. The main data structures in 
         configuration.
 \end{enumerate}
 
+To reduce the time taken to fossil collect LPs, ROSS further divides the LPs in a single process
+into groups called Kernel Processes (KPs). All LPs in a KP are rolled back together and fossil
+collected together in a similar manner as a clustered rollback in CTW.
+
 \section{\textsc{warped}}
 
 \textsc{warped} is the predecessor of \textsc{warped2} and serves as the basis for the design
-and architecture of \textsc{warped2}. \textsc{warped} started as a completely processed-based
-solution with only message passing for communication. Eventually, with the development of
-multicore processors, each process was extended into multiple threads to further enhance
-concurrent processing of events. Over the years, with many students developing new algorithms
-in \textsc{warped2}, the complexity of \textsc{warped} became unmaintainable, mainly because
-of the great deal of indirection which, although made for a super configurable and modular
-design, became too complex for new students to learn it and enhance it.
+and architecture of \textsc{warped2}. \textsc{warped}, unlike the previous time warp simulators,
+follows Jefferson's classic model with LPs having their own input, output, and state queues. It
+started as a completely processed based solution with only message passing for communication.
+Eventually, with the development of multicore processors, each process was extended into multiple
+threads to further enhance concurrent processing of events. Over the years, though, with many
+students developing new algorithms, the complexity of \textsc{warped} became unmaintainable, mainly
+because of the great deal of indirection which, although made for a super configurable and modular
+design, became too complex for new students to learn it and enhance it. This has led to the
+development of \textsc{warped2} which is detailed throughout the remained of this document.
 
 \section{Others}
 
@@ -671,7 +719,7 @@ design, became too complex for new students to learn it and enhance it.
 
 ROOT-Sim is another general purpose Time Warp Simulator that uses message passing via MPI
 \cite{pellegrini-11}. Like \textsc{warped}, ROOT-Sim is a more classic Time Warp
-implementation with each LP having their own input queues, and output queues. What sets
+implementation with each LP having their own input, state and output queues. What sets
 ROOT-Sim apart from other time warp simulators is the internal instrumentation tool, Dynamic
 Memory Logger and Restorer (DyMeLoR) that can optimize memory usage. DyMeLoR can determine
 whether the simulation models are better fit for copy-state saving or incremental state
@@ -687,9 +735,7 @@ ROSS-MT\cite{jagtap-12} is a multi-threaded version of ROSS which is optimized t
 memory to communicate among threads. The use of message passing with MPI was completely
 removed and all events are sent by direct insertion into the event queues. To reduce the
 added contention on the event queues, they are further divided by possible senders. ROSS-MT
-also optimizes the free memory lists so that they are more NUMA aware. Instead of allocating
-memory from the receiver processors free list, it is allocated from the senders free list.
-Furthermore, a LIFO approach is taken to improve cache reuse.
+also optimizes the memory management so that it is more NUMA aware.
 
 
 
@@ -1083,6 +1129,10 @@ and can only fly to aiports to the north, east, south, or west of the aiport dep
 The time spent between takeoff and landing and between landing and takeoff both follow an
 exponential distributions.
 
+
+
+\chapter{Communication and Partitioning} \label{partitioning_communication}
+
 \section{Multithreaded Message Passing with MPI}
 
 The MPI standard specifies four level of thread support that each implementation may support:
@@ -1127,6 +1177,13 @@ tool to create partitions that minimize the cut-set.
 
 Profile guided partitioning is good for any number of partitions!!!!
 
+\section{Message Aggregation}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\textwidth,quiet]{figs/graphviz/aggregation_format.pdf}
+    \caption{Aggregated Message Packet Format}
+\end{figure}
 
 
 \chapter{\textsc{warped2} Data Structures and Organization}\label{warped2_ds}
@@ -2449,8 +2506,8 @@ per noded and for single thread communication, 8 processes per node are used.
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_epidemic_time.pdf} \\
-      Simulation Runtime \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_epidemic_speedup.pdf} \\
+      Speedup \\
     \end{center}
   \end{minipage}%
   \hfill
@@ -2468,8 +2525,8 @@ The Epidemic model is an interesting model to look at because the LPs are partit
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_pcs_time.pdf} \\
-      Simulation Runtime \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_pcs_speedup.pdf} \\
+      Speedup \\
     \end{center}
   \end{minipage}%
   \hfill
