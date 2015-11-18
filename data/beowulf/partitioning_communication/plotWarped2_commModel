@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import re
 
-models = ["pcs", "epidemic"];
+models = ["pcs", "epidemic", "traffic"];
 comm_models = ["multiple", "serialized", "funnelled", "single", "funnelled-aggregate5"];
 warped_data_path = "."
 
@@ -95,15 +95,15 @@ def main():
             premote = [a / (a + b) * 100 for a, b in zip(remote_y, local_y)]
             rollbacks = [(a + b) for a, b in zip(prb_y, srb_y)]
 
-            addLineXY(time_lines, nodes_x, time_y, cm)
-#            addLineXY(speedup_lines, nodes_x, speedup, cm)
+#            addLineXY(time_lines, nodes_x, time_y, cm)
+            addLineXY(speedup_lines, nodes_x, speedup, cm)
             addLineXY(efficiency_lines, nodes_x, efficiency, cm)
 #            addLineXY(memory_lines, nodes_x, memory_y, cm)
             addLineXY(premote_lines, nodes_x, premote, cm)
             addLineXY(rollback_lines, nodes_x, rollbacks, cm)
 
-        addPlotXY(plots, "{}".format(m), "# Nodes", "Simulation Time (s)", time_lines)
-#        addPlotXY(plots, "{}".format(m), "# Nodes", "Speedup", speedup_lines)
+#        addPlotXY(plots, "{}".format(m), "# Nodes", "Simulation Time (s)", time_lines)
+        addPlotXY(plots, "{}".format(m), "# Nodes", "Speedup", speedup_lines)
         addPlotXY(plots, "{}".format(m), "# Nodes", "Efficiency (%)", efficiency_lines)
 #        addPlotXY(plots, "{}".format(m), "# Nodes", "Memory", memory_lines)
         addPlotXY(plots, "{}".format(m), "# Nodes", "% Remote", premote_lines)
