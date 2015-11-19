@@ -10,7 +10,7 @@ warped_data_path = "."
 
 def filenames():
     for pt in parttypes:
-        filename = "8n7wt7sq25ssp1000gvtp_{}.csv".format(pt)
+        filename = "1n7wt7sq25ssp1000gvtp_{}.csv".format(pt)
         yield filename
 
 def filter_total_lines(f):

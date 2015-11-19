@@ -4,14 +4,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 import re
 
-ss_period_list = [1, 5, 10, 25, 50, 100, 150, 200, 250, 300, 350, 400];
-models = ["pcs", "traffic", "epidemic"];
+ss_period_list = [1, 5, 10, 25, 50, 100, 150, 200, 300, 400];
+models = ["epidemic", "pcs", "traffic"];
 
 warped_data_path = "."
 
-def filenames():
+def filenames(m):
     for ssp in ss_period_list:
-        filename = "8n7wt7sq{}ssp1000gvtp_block.csv".format(ssp)
+        if (m == 'epidemic'):
+            filename = "8n7wt7sq{}ssp500gvtp_block.csv".format(ssp)
+        else:
+            filename = "8n7wt7sq{}ssp1000gvtp_block.csv".format(ssp)
         yield filename
 
 def filter_total_lines(f):
@@ -62,7 +65,7 @@ def main():
         localn_y = list()
         remoten_y = list()
 
-        f = filenames()
+        f = filenames(m)
         for filename in f:
             # obtain configs from filename
             nodes, wt, sq, ssp, gvtp = re.findall(r'\d+', filename)
