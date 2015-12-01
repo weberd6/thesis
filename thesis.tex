@@ -16,7 +16,7 @@
 \usepackage[section]{placeins}
 \usepackage{xtab}
 \usepackage{url}
-\usepackage{algorithm2e}
+\usepackage[vlined]{algorithm2e}
 \usepackage{float}
 \usepackage{multirow}
 \usepackage{paralist}
@@ -260,11 +260,6 @@ Chapter \ref{warped2_overview} introduces the software architecture and modeling
 the \textsc{warped2} simulation kernel. A basic overview of the communication model and
 partitioning schemes will also be described.
 
-Chapter \ref{partitioning_communication} describes the importance of efficient message passing
-communication and analyzes different approaches. Some preliminary results are shown analyzed
-to determining the best communication model, partitioning scheme and number of aggregated
-messages.
-
 Chapter \ref{warped2_ds} describes the basic event scheduling algorithms in \textsc{warped2}
 as well as the data structures used and the organization of the data structures. The parameters
 that can be used to tune the performance of the simulation will also be discussed.
@@ -276,6 +271,11 @@ systems and describes various algorithms that have been used as well as algorith
 Chapter \ref{memory_management} analyzes techniques for managing memory efficiently. A brief
 overview of state saving techniques, fossil collection, and memory allocation will be analyzed
 and some of the memory tuning parameters in \textsc{warped2} will be discussed.
+
+Chapter \ref{partitioning_communication} describes the importance of efficient message passing
+communication and analyzes different approaches. Some preliminary results are shown analyzed
+to determining the best communication model, partitioning scheme and number of aggregated
+messages.
 
 Chapter \ref{big_little_platform} provides some observations of \textsc{warped2} on the
 ARM big.LITTLE architecture with Heterogeneous Multi-Processing (HMP).
@@ -591,7 +591,6 @@ Psuedocode for the main event processing loop in GTW is show in figure \ref{gtw_
 
 \begin{algorithm}
 \DontPrintSemicolon
-\SetAlgoVlined
     \While{eventQ is not empty} {
         move messages from MsgQ to EvQ and process any rollbacks\;
         remove anti-messages from CanQ, process annihilations and rollbacks\;
@@ -749,9 +748,13 @@ extendable, and maintainable. All components are configured and created at start
 and subcomponents are accessed through pointers. Furthermore, \textsc{warped2} is written in
 C++ so each component can also be an object of derived subclass that implement a well-defined
 interface by a base class. The main central component is the event dispatcher which is responsible
-for calling the LP callback methods during the course of the simulation as well as determing
-when rollbacks and cancellation is necessary and carrying them out. The main components and
-how they depend on eachother are illustrated in figure \ref{warped2_architecture}.
+for calling the LP callback methods during the course of the simulation. The event dispatcher can
+be configured for sequential simulation or a time warp simulation. The sequential simulation
+does not depend on any other components and contains only a single list of unprocessed events.
+The time warp event dispatcher on the other hand depends on multiple components that implement
+specialized algorithms for event scheduling, state saving, cancellation, GVT, termination,
+interprocess communication, and statistics. The main components and how they depend on eachother
+are illustrated in figure \ref{warped2_architecture}.
 
 \begin{figure}[H]
     \centering
@@ -759,13 +762,9 @@ how they depend on eachother are illustrated in figure \ref{warped2_architecture
     \caption{Time Warp Components in \textsc{warped2}}\label{warped2_architecture}
 \end{figure}
 
-Warped2 also supports a sequential event dispatcher. The sequential event dispatcher, however
-does not depend on any other components and just contains a single list of all events since
-only a single event is processed at a time.
-
 The time warp components can be categorized as either a local time warp component or a global
 time warp component. The local time warp components are used only for the local control
-mechanism of the individual LP's such as rollbacks, cancellation and fossil collection whereas
+mechanism of the individual LP's such as rolling back LPs and fossil collecting LPs whereas
 the global time warp components are concerned with the global control mechanisms such as GVT,
 termination detection and statistics counting. The global time warp components must be able to
 communicate with all other processes in the system so that it is possible to determine the
@@ -780,16 +779,16 @@ next event, processing a rollback, and fossil collecting the processed events. A
 structures that have pending events must necessarily be thread safe.
 
 \paragraph{The Output Manager} contains all of the output queues and implements a single
-cancellation technique. The output manager base class provides a set of methods that a derived
+cancellation technique. The \texttt{OutputManager} base class provides a set of methods that a derived
 class must implement. The derived class must have methods for adding an event to an output queue,
 processing a rollback, and fossil collecting old output events. Currently, \textsc{warped2} only
 implements aggressive cancellation but may support more cancellation techniques in the future.
 
 \paragraph{The State Manager} contains all of the state queues and implements a single technique
-for state saving and state restoration. Just like the output manager, it also hase a base
-class. The derived class provide methods for saving the state of an LP, restoring the state of
-an LP, and fossil collecting old states. Currently, \textsc{warped2} only implements periodic
-state saving.
+for state saving and state restoration. Similar to the output manager, the state manager is
+based on a \texttt{StateManager} base class. The derived class provide methods for saving the
+state of an LP, restoring the state of an LP, and fossil collecting old states. Currently,
+\textsc{warped2} only implements periodic state saving.
 
 \subsection{Global Time Warp Components and Communication Manager}
 
@@ -813,13 +812,14 @@ statistics and provides methods for global reductions on the them.
 
 The modeling interface of warped2 is a set of abstract base classes that contain methods
 to be implemented in a derived class in the simulation model. The three main base class
-types that must be implemented are LogicalProcess, LPState, and Event. Optionally, the user
-may create a custom partitioner from the Partitoner base class. In the remainder of this
-section, each class is described in more detail and sample implementations are shown for each.
+types that must be implemented are \texttt{LogicalProcess}, \texttt{LPState}, and \texttt{Event}.
+Optionally, the user may create a custom partitioner from the \texttt{Partitoner} base class.
+In the remainder of this section, each class is described in more detail and sample implementations
+are shown for each.
 
 \subsection{The LPState Structure}
 
-The state of the LP's must be defined with the \textsc{warped\_define\_lp\_state\_struct}
+The state of the LPs must be defined with the \texttt{warped\_define\_lp\_state\_struct}
 macro which automatically derives from an intermediate structure that defines a necessary
 clone method so that the model developer does not have to. It is needed to ensure that the warped2
 kernel can save a copy of the state and restore the state from a pointer to the LogicalProcess
@@ -829,11 +829,10 @@ listing \ref{example_state}.
 \begin{lstlisting}[caption=Example \textsc{warped2} State Definition, label=example_state, float]
 WARPED_DEFINE_LP_STATE_STRUCT(ExampleState) {
     unsigned int messages_received_;
-    ...
 };
 \end{lstlisting}
 
-If the state contains complex data structures that contains pointers then the default copy
+If the state contains complex data structures that contain pointers then the default copy
 constructor and default copy assignment operator will only perform shallow copies. In this
 case the user must implement a custom copy constructor or a custom copy assignment operator
 or both. The copy constructor will define the behavior for saving the state whereas the
@@ -849,31 +848,25 @@ implement at least two methods: \begin{inparaenum}[(1)] \item \texttt{receiverNa
 and receive time, respectively, can be obtained for each instance of an event within the kernel.
 The user must also register all member variables with the serialization API so that a storage
 order can be defined for events that are sent and received through the message passing system.
-To do this, the WARPED\_REGISTER\_SERIALIZABLE\_MEMBERS macro is provided. All member variable
-must be passed to this macro as well as \texttt{cereal::base\_class<warped::Event>(this)} to
+To do this, the \texttt{WARPED\_REGISTER\_SERIALIZABLE\_MEMBERS} macro is provided. All member
+variable must be passed to this macro as well as \texttt{cereal::base\_class<warped::Event>(this)} to
 ensure that all members that are inherited are also serialized. The order that the members are
 listed is completely arbitrary and does not matter. In addition, the derived event type must
-be registered using the WARPED\_REGISTER\_POLYMORPHIC\_SERIALIZABLE\_CLASS macro. A basic
-example of an event implementation is shown below in listing \ref{event_example}.
+be registered using the \texttt{WARPED\_REGISTER\_POLYMORPHIC\_SERIALIZABLE\_CLASS} macro. A
+basic example of an event implementation is shown below in listing \ref{event_example}.
 
-\begin{lstlisting}[caption=Sample \textsc{warped2} Event Definition, label=event_example, float]
+\begin{lstlisting}[caption=Example \textsc{warped2} Event Definition, label=event_example, float]
 class ExampleEvent : public warped::Event {
 public:
-
-    ...
 
     const std::string& receiverName() const { return receiver_name_; }
     unsigned int timestamp() const { return time_stamp_; }
 
-    ...
-
     std::string receiver_name_;
     unsigned int timestamp_;
 
-    ...
-
     WARPED_REGISTER_SERIALIZABLE_MEMBERS(cereal::base_class<warped::Event>(this),
-                                         receiver_name_, timestamp_, ...)
+                                         receiver_name_, timestamp_)
 };
 WARPED_REGISTER_POLYMORPHIC_SERIALIZABLE_CLASS(ExampleEvent)
 \end{lstlisting}
@@ -898,15 +891,13 @@ callback method implementations:
 
 It is necessary that at least one LP has an initial event that is returned by initializeLP,
 otherwise no events can be received and simulation will terminate immediately. Also note that
-the it will be called once for \emph{every} LP instance so it is possible that initial events
+it will be called once for \emph{every} LP instance so it is possible that initial events
 are returned only in some cases. An example of a LogicalProcess implementation is shown below
 in listing \ref{lp_example}.
 
 \begin{lstlisting}[caption=Example \textsc{warped2} LogicalProcess Definition, label=lp_example, float]
 class ExampleLP : public warped::LogicalProcess {
 public:
-
-    ...
 
     warped::LPState& getState() { return this->state_; }
 
@@ -969,10 +960,10 @@ must be implementd which is where all calls into the kernel are made. First, the
 specific command line arguments but they must be registered with the kernel. This must be done
 first so that it can be passed to the constructor of a \texttt{Simulation} instance and so that
 the command line arguments can be displayed without unnecessarily running a simulation. The
-kernel uses a third-party library called TCLAP for command line arguments. Then, after setting
+kernel uses a third-party library called TCLAP for command line arguments. After setting
 up the command line arguments, all of the LP objects and optionally a partitioner object must
 be instantiated and passed to the kernel through the \texttt{simulate} method of
-\texttt{Simulation} object. Two versions of the simulate methods are available, one for a model
+\texttt{Simulation} object. Two versions of the simulate method is available, one for a model
 with a custom partitioner and one without as listed below:
 
 \begin{enumerate}
@@ -984,17 +975,17 @@ with a custom partitioner and one without as listed below:
 \noindent
 A sample implementation of a models main function is shown in listing \ref{main_sample}.
 
-\begin{lstlisting}[caption=Sample \textsc{warped2} Main Definition, label=main_sample, float]
+\begin{lstlisting}[caption=Exmple \textsc{warped2} Main Definition, label=main_sample, float]
 int main(int argc, const char **argv) {
     unsigned int num_lps = 10000;
 
     TCLAP::ValueArg<unsigned int> num_lps_arg("o", "lp-count", "Number of lp's", false,
                                               num_lps, "unsigned int");
     std::vector<TCLAP::Arg*> cmd_line_args = {  &num_lps_arg };
-    warped::Simulation simulation {"Sample Simulation", argc, argv, cmd_line_args};
+    warped::Simulation simulation {"Example Simulation", argc, argv, cmd_line_args};
 
     num_lps = num_lps_arg.getValue();
-    std::vector<SampleLP> lps;
+    std::vector<ExampleLP> lps;
     for (unsigned int i = 0; i < num_lps; i++) {
         std::string name = std::string("LP_") + std::to_string(i);
         lps.emplace_back(name, 1, i);
@@ -1010,428 +1001,42 @@ int main(int argc, const char **argv) {
 }
 \end{lstlisting}
 
+\section{Plans of Study}
 
+Experimental results will be presented throughout the remaining chapters as the various aspects
+of \textsc{warped2} are discussed. All chapters except for chapter \ref{big_little_platform} will
+contain experimental results for only x86 SMP nodes and clusters and will be targeted towards
+understanding and determining the best design options and configurations. Chapter \ref{big_little_platform}
+will contain seperate experiments and observations on the ARM big.LITTLE HMP platform.
 
-\chapter{\textsc{warped2} Data Structures and Organization}\label{warped2_ds}
+The single node SMP experiments will be run on an Intel Xeon X5675 processor. The intel X5675
+has 6 cores with hyperthreading so that 12 simultaneous threads are supported.
+Cluster experiments will be run on Intel Xeon E5410. The Intel Xeon E5410 is a quad core processor
+but each machine contains two sockets so that 8 cores are available.
+A summary of the architectural features and runtime systems for both machines are summarized in
+table \ref{x86_platform} in appendix \ref{x86_nodes_and_clusters}.
 
-\section{Pending Event Set Data Structures}
+\subsection{Experiments on x86 SMP Nodes}
 
-The pending event set is the set of events that are ready to be processed at any given time.
-Every process contains a logically seperate pending event set for a dedicated set of LPs. Events
-that are being sent to an LP that is local to the process are directly inserted into the pending
-event set. Events that must be sent to a remote process are inserted into a remote event
-queue where the manager thread will remove it, form an event message and send the message to
-the recieving process. The manager thread at the receiving process will then unpack the message
-and insert it into the pending event set. The pending event set is made up of a queue for each
-LP known as an \emph{unprocessed queue} which is directly accessible from all threads and allows
-for the sending of events.
+%% Increasing LTSF Queues, LTSF Queue Partitioning, State Saving Period (Performance), Spinlocks
 
-The unprocessed queue contains both positive events and anti-messages and remains sorted at all
-times. The anti-messages are given priority over their positive counterparts so that the
-anti-messages are always processed first and any unnecessary rollbacks can be prevented which
-could create a chain of rollbacks that could cause instability \cite{lubachevsky-89}. To avoid
-any unnecessary copying from the simulation model to the kernel and with the kernel, the
-unprocessed queue only contains pointers to the unprocessed events which are passed in by the
-simulation model.
+%% Fossil Collection, State Saving Period (Memory), Memory Allocation
 
-A second type of data structure, an \emph{LTSF (Lowest TimeStamp First) Queue}, provides
-order among events from multiple LPs. At most, a single event from each LP is \emph{scheduled}
-into a single LTSF queue. Scheduling an event to an LTSF queue means only inserting a pointer
-to an event into the LTSF queue with no removal from the unprocessed queue. Every process has
-one or more LTSF queues which the worker threads obtain the lowest timestamped event to process.
+\subsection{Experiments x86 Clusters}
 
-A third type of data structure is also used to keep track of the events that have been
-scheduled or are currently being processed but organized by receiving LP. It is used for
-two main reasons. First, when inserting an event into the recieving LPs unprocessed queue, it
-provides a way to determine if a smaller event has already been scheduled for the LP. The new
-event can then be scheduled in place of the already scheduled event. Second, it serves to
-prevent multiple worker threads from processing events from the same LP which could cause
-out of order committing of events without rolling back as would be necessary.
+%% State Saving Period
 
-Figure \ref{pending_event_set} illustrates the pending event set data structures in
-\textsc{warped2}.
+%% Communication Model
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.75\textwidth,quiet]{figs/graphviz/pending_event_set.pdf}
-    \caption{\textsc{warped2} Pending Event Set Data Structures}\label{pending_event_set}
-\end{figure}
+%% Partitioning
 
-\section{Processing Events}
+%% Message Aggregation
 
-One or more of the worker threads are assigned to each LTSF Queue to process events from
-and they all follow the exact same procedure. First, an event is removed from an LTSF
-queue to be processed but remains in the unprocessed queue until it is completely processed or
-cancelled out. The event is first checked against the last processed event of the receiving LP
-to see if it is a straggler, and rolled back if necessary. An anti-message is also considered to
-be a straggler if its positive counterpart was the last processed event for the LP since
-\textsc{warped2} makes the assumption that message order will always be preserved.
-So if the event is an anti-message, the positive counterpart is assumed to be in the LPs
-unprocessed queue after rolling back and is cancelled out and a new event is scheduled into the
-LTSF queue if another event is pending. If the event is positive then it is processed normally,
-the state of the LP is saved, and new events are sent to other LPs. The event is then moved
-into the processed queue and a new event is scheduled into the LTSF queue. To summarize the
-worker thread processing loop is shown in psuedocode in algorithm \ref{warped2_processing}.
+%% Scaling Up
 
-\begin{algorithm}
-\DontPrintSemicolon
-\SetKw{Continue}{continue}
-\SetKwFunction{getNextEvent}{getNextEvent}
-\SetAlgoVlined
+\subsection{Experiments ARM big.LITTLE Nodes}
 
-    \While{termination not detected}{
-        \nlset{1} $e \gets \getNextEvent{}$\;
-        $lp \gets$ receiver of $e$\;\;
-
-        \If{$e <$ last processed event for $lp$}{
-            rollback $lp$\;
-        }
-        \;
-        \If{$e$ is an anti-message}{
-            cancel event with $e$\;
-            \nlset{3} schedule new event for $lp$\;
-            \Continue\;
-        }
-        \;
-        process event $e$\;
-        save state of $lp$\;
-        \nlset{2} send new events\;
-        \nlset{3} replace scheduled event for $lp$\;
-    }
-
-\caption{\textsc{warped2} Main Event Processing Loop}\label{warped2_processing}
-\end{algorithm}
-
-%% Sending events
-When events are inserted into the unprocessed queues, they are compared to the currently
-scheduled event for the LP. If there is no currently scheduled event or the new event is less
-than the currently scheduled event, then the new event is scheduled to prevent a rollback from
-occuring.
-
-\subsection{Ordering of Events}
-
-The time warp mechanism assumes that every event is labeled with a totally ordered clock value
-based on virtual time \cite{jefferson-85}. This is important so that causal dependencies
-are preserved and so that simulation results are deterministic\cite{ronngren-99}. To ensure
-this, \textsc{warped2} uses a 4-tuple scheme which provide a total ordering of events:
-
-\begin{enumerate}
-    \item Receive Time
-    \item Send Time
-    \item Sender LP Name
-    \item Generation
-\end{enumerate}
-
-\noindent %% tiebreaking
-The last three serve as a tie breaker for simultaneous receive times. The send time is
-necessary to ensure correct causal dependencies. It is analogous to a Lamport logical
-clock\cite{lamport-78} in real time distributed systems but for virtual time systems. The
-send time will work as long as LPs only send a single event with the same send time, receive
-time, and receiver LP. Otherwise, a more strict ordering of sends would be required. However,
-\textsc{warped2} forbids this behaviour in the simulation model. The sender LP name is necessary
-to ensure that order is determined between events received with the same receive time and send
-time from different senders. Without it, it is possible that different results could occur on
-different runs of the simulation\cite{ronngren-99}. The generation is necessary for distributed
-memory systems to differentiate between the same events which could be resent after rolling back
-\cite{ronngren-99}. In \textsc{warped2} it is implemented as a single counter per LP and
-keeps track of the number of events that have been sent from the LP. The count is then
-tagged in the event when it is sent and used for comparison at the receiver.
-
-\subsection{Performance Tuning Parameters}
-
-To allow \textsc{warped2} to run on a large range of machines with different architectures and
-characteristics, a number of parameters are provided for the user to tune the simulation mechanism
-for their needs. In the current implementation, the four main parameters that will determine
-performance are the number of worker threads, the number of LTSF Queues, the LTSF partitioning
-method, and the state saving period.
-
-\subsubsection{Worker Threads and LTSF Queues}
-
-The number of worker threads that should be used will depend on the number of processors of the
-machine so it is left as a tunable parameter. \textsc{warped2} also allows the user to choose
-the number of LTSF queues. The user can specify any number of LTSF queues, however, it should
-be smaller than the number of worker threads and also a factor. 
-
-If all worker threads share a single LTSF queue then a huge contention point is created and
-performance will suffer. At the opposite extreme, however, with all worker threads processing
-events from a seperate LTSF queue, the the critical path of the simulation will be spread out
-and the number of rollbacks can increase significantly. The extent to which these matter could
-also vary as the data structures and algorithms evolve.
-
-In this section, the pending event set will be analyzed for all models with a varying number of
-LTSF queues. For all runs, 10 worker threads are used so the valid number of LTSF queues are
-1, 2, 5, and 10. For this analysis, speedup will be defined as:
-
-$$ Speedup_{LTSF} = runtime_{1}/runtime_{n} $$
-
-\noindent
-where $runtime_{1}$ is the run time for a single LTSF queue and $runtime_{n}$ is the runtime
-for $n$ LTSF queues. The speedup is a better measure over runtime because it is shows relative
-performances so that multiple simulation models can be compared. The plots shown in figure
-\ref{ltsf_analysis} illustrate the effects of increasing the number of worker threads per LTSF
-queues.
-
-\begin{figure}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/pending_event_set/ltsf_speedup.pdf} \\
-      $Speedup_{LTSF}$ \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/pending_event_set/ltsf_efficiency.pdf} \\
-      $Efficiency$ \\
-    \end{center}
-  \end{minipage}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/pending_event_set/ltsf_memory.pdf} \\
-      Average Peak Memory \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/pending_event_set/ltsf_rollbacks.pdf} \\
-      Total Rollbacks \\
-    \end{center}
-  \end{minipage}
-  \caption{Comparison With Varying LTSF Queues}\label{ltsf_analysis}
-\end{figure}
-
-%% Speedup with LTSF Queues
-There are lots of interesting things that are apparent from these plots. First, even though
-the number of total rollbacks increase with more LTSF queues, there is still a growing speedup.
-That means that the contention of the LTSF queue locks always outweighs the extra time needed
-to process more rollbacks. More strangely, the models with a larger speedup tend to have more
-rollbacks and by looking back at figure \ref{ssp_analysis_smp_performance}, also tend to have a worse speedup
-from an increased state saving period. This is most likely due to differences in the time it
-takes for memory allocation, deallocation, and copying. PCS has a really small state whereas
-epidemic has a very large state. The last thing to take from these plots is that the memory
-requirement increases as the number of LTSF queues increases. This is simply because rollbacks
-are much more likely to occur when the critical path is spread out so the GVT increases more
-slowly. A lot more extra states and events will be need to be saved without being fossil collected.
-
-\subsection{LTSF Queue Partitioning}
-
-The way the LPs are partitioned among the LTSF queues is based on the interprocess partitioning
-scheme. There is only a single partitioning parameter for both levels of partitioning. This makes
-sense because the LTSF queue partitioning will be neglible compared to the interprocess but
-it allows the user to choose the LTSF queue partitioning directly on a single node
-simulation.
-
-\begin{figure}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/partitioning_time_1node.pdf} \\
-      Simulation Times (s) \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/partitioning_efficiency_1node.pdf} \\
-      Efficiency \\
-    \end{center}
-  \end{minipage}
-\end{figure}
-
-\subsubsection{State Saving Period}
-
-Instead of saving the state of the LPs after every processed event processed, \textsc{warped2}
-allows the user to choose a state saving period value, $N$, so that each LP only has its state
-saved every $N$ events. A larger value of $N$ reduces the amount of time taken to copy states
-and thus speeds up forward computation. The downside is that it also increases rollback time
-since not all states are available to roll back to, making it necessary to process more events to
-get to the necessary state in a process known as \emph{coast forwarding}. The total time spent
-rolling back, however, is small compared to the time taken for forward computation for moderate
-values of $N$.
-
-Figure \ref{ssp_analysis_smp_performance} shows the speedup over copy state saving and the
-efficiency as the state saving period is increased for all models.
-
-$$ Speedup_{CSS} = runtime_{1}/runtime_{N} $$
-
-\noindent
-where $runtime_{1}$ is the runtime with every state saved and $runtime_{N}$ is runtime with the
-state saving period of $N$. Another measure called the \emph{efficiency} is defined as:
-
-$$ Efficiency = {events_{committed}}/{events_{processed}} $$
-
-\noindent
-where $events_{processed}$ is the total number of events that are processed and $events_{committed}$
-is the number of events that are processed and not rolled back. The efficiency is therefore
-a measure of the percent of events that are processed without being rolled back.
-
-\begin{figure}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/speedup.pdf} \\
-      $Speedup_{CSS}$ \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/efficiency.pdf} \\
-      $Efficiency$ \\
-    \end{center}
-  \end{minipage}
-  \caption{Periodic State Saving: Performance on SMP Machine}\label{ssp_analysis_smp_performance}
-\end{figure}
-
-\begin{figure}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/speedup.pdf} \\
-      $Speedup_{CSS}$ \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/efficiency.pdf} \\
-      $Efficiency$ \\
-    \end{center}
-  \end{minipage}
-  \caption{Periodic State Saving on Cluster: Speedup and Efficiency}\label{ssp_analysis_cluster}
-\end{figure}
-
-\begin{figure}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/rollbacks.pdf} \\
-      Rollbacks \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/remote_events.pdf} \\
-      Remote Events \\
-    \end{center}
-  \end{minipage}
-  \caption{Periodic State Saving on Cluster: Remote Events and Rollbacks}\label{ssp_analysis_cluster1}
-\end{figure}
-
-\subsection{Protecting Access to LTSF Queues}
-
-Worker threads must be able to access shared data structures without the possibility of
-race conditions. To deal with this, \textsc{warped2} uses mutexes to serialize worker thread
-access to any section of code that accesses the LTSF queue. This method, however can significantly
-slows down access to the LTSF queues. In the default configuration, blocking mutexes are used
-which means that if a thread cannot aqcuire a the lock, it will be put to sleep and rescheduled
-for execution at a later time. However, this method can waiste a lot of exta time if access to the
-critical section is quick. By looking back at figure \ref{warped2_processing}, we can see all
-the critical points where worker threads can access the LTSF queues. The lines with a number on
-the margin indicate possible access to the LTSF queue. For every event the LTSF queue is accessed
-at least 3 times: \begin{inparaenum}[(1)] \item obtaining the next event, \item sending new
-events, and \item rescheduling new events \end{inparaenum}. All of these accesses are quick so
-the lock should only held for a short period of time.
-
-A \emph{spinlock} is a type of mutex that does not force threads to be rescheduled but
-instead continue to attempt to aqcuire the lock over and over until it successfully acquires
-the lock or the timeslice of the thread expires. The downside of spinlocks is that the CPU time
-can be waised, especially as the number of contending threads increase. Furthermore, if the
-number of total threads is larger than the number of available processors, spinlocks are
-even worse because a thread can be involuntarily pre-empted while holding the lock and entire
-timeslices can be waisted.
-
-\subsubsection{Spinlocks in \textsc{warped2}}
-
-\textsc{warped2} allows the user to optionally build the kernel to use spinlocks instead of
-blocking mutexes. It is not set as the default because spinlocks do not work well in all cases
-such as with a system that is running more threads than processors.
-There are many ways to implement spinlocks with all varying attributes and complexities.
-Ticket locks were chosen for \textsc{warped2} because they are simple to implement, provide
-fairness to all threads, and generally have good performance for a small number of threads
-\cite{lockless-10}. A short psuedocode algorithm to illustrate the ticket lock aqcuisition and
-release procedures is shown below in algorithm \ref{ticket_lock}.
-
-\begin{algorithm}
-\DontPrintSemicolon
-\SetKwFunction{fetchAndIncrement}{fetchAndIncrement}
-\SetKwBlock{Acquire}{lock}{end}
-\SetKwBlock{Release}{unlock}{end}
-\SetAlgoVlined
-
-    \Acquire{
-        $my\_number \gets \fetchAndIncrement{next\_number}$\;
-        \Repeat{$ticket = my\_number$}{\tcp{do nothing}}
-    }\;
-
-    \Release{
-        $\fetchAndIncrement{ticket}$
-    }
-
-    \caption{Ticket Lock Procedures\cite{wiki:ticketlock-15}}\label{ticket_lock}
-\end{algorithm}
-
-\noindent
-To acquire the lock, each thread atomically increments a counter and takes the old value as
-a "ticket" to provide first in first out order. Then when the ticket value reaches that
-of the waiting thread, access to the critical section is given. To release the lock, the thread
-simply increments the ticket number and allows the next thread to access the critical section.
-If there is no contention for the lock, the next number will be equal to the ticket number and
-a thread can access the critical section immediately.
-
-All previous experiments were run with the default blocking mutexes in which threads will yield
-the processor when a lock is contended. To reduce the average lock acquisition latency, the
-kernel can be configured with spinlocks instead. Figure \ref{spinlock_speedup} shows the speedup
-for all models and varying number of LTSF queues. As expected, the speedup is much greater with
-more contention when there are more worker threads per LTSF queue. It can also be seen that all
-models except for epidemic have very similar speedups. This is probably due to the high cost
-of saving such a large complex state. Contention becomes less of a concern if the event processing
-is slowed down by other computation.
-
-\begin{figure}
-\centering
-  \includegraphics[width=0.5\textwidth,quiet]{figs/pending_event_set/spinlock_speedup.pdf}
-  \caption{Speedup with Spinlocks}\label{spinlock_speedup}
-\end{figure}
-
-\section{Data Structures to Support Rollback and Cancellation}
-
-Jefferson\cite{jefferson-85} described the rollback and cancellation process in terms of three
-data structures: the input queue, output queue, and state queue. The data structures that are
-implemented in \textsc{warped2} follows pretty closely to Jefferson's description except that
-in Jefferson's approach, the input queue holds both unprocessed and processed events whereas
-\textsc{warped2} has two seperate data structures to allow easier scheduling of new events.
-
-The state queues contain a 3-tuple value for each state. The first value is a pointer to a
-memory location which holds the saved copy of the LP state. The second value is a pointer to the
-event that produced the state of the LP and is used for comparison against a straggler event
-on a rollback to determine which state to restore or against the GVT during fossil collection.
-The third value is the state of the LPs random number generators at the time the state was saved.
-The random number generator states are saved in a linked list and are also restored during a
-rollback to ensure deterministic results.
-
-Similar to the state queue, the output queue also contains a tuple of values. In the output
-queue though, only a pointer to a source event and a sent events are used. In the same way
-as the state queue, the source event is used for comparison against a straggler event during
-a rollback but is used to determine which events should be sent as anti-messages.
-
-The processed queues only contain a pointer to the processed events. The dereferenced events
-from the processed queue are the same as dereferenced source events from output queue and state
-queue so that no copying of the events is needed. Furthermore, if events are sent withing the
-same process, the same events can be pointed to from the output queue and an unprocessed or
-processed event from another LP. The organization of the processed queue, state queue and output
-queue for a single LP is illustrated in figure \ref{rollback_ds}.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth,quiet]{figs/graphviz/rollback_ds.pdf}
-    \caption{Rollback and Cancellation Data Structures in \textsc{warped2}}\label{rollback_ds}
-\end{figure}
-
-Although the organization of these data structures prevents copying of events, there are also
-some limitations. First, it introduces a lot of indirect memory accesses which could slow down
-access to memory, especially in a multiprocessor system. Secondly, it adds some complexity
-when freeing memory used by events. To solve this problem though, \textsc{warped2} uses the
-smart pointers offered by the standard C++11 libraries which employ a reference counting
-scheme.
+%% 
 
 
 
@@ -1525,11 +1130,23 @@ contain 5 ordinary messages.
 
 \paragraph{Round-Robin} partitioning
 
-\paragraph{Block} partitioning is actually just a special case of round-robin partitioning with an extra
-block size parameter. The block size is the number of contiguous LPs that are allocated to a
-partition at a time. The block size can be between 1 and $NumLPs$/$NumProcesses$ where the
-former is a true round-robin partitioning scheme and the latter is a true block partitioning
-scheme.
+The block size is the number of contiguous LPs that are allocated to a partition at a time.
+The block size can be between 1 and $NumLPs$/$NumProcesses$ where the former is a true round-robin
+partitioning scheme and the latter is a block partitioning scheme.
+
+A block size in between the extreme values can be used to 
+
+\begin{figure}
+  \begin{center}
+    \includegraphics[width=0.8\textwidth,keepaspectratio,quiet]{figs/graphviz/round_robin_partitioning.pdf} \\
+    Round-Robin with blocksize = 1 \\
+    \includegraphics[width=0.8\textwidth,keepaspectratio,quiet]{figs/graphviz/block_rr_partitioning.pdf} \\
+    Round-Robin with blocksize = 2 \\
+    \includegraphics[width=0.8\textwidth,keepaspectratio,quiet]{figs/graphviz/block_partitioning.pdf} \\
+    Round-Robin with blocksize = $NumLPs$/$NumProcesses$ \\
+  \end{center}
+  \caption{Round Robin Partitioning}
+\end{figure}
 
 \paragraph{Profile-Guided} partitioning is based on profile data that must be collected with a
 sequential simulation. The profile data contains a count of events for each communication pair
@@ -1563,16 +1180,595 @@ Profile guided partitioning is good for any number of partitions!!!!
 
 \section{Message Aggregation}
 
+%% Explanation of why message aggregation works!!
 In general, MPI implementations are usually designed for coarse-grained parallelism with large
 message sizes.
 
-%% Size based versus Number of messages.
+The idividual messages are aggregated into a single aggregate message until the aggregate message
+contains $N$ idividual messages or until a control message is included. A control message could be
+a GVT token, a termination token, a GVT update message, or termination status update message.
+
+The combined message is started with a header which includes the number of individual messages
+and the lengths of each individual message. The locacation of each individual message can be
+found by adding the length of the header with the length of the previous message and the length
+of the header is easily determined by knowing how many individual message there are. Figure
+\ref{aggregate_format} illustrates the format of the aggregated message with the sizes of each
+field.
 
 \begin{figure}
     \centering
     \includegraphics[width=0.8\textwidth,quiet]{figs/graphviz/aggregation_format.pdf}
-    \caption{Aggregated Message Packet Format}
+    \caption{Aggregate Message Packet Format}\label{aggregate_format}
 \end{figure}
+
+Size of the aggregated messages in bytes are:
+
+$$ 4 * (N + 1) + \sum_{n=0}^{N-1} length[n] $$
+
+%% Size based versus Number of messages.
+An alternative way of implementing message aggregation would be to combine messages until a
+certain size is reached rather than a number of messages.
+
+Another alternative approach, that would minimize the size of the aggregated message would be to
+use a special character to seperate messages so that the header is not necessary.
+
+\begin{figure}
+  \centering
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_pcs_time.pdf} \\
+      Simulation Times (s) \\
+    \end{center}
+  \end{minipage}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_pcs_remote.pdf} \\
+      Remote Events \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_pcs_rollbacks.pdf} \\
+      Rollbacks \\
+    \end{center}
+  \end{minipage}
+  \caption{Aggregate Messages: PCS Model}
+\end{figure}
+
+\begin{figure}
+  \centering
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_traffic_time.pdf} \\
+      Simulation Times (s) \\
+    \end{center}
+  \end{minipage}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_traffic_remote.pdf} \\
+      Remote Events \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_traffic_rollbacks.pdf} \\
+      Rollbacks \\
+    \end{center}
+  \end{minipage}
+  \caption{Aggregate Messages: Traffic Model}
+\end{figure}
+
+\begin{figure}
+  \centering
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_epidemic_time.pdf} \\
+      Simulation Times (s) \\
+    \end{center}
+  \end{minipage}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_epidemic_remote.pdf} \\
+      Remote Events \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_epidemic_rollbacks.pdf} \\
+      Rollbacks \\
+    \end{center}
+  \end{minipage}
+  \caption{Aggregate Messages: Epidemic Model}
+\end{figure}
+
+\section{Scaling up the Simulation Model}
+
+All previous simulation results have been from simulation models that were configured for
+10,000 LPs. This section analyzes the behavior of the simulations when the number of LPs are
+scaled up to larger numbers on an 8 node cluster. 
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/scale/scale_efficiency.pdf} \\
+      Efficiency \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/scale/scale_premote.pdf} \\
+      \% Remote Events \\
+    \end{center}
+  \end{minipage}
+  \centering
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/scale/scale_event_rate.pdf} \\
+      Event Rate \\
+    \end{center}
+  \end{minipage}
+  \caption{Scaling on Cluster: Efficiency and \% Remote Events}
+\end{figure}
+
+
+
+\chapter{\textsc{warped2} Data Structures and Organization}\label{warped2_ds}
+
+\section{Pending Event Set Data Structures}
+
+The pending event set is the set of events that are ready to be processed at any given time.
+Every process contains a logically seperate pending event set for a dedicated set of LPs. Events
+that are being sent to an LP that is local to the process are directly inserted into the pending
+event set. Events that must be sent to a remote process are inserted into a remote event
+queue where the manager thread will remove it, form an event message and send the message to
+the recieving process. The manager thread at the receiving process will then unpack the message
+and insert it into the pending event set. The pending event set is made up of a queue for each
+LP known as an \emph{unprocessed queue} which is directly accessible from all threads and allows
+for the sending of events.
+
+The unprocessed queue contains both positive events and anti-messages and remains sorted at all
+times. The anti-messages are given priority over their positive counterparts so that the
+anti-messages are always processed first and any unnecessary rollbacks can be prevented which
+could create a chain of rollbacks that could cause instability \cite{lubachevsky-89}. To avoid
+any unnecessary copying from the simulation model to the kernel and with the kernel, the
+unprocessed queue only contains pointers to the unprocessed events which are passed in by the
+simulation model.
+
+A second type of data structure, an \emph{LTSF (Lowest TimeStamp First) Queue}, provides
+order among events from multiple LPs. At most, a single event from each LP is \emph{scheduled}
+into a single LTSF queue. Scheduling an event to an LTSF queue means only inserting a pointer
+to an event into the LTSF queue with no removal from the unprocessed queue. Every process has
+one or more LTSF queues which the worker threads obtain the lowest timestamped event to process.
+
+A third type of data structure is also used to keep track of the events that have been
+scheduled or are currently being processed but organized by receiving LP. It is used for
+two main reasons. First, when inserting an event into the recieving LPs unprocessed queue, it
+provides a way to determine if a smaller event has already been scheduled for the LP. The new
+event can then be scheduled in place of the already scheduled event. Second, it serves to
+prevent multiple worker threads from processing events from the same LP which could cause
+out of order committing of events without rolling back as would be necessary.
+
+Figure \ref{pending_event_set} illustrates the pending event set data structures in
+\textsc{warped2}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth,quiet]{figs/graphviz/pending_event_set.pdf}
+    \caption{\textsc{warped2} Pending Event Set Data Structures}\label{pending_event_set}
+\end{figure}
+
+\section{Processing Events}
+
+One or more of the worker threads are assigned to each LTSF Queue to process events from
+and they all follow the exact same procedure. First, an event is removed from an LTSF
+queue to be processed but remains in the unprocessed queue until it is completely processed or
+cancelled out. The event is first checked against the last processed event of the receiving LP
+to see if it is a straggler, and rolled back if necessary. An anti-message is also considered to
+be a straggler if its positive counterpart was the last processed event for the LP since
+\textsc{warped2} makes the assumption that message order will always be preserved.
+So if the event is an anti-message, the positive counterpart is assumed to be in the LPs
+unprocessed queue after rolling back and is cancelled out and a new event is scheduled into the
+LTSF queue if available. If the event is positive then it is processed normally, the state of
+the LP is saved, and new events are sent to other LPs. The event is then moved into the processed
+queue and a new event is scheduled into the LTSF queue. To summarize, the worker thread processing
+loop is shown in psuedocode in algorithm \ref{warped2_processing}.
+
+\begin{algorithm}
+\DontPrintSemicolon
+\SetKw{Continue}{continue}
+\SetKwFunction{getNextEvent}{getNextEvent}
+
+    \While{termination not detected}{
+        \nlset{1} $e \gets \getNextEvent{}$\;
+        $lp \gets$ receiver of $e$\;\;
+
+        \If{$e <$ last processed event for $lp$}{
+            rollback $lp$\;
+        }
+        \;
+        \If{$e$ is an anti-message}{
+            cancel event with $e$\;
+            \nlset{3} schedule new event for $lp$\;
+            \Continue\;
+        }
+        \;
+        process event $e$\;
+        save state of $lp$\;
+        \nlset{2} send new events\;
+        \nlset{3} replace scheduled event for $lp$\;
+    }
+
+\caption{\textsc{warped2} Main Event Processing Loop}\label{warped2_processing}
+\end{algorithm}
+
+%% Sending events
+When events are inserted into the unprocessed queues, they are compared to the currently
+scheduled event for the LP. If there is no currently scheduled event or the new event is less
+than the currently scheduled event, then the new event is scheduled to prevent a rollback from
+occuring.
+
+\subsection{Ordering of Events}
+
+The time warp mechanism assumes that every event is labeled with a totally ordered clock value
+based on virtual time \cite{jefferson-85}. This is important so that causal dependencies
+are preserved and so that simulation results are deterministic\cite{ronngren-99}. To ensure
+this, \textsc{warped2} uses a 4-tuple scheme which provide a total ordering of events:
+
+\begin{enumerate}
+    \item Receive Time
+    \item Send Time
+    \item Sender LP Name
+    \item Generation
+\end{enumerate}
+
+\noindent %% tiebreaking
+The last three serve as a tie breaker for simultaneous receive times. The send time is
+necessary to ensure correct causal dependencies. It is analogous to a Lamport logical
+clock\cite{lamport-78} in real time distributed systems but for virtual time systems. The
+send time will work as long as LPs only send a single event with the same send time, receive
+time, and receiver LP. Otherwise, a more strict ordering of sends would be required. However,
+\textsc{warped2} forbids this behaviour in the simulation model. The sender LP name is necessary
+to ensure that order is determined between events received with the same receive time and send
+time from different senders. Without it, it is possible that different results could occur on
+different runs of the simulation\cite{ronngren-99}. The generation is necessary for distributed
+memory systems to differentiate between the same events which could be resent after rolling back
+\cite{ronngren-99}. In \textsc{warped2} it is implemented as a single counter per LP and
+keeps track of the number of events that have been sent from the LP. The count is then
+tagged in the event when it is sent and used for comparison at the receiver.
+
+\subsection{Performance Tuning Parameters}
+
+To allow \textsc{warped2} to run on a large range of machines with different architectures and
+characteristics, a number of parameters are provided for the user to tune the simulation mechanism
+for their needs. In the current implementation, the four main parameters that will determine
+performance on a single SMP machine are the number of worker threads, the number of LTSF Queues,
+the LTSF partitioning method, and the state saving period.
+
+\subsubsection{Worker Threads and LTSF Queues}
+
+The number of worker threads that should be used will depend on the number of processors of the
+machine so it is left as a tunable parameter. \textsc{warped2} also allows the user to choose
+the number of LTSF queues. The user can specify any number of LTSF queues, however, it must
+be smaller than the number of worker threads and also be a factor of the number worker threads. 
+
+If all worker threads share a single LTSF queue then a huge contention point is created and
+performance will suffer. At the opposite extreme, however, with all worker threads processing
+events from a seperate LTSF queue, the the critical path of the simulation will be spread out
+and the number of rollbacks can increase significantly. The extent to which these matter varies
+depending on the characteristics of the simulation model. Furthermore, they may also vary as
+the data structures and algorithms in \textsc{warped2} evolve to minimize contention.
+
+
+The plots shown in figure \ref{ltsf_analysis} illustrate the effects of increasing the number
+of LTSF queues with 10 worker threads. For the analysis of LTSF queues, speedup will be defined
+as:
+
+$$ Speedup_{LTSF} = runtime_{1}/runtime_{n} $$
+
+\noindent
+where $runtime_{1}$ is the run time for a single LTSF queue and $runtime_{n}$ is the runtime
+for $n$ LTSF queues. The speedup is a better measure over runtime because it is shows relative
+performances and multiple simulation models can be compared. Another measure called the
+\emph{efficiency} is defined as:
+
+$$ Efficiency = {events_{committed}}/{events_{processed}} * 100 $$
+
+\noindent
+where $events_{committed}$ is the number of events that are processed and not rolled back and
+$events_{processed}$ is the total number of events that are processed whether they are rolled
+back or not. Thus, the efficiency is a measure of the percentage of events that are processed
+and not rolled back.
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/pending_event_set/ltsf_speedup.pdf} \\
+      $Speedup_{LTSF}$ \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/pending_event_set/ltsf_efficiency.pdf} \\
+      $Efficiency$ \\
+    \end{center}
+  \end{minipage}
+  \caption{LTSF Queues: Performance on SMP Machine}\label{ltsf_analysis}
+\end{figure}
+
+Even though the number of total rollbacks increase with more LTSF queues, there is still a
+growing speedup. That means that the contention of the LTSF queue locks outweighs the extra time
+needed to process more rollbacks. By looking back at figure \ref{warped2_processing}, we can see all
+the critical points where worker threads can access the LTSF queues. The lines with a number on
+the margin indicate possible access to the LTSF queue. For every event the LTSF queue is accessed
+at least 3 times: \begin{inparaenum}[(1)] \item obtaining the next event, \item sending new
+events, and \item rescheduling new events \end{inparaenum}. However, access to the LTSF cannot
+be minimized further. Access to the LTSF queue will always be necessary to obtain the next event
+and reschedule events and since the LTSF queue is only accessed while sending an event if the
+event is a straggler, it will save a future access to the LTSF queue when the straggler is
+scheduled while also preventing a rollback.
+
+It is also worth noting that these simulation models are configured for only 10,000 LPs and with
+larger models, the efficiency would be expected to be better. Therefore, scaling up the number
+of worker threads and LTSF queues together may not hinder performance if the simulation model
+is also scaled up since efficiency and contention will not get worse. 
+
+\subsubsection{LTSF Queue Partitioning}
+
+The LPs can also be partitioned between LTSF queues in various ways just like partitioning between
+processes. In fact, there is only a single partitioning parameter for both levels of partitioning.
+This makes sense because the LTSF queue partitioning will be neglible compared to the interprocess
+but it allows the user to choose the LTSF queue partitioning directly on a single node simulation.
+
+Figures \ref{ltsf_partitioning_beowulf} and \ref{ltsf_partitioning_bc} show the effects of
+LTSF queue partitioning on simulation runtime and efficiency for the
+Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} E5410 processor and
+Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} X5675 processor,
+respectively. 
+
+The simulations on the Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered}
+E5410 are configured with 8 LTSF queues, and 8 worker threads and the simulations on the 
+Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} X5675 are configured
+with 10 LTSF queues, and 10 worker threads.
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/partitioning_time_1node.pdf} \\
+      Simulation Times (s) \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/partitioning_efficiency_1node.pdf} \\
+      Efficiency \\
+    \end{center}
+  \end{minipage}
+  \caption{LTSF Partitioning: Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} E5410 Processor}
+  \label{ltsf_partitioning_beowulf}
+\end{figure}
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/pending_event_set/partitioning_time.pdf} \\
+      Simulation Times (s) \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/pending_event_set/partitioning_efficiency.pdf} \\
+      Efficiency \\
+    \end{center}
+  \end{minipage}
+  \caption{LTSF Partitioning: Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} X5675 processor}
+  \label{ltsf_partitioning_bc}
+\end{figure}
+
+Just as with the interprocess partitioning, the block partitioning scheme tends to give the best
+average performance. However, only the epidemic model has any significant difference in average
+efficiency. This can be explained by noting that the epidemic model has a very slow event rate
+compared to any other model so the efficiency is easy to diminish when the number of rollbacks
+increase.
+
+Another interesting observation is that the round-robin partitioning is much worse on the
+Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} E5410 for the PCS,
+traffic, and airport models but not on the Intel\textsuperscript{\textregistered}
+Xeon\textsuperscript{\textregistered} X5675. This, however, is simply a matter of the simulation
+model properties, and configurations of the model and kernel. The LPs of these models are
+connected as a grid of 100 x 100 LPs. Since the number of LTSF queues is a factor of the grid
+dimensions, the round-robin partitioning will still provide north-south locality. The same is
+not true with 8 LTSF queues so the simulations will be more unbalanced.
+
+\subsubsection{State Saving Period}
+
+Instead of saving the state of the LPs after every processed event processed, \textsc{warped2}
+allows the user to choose a state saving period value, $N$, so that each LP only has its state
+saved every $N$ events. A larger value of $N$ reduces the amount of time taken to copy states
+and thus speeds up forward computation. The downside is that it also increases rollback time
+since not all states are available to roll back to, making it necessary to process more events to
+get to the necessary state in a process known as \emph{coast forwarding}. The total time spent
+rolling back, however, is small compared to the time taken for forward computation for moderate
+values of $N$.
+
+Figures \ref{ssp_analysis_smp_performance} and \ref{ssp_analysis_cluster} show the speedup over
+copy state saving and the efficiency as the state saving period is increased for all models for
+a single SMP machine and an 8 node cluster. $Speedup_{CSS}$ is defined as:
+
+$$ Speedup_{CSS} = runtime_{1}/runtime_{N} $$
+
+\noindent
+where $runtime_{1}$ is the runtime with every state saved and $runtime_{N}$ is runtime with the
+state saving period of $N$.
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/speedup.pdf} \\
+      $Speedup_{CSS}$ \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/efficiency.pdf} \\
+      $Efficiency$ \\
+    \end{center}
+  \end{minipage}
+  \caption{Periodic State Saving: Performance on SMP Machine}\label{ssp_analysis_smp_performance}
+\end{figure}
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/speedup.pdf} \\
+      $Speedup_{CSS}$ \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/efficiency.pdf} \\
+      $Efficiency$ \\
+    \end{center}
+  \end{minipage}
+  \caption{Periodic State Saving on Cluster: Speedup and Efficiency}\label{ssp_analysis_cluster}
+\end{figure}
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/rollbacks.pdf} \\
+      Rollbacks \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/remote_events.pdf} \\
+      Remote Events \\
+    \end{center}
+  \end{minipage}
+  \caption{Periodic State Saving on Cluster: Remote Events and Rollbacks}\label{ssp_analysis_cluster1}
+\end{figure}
+
+\subsection{Protecting Access to LTSF Queues}
+
+Worker threads must be able to access shared data structures without the possibility of
+race conditions. To deal with this, \textsc{warped2} uses mutexes to serialize worker thread
+access to any section of code that accesses the LTSF queue. This method, however can significantly
+slows down access to the LTSF queues. In the default configuration, blocking mutexes are used
+which means that if a thread cannot aqcuire a the lock, it will be put to sleep and rescheduled
+for execution at a later time. However, this method can waiste a lot of exta time if access to the
+critical section is quick. All of these accesses are quick so
+the lock should only held for a short period of time.
+
+A \emph{spinlock} is a type of mutex that does not force threads to be rescheduled but
+instead continue to attempt to aqcuire the lock over and over until it successfully acquires
+the lock or the timeslice of the thread expires. The downside of spinlocks is that the CPU time
+can be waised, especially as the number of contending threads increase. Furthermore, if the
+number of total threads is larger than the number of available processors, spinlocks are
+even worse because a thread can be involuntarily pre-empted while holding the lock and entire
+timeslices can be waisted.
+
+\subsubsection{Spinlocks in \textsc{warped2}}
+
+\textsc{warped2} allows the user to optionally build the kernel to use spinlocks instead of
+blocking mutexes. It is not set as the default because spinlocks do not work well in all cases
+such as with a system that is running more threads than processors.
+There are many ways to implement spinlocks with all varying attributes and complexities.
+Ticket locks were chosen for \textsc{warped2} because they are simple to implement, provide
+fairness to all threads, and generally have good performance for a small number of threads
+\cite{lockless-10}. A short psuedocode algorithm to illustrate the ticket lock aqcuisition and
+release procedures is shown below in algorithm \ref{ticket_lock}.
+
+\begin{algorithm}
+\DontPrintSemicolon
+\SetKwFunction{fetchAndIncrement}{fetchAndIncrement}
+\SetKwBlock{Acquire}{lock}{end}
+\SetKwBlock{Release}{unlock}{end}
+
+    \Acquire{
+        $my\_number \gets \fetchAndIncrement{next\_number}$\;
+        \lRepeat{$ticket = my\_number$}{}\;
+    }\;
+
+    \Release{
+        $\fetchAndIncrement{ticket}$
+    }
+
+    \caption{Ticket Lock Procedures\cite{wiki:ticketlock-15}}\label{ticket_lock}
+\end{algorithm}
+
+\noindent
+To acquire the lock, each thread atomically increments a counter and takes the old value as
+a "ticket" to provide first in first out order. Then when the ticket value reaches that
+of the waiting thread, access to the critical section is given. To release the lock, the thread
+simply increments the ticket number and allows the next thread to access the critical section.
+If there is no contention for the lock, the next number will be equal to the ticket number and
+a thread can access the critical section immediately.
+
+All previous experiments were run with the default blocking mutexes in which threads will yield
+the processor when a lock is contended. To reduce the average lock acquisition latency, the
+kernel can be configured with spinlocks instead. Figure \ref{spinlock_speedup} shows the speedup
+for all models and varying number of LTSF queues. As expected, the speedup is much greater with
+more contention when there are more worker threads per LTSF queue. It can also be seen that all
+models except for epidemic have very similar speedups. This is probably due to the high cost
+of saving such a large complex state. Contention becomes less of a concern if the event processing
+is slowed down by other computation.
+
+\begin{figure}
+\centering
+  \includegraphics[width=0.5\textwidth,quiet]{figs/pending_event_set/spinlock_speedup.pdf}
+  \caption{Speedup with Spinlocks}\label{spinlock_speedup}
+\end{figure}
+
+\section{Data Structures to Support Rollback and Cancellation}
+
+Jefferson\cite{jefferson-85} described the rollback and cancellation process in terms of three
+data structures: the input queue, output queue, and state queue. The data structures that are
+implemented in \textsc{warped2} follows pretty closely to Jefferson's description except that
+in Jefferson's approach, the input queue holds both unprocessed and processed events whereas
+\textsc{warped2} has two seperate data structures to allow easier scheduling of new events.
+
+The state queues contain a 3-tuple value for each state. The first value is a pointer to a
+memory location which holds the saved copy of the LP state. The second value is a pointer to the
+event that produced the state of the LP and is used for comparison against a straggler event
+on a rollback to determine which state to restore or against the GVT during fossil collection.
+The third value is the state of the LPs random number generators at the time the state was saved.
+The random number generator states are saved in a linked list and are also restored during a
+rollback to ensure deterministic results.
+
+Similar to the state queue, the output queue also contains a tuple of values. In the output
+queue though, only a pointer to a source event and a sent events are used. In the same way
+as the state queue, the source event is used for comparison against a straggler event during
+a rollback but is used to determine which events should be sent as anti-messages.
+
+The processed queues only contain a pointer to the processed events. The dereferenced events
+from the processed queue are the same as dereferenced source events from output queue and state
+queue so that no copying of the events is needed. Furthermore, if events are sent withing the
+same process, the same events can be pointed to from the output queue and an unprocessed or
+processed event from another LP. The organization of the processed queue, state queue and output
+queue for a single LP is illustrated in figure \ref{rollback_ds}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth,quiet]{figs/graphviz/rollback_ds.pdf}
+    \caption{Rollback and Cancellation Data Structures in \textsc{warped2}}\label{rollback_ds}
+\end{figure}
+
+Although the organization of these data structures prevents copying of events, there are also
+some limitations. First, it introduces a lot of indirect memory accesses which could slow down
+access to memory, especially in a multiprocessor system. Secondly, it adds some complexity
+when freeing memory used by events. To solve this problem though, \textsc{warped2} uses the
+smart pointers offered by the standard C++11 libraries which employ a reference counting
+scheme.
 
 
 
@@ -1762,171 +1958,148 @@ sufficient. Also, each process must maintain a counter for both white messages \
 messages so that counters can be consistent between multiple runs of the algorithm. The roles of
 the colors must also be switched between successive runs.
 
-In the description of the \textsc{warped2} algorithm, the colors will be described as
-\emph{initial} and \emph{final}, where the \emph{initial} color is the starting color for each
-process before receiving a token and the \emph{final} color is the color after receiving the
-token. Each process keeps track of its current color, a minimum timestamp of an event received
-with the final color, and temporary variables to hold accumulated values from the token. The
-variables that will be used in the following discussion are listed below in algorithm
-\ref{process_variables}.
-
 \begin{algorithm}
 \DontPrintSemicolon
-    \boldmath$ts_{min}:$ Minimum timestamp of event messages received with final color\;
-    \boldmath$color:$ Current color of the process\;
-    \boldmath$color_{initial}:$ Intial color of all processes\;
-    \boldmath$msgcount_{initial}:$ Messages sent minus messages received with initial color\;
-    \boldmath$msgcount_{final}:$ Messages sent minus messages received with final color\;
-    \boldmath$clock_{min}:$ Temporary variable to hold accumulated minimum clock from all processes\;
-    \boldmath$msgcount:$ Temporary variable to hold accumulated initial color message count
-        from all processes\;
-\caption{Process Variables in \textsc{warped2} Mattern Implementation}\label{process_variables}
-\end{algorithm}
+\SetKw{Continue}{continue}
+\SetKwFunction{GetNextEvent}{getNextEvent}
+\SetKwFunction{Report}{reportThreadMin}
+\SetKwFunction{ReportSend}{reportThreadSendMin}
+\SetKwFunction{ProcessEvent}{processEvent}
+\SetKwFunction{SendEvent}{sendEvent}
+\SetKwFunction{GVTSendUpdate}{GVTSendEventUpdate}
+\SetKwFunction{GVTReceiveUpdate}{GVTReceiveEventUpdate}
+\SetKwBlock{Process}{processEvents}{end}
+\SetKwBlock{Send}{sendEvent}{end}
+\SetKwBlock{Receive}{receiveRemoteEvent}{end}
 
-\noindent
-The event messages that are sent between processes have the format:
+    \Process{
+        \While{termination not detected} {
+            $localGVTFlag_i \gets localGVTFlag$
 
-    $<sender, receiver, mcolor,...>$
+            $e \gets \GetNextEvent{}$\;
+            $lp \gets$ receiver of $e$\;
 
-\noindent
-where $sender$ is the id of the sender process, $receiver$ is the id of the reciever process,
-and $mcolor$ is the color of the message. The message color is the color of the sending
-process at the time it is sent. The message count for the current color is also incremented
-when it is sent. The event sending procedure is shown below in algorithm \ref{gvt_event_send}.
+            \If{$e$ is straggler}{
+                Rollback\;
+                \Continue\;
+            }
 
-\begin{algorithm}
-\DontPrintSemicolon
-\SetAlgoVlined
-    $mcolor \gets color$\;
-    \If {$color = color_{initial}$} {
-      $msgcount_{initial} \gets msgcount_{initial} + 1$\;
-    }
-    \Else {
-      $msgcount_{final} \gets msgcount_{final} + 1$\;
-    }
-\caption{Event Message Send}\label{gvt_event_send}
-\end{algorithm}
+            \If{$localGVTFlag_i$ and ($workerThread_i$ hasn't reported local min)}{
+                \Report{$timestamp_e$}\;
+            }
 
-When an event is received by a process, the message count for the current color of the process
-is decremented. If the color carried by the message is the final color indicating that the
-sender has already reported a local minimum value, then the timestamp of the event is recorded.
-The procedure for receiving an event is shown below in algorithm \ref{gvt_event_receive}.
+            $newEvents \gets \ProcessEvent{e}$\;
+            
+            \ForEach{$ne$ in $newEvents$}{
+                \SendEvent{$ne$}\;
+            }
+        }
+    }\;
 
-\begin{algorithm}
-\DontPrintSemicolon
-\SetAlgoVlined
-    \If{$color_{message} = color_{initial}$} {
-        $msgcount_{initial} \gets msgcount_{initial} - 1$\;
-    }
-    \Else {
-        $msgcount_{final} \gets msgcount_{final} - 1$\;
-        $ts_{min} \gets \min{(ts_{min}, ts_{event})}$\;
-    }
-\caption{Event Message Receive}\label{gvt_event_receive}
-\end{algorithm}
+    \Receive{
+        \GVTReceiveUpdate{$timestamp_e$, $color_e$}\;
+        $lp \gets$ receiver of $ne$\;
+        Insert into Unprocessed Queue for $lp$\;
+    }\;
 
-\noindent
-The control token that is sent between processes has the format:
-
-    $<sender, receiver, mclock, msend, mcount>$
-
-\noindent
-where $mclock$ is an accumulated minimum of all local minimum clocks at all processes
-visited by the token, $msend$ is an accumulated minimum of all $ts_{min}$ values at all
-processes visited by the token, and $mcount$ is an accumulated sum of the final message count
-($msgcount_{final}$) from all processes visited by the token.
-
-The token is passed in logical ring fashion to increasing process ids and is initiated by process
-with id 0. When the token reaches process $N-1$, where $N$ is the number of processes, it is
-sent back to process 0. To start the algorithm, the initiating process toggles its color, resets
-minim values to infinity, stores the initial color message count into a temporary variable
-($msgcount$), and starts Fujimoto's algorithm. When Fujimoto's algorithm is complete, it will
-send the token $<0, 1, lvt_{min}, ts_{min}, msgcount>$ with $lvt_{min}$ being the result of
-Fujimoto's algorithm. The start procedure is illustrated below in algorithm \ref{gvt_start}.
-
-\begin{algorithm}
-\DontPrintSemicolon
-\SetAlgoVlined
-\SetKwFunction{SendToken}{SendToken}
-\SetKwFunction{Fujimoto}{doFujimoto}
-    \If{$color = WHITE$}{
-        $color \gets RED$\;
-    } \Else {
-        $color \gets WHITE$\;
-    }
-    $ts_{min} \gets \infty$\;
-    $clock_{min} \gets \infty$
-    $msgcount \gets msgcount_{initial}$\;
-    $msgcount_{initial} \gets 0$\;
-    $lvt_{min} \gets \Fujimoto{}$\;
-    \SendToken{$0, 1, lvt_{min}, ts_{min}, msgcount$}\;
-\caption{Mattern Algorithm Start Procedure}\label{gvt_start}
-\end{algorithm}
-
-When a token is received at a process that is not the initiator and it still has the initial
-color then the color is toggled. Then, the minimum timestamp received from final colored
-messages, the minimum clock value, and the initial message count for the process are
-accumulated with the token's values. The initial message count is then reset so it will not
-be used in the next round and Fujimoto's algorithm is initiated. When Fujimoto's algorithm
-is completed, the token is sent to the next process with all of the accumulated values
-including $lvt_{min}$ calculated from Fujimoto's algorithm. The token receive procedure for
-non-initiator processes is illustrated below in algorithm \ref{gvt_receive_noninit}.
-
-\begin{algorithm}
-\DontPrintSemicolon
-\SetAlgoVlined
-\SetKwFunction{SendToken}{SendToken}
-\SetKwFunction{Fujimoto}{doFujimoto}
-    \If{$color = color_{initial}$} {
-        $ts_{min} \gets \infty$\;
-        \If{$color = WHITE$}{
-            $color \gets RED$\;
+    \Send{
+        \uIf{$ne$ is remote event}{
+            $color \gets \GVTSendUpdate{}$\;
+            Insert into Send Queue\;
         } \Else {
-            $color \gets WHITE$\;
+            $lp \gets$ receiver of $ne$\;
+            Insert into Unprocessed Queue for $lp$\;
+        }
+
+        \If{$localGVTFlag_i$ and ($workerThread_i$ hasn't reported local min)}{
+            \ReportSend{$timestamp_ne$}\;
         }
     }
-    $ts_{min} \gets \min{(ts_{min}, msend)}$\;
-    $clock_{min} \gets \min{(clock_{min}, mclock)}$\;
-    $msgcount \gets msgcount_{initial} + msgcount$\;
-    $msgcount_{initial} \gets 0$\;
-    $lvt_{min} \gets \Fujimoto$\;
-    \SendToken{$i, (i+1) \bmod N, \min{(lvt_{min}, clock_{min})}, ts_{min}, msgcount$}\;
-\caption{Mattern Control Token Receive Procedure: Non-initiator Node}\label{gvt_receive_noninit}
-\end{algorithm}
 
-When a token is received at a the initiator process, it can be assumed that a minimum clock
-value has already been included in the token that is received. If the accumulated message count
-for the initial color has reached zero, then the GVT can be appoximated and the algorithm
-is terminated. If there are still transient message that were not accounted for, the initiator
-process initiates a new round until the resulting message count accumulation is zero
-when received at the initiator. The GVT is approximated at the initiator by taking the
-minimum of the accumulated minimum clock values and the accumulated minimum timestamp values.
-The estimated GVT value is then broadcast to the rest of the processes. The token receiving procedure
-for the initiator process is illustrated below in algorithm \ref{gvt_receive_init}.
+    \caption{GVT: Worker Threads}\label{gvt_workers}
+\end{algorithm}
 
 \begin{algorithm}
 \DontPrintSemicolon
-\SetAlgoVlined
 \SetKwFunction{SendToken}{SendToken}
-\SetKwFunction{Fujimoto}{doFujimoto}
-\SetKwFunction{SendGVTUpdate}{SendGVTUpdate}
-    \If {$mcount = 0$} {
-        $gvtApprox \gets \min{(mclock, msend)}$\;
-        \SendGVTUpdate{}\;
-        \If{$color_{initial} = WHITE$}{
-            $color_{initial} \gets RED$\;
-        } \Else {
-            $color_{initial} \gets WHITE$\;
+\SetKwBlock{ProgressGVTa}{progressGVT}{end}
+\SetKwBlock{ReceiveToken}{receiveToken}{end}
+
+    \ProgressGVTa{
+        \If {Local GVT is needed}{
+            \uIf{($localGVTFlag$ equals 0) and (haven't started local GVT)}{
+                Toggle Color\;
+                $ts_{min} \gets \infty$\;
+                $clock_{min} \gets \infty$
+                $msgcount \gets msgcount_{initial}$\;
+                $msgcount_{initial} \gets 0$\;
+            } \ElseIf {($localGVTFlag$ equals 0) and (started local GVT)}{
+                $localMin = \infty$\;
+                \ForEach{worker thread, i}{
+                    $localMin \gets \min{(localMin, localMin_i)}$\;
+                }\;
+
+                \uIf{$processCount$ > 1}{
+                    \SendToken{$i, (i+1) \bmod N, localMin, \min{(ts_{min}, clock_{min})}, msgcount$}\;
+                } \Else {
+                    $gvtApprox \gets localMin$\;
+                }
+            }
         }
-        $clock_{min} \gets \infty$\;
-    } \Else {
-        $ts_{min} \gets \min{(ts_{min}, msend)}$\;
-        $msgcount \gets msgcount_{initial} + mcount$\;
-        $msgcount_{initial} \gets 0$\;
-        $lvt_{min} \gets \Fujimoto$\;
-        \SendToken{$i, (i+1) \bmod N, lvt_{min}, ts_{min}, msgcount$}\;
+    }\;
+
+    \ReceiveToken{
+        \uIf{$ID_process$ does not equal 0}{
+            \If{$color = color_{initial}$}{
+                $ts_{min} \gets \infty$\;
+                Toggle Color\;
+            }
+            Accumulate $ts_{min}$ and $msgcount$\; 
+            $localGVTFlag \gets numWorkerThreads$\;
+            $clock_{min} \gets \min{(clock_{min}, mclock)}$\;
+        } \Else {
+            \uIf {$mcount$ equals 0} {
+                $gvtApprox \gets \min{(mclock, msend)}$\;
+                Broadcast $gvtApprox$\;
+            } \Else {
+                Accumulate $ts_{min}$ and $msgcount$\; 
+                $localGVTFlag \gets numWorkerThreads$\;
+            }       
+            $clock_{min} \gets \infty$\;
+        }
+    }\;
+
+    \caption{Asynchronous GVT: Manager Thread}\label{gvt_manager_asynchronous}
+\end{algorithm}
+
+\begin{algorithm}
+\DontPrintSemicolon
+\SetKwFunction{sumAllreduce}{sumAllreduce}
+\SetKwFunction{minAllreduce}{minAllreduce}
+\SetKwBlock{ProgressGVTs}{progressGVT}{end}
+
+    \ProgressGVTs{
+        $localGVTFlag \gets true$\;
+        $THREAD\_BARRIER$\;\;
+
+        \While{$true$}{
+            Flush send queue\;
+            Receive messages\;
+            $\sumAllreduce{localMsgCount, globalMsgCount}$\;
+        }\;
+
+        $localMin = \infty$\;
+        \ForEach{worker thread, i}{
+            $localMin \gets \min{(localMin, \min{(localMin_i, sendMin_i)})}$\;
+        }\;
+
+        $\minAllreduce{localMin, GVT}$\;\;
+
+        $localGVTFlag \gets false$\;
+        $THREAD\_BARRIER$\;
     }
-\caption{Mattern Control Token Receive Procedure: Initiator Node}\label{gvt_receive_init}
+
+    \caption{Synchronous GVT: Manager Thread}\label{gvt_manager_synchronous}
 \end{algorithm}
 
 \section{Termination Detection}
@@ -2004,27 +2177,6 @@ property. Without this scheme, a process that has already forwarded the token be
 passive could receive an activation message and then the sender of the activation message could 
 ecome passive before receiving the token and false termination could then be detected.
 
-For the following discussion, a set of variables are listed in algorithm \ref{termination_variables}.
-
-\begin{algorithm}
-\DontPrintSemicolon
-    \boldmath$state_{actual}:$ Indicates the actual state of the process at all times\;
-    \boldmath$state_{sticky}:$ Indicates the state of the process if active, but may stick
-        to active if passive\;
-    \boldmath$initiator:$ Boolean variable indicating process is leader\;
-\caption{Process Variables in Termination Detection Algorithm}\label{termination_variables}
-\end{algorithm}
-
-\noindent
-The termination token that is sent between process has the format:
-
-    $<sender, receiver, mstate, minitiator>$
-
-\noindent
-where $sender$ is the id of the sending process, $receiver$ is the id of the receiving
-process, $mstate$ is the partial state of system based on visited processes, and $minitiator$
-is the process id of the initiator.
-
 The algorithm is started when the initiator process becomes passive which is determined by
 the shared memory algorithm. When a process receives the token it becomes the initiator
 but loses its roles as initiator when it sends the token. That way, only a single process
@@ -2036,7 +2188,6 @@ algorithm \ref{termination_token_receive}.
 
 \begin{algorithm}
 \DontPrintSemicolon
-\SetAlgoVlined
 \SetKw{And}{ and }
 \SetKwFunction{SendToken}{SendToken}
     $initiator \gets true$\;
@@ -2264,6 +2415,14 @@ some parameters are available for fine tuning the memory footprint of the simula
 two main parameters that make a difference with regard to memory are the state saving period
 and the GVT period.
 
+\subsection{Number of LTSF Queues}
+
+\begin{figure}
+  \centering
+  \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/pending_event_set/ltsf_memory_increase.pdf}
+  \caption{LTSF Queues: \% Increase in Average Peak Memory}
+\end{figure}
+
 \subsection{State Saving Period}
 
 The state saving period is just as important for reducing memory requirements as it is for
@@ -2456,18 +2615,6 @@ performance is only worsened by a very small amount.
 
 \appendix
 \chapter{x86 SMP Nodes and Cluster}\label{x86_nodes_and_clusters}
-
-Experiments with x86 platforms will consist of a set of experiments targeted at a single node
-SMP processor and a set of experiments targeted at a beowulf cluster. The goal for all x86
-experiments will be to figure out how to configure the \textsc{warped2} simulation kernel for
-the best performance while keeping memory requirements and stability in mind.
-
-The single node SMP experiments will be run on an Intel Xeon X5675 processor. The intel X5675
-has 6 cores with hyperthreading so that 12 simultaneous threads are supported.
-Cluster experiments will be run on Intel Xeon E5410. The Intel Xeon E5410 is a quad core processor
-but each system contains two sockets per machine so that 8 cores per machine are available.
-A summary of the architectural features of both machines that used are summarized in table
-\ref{x86_platform}.
 
 \begin{table}
     \centering

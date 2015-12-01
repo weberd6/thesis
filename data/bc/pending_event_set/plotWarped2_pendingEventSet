@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import re
 
 sq_list = [1, 2, 5, 10];
-models = ["epidemic", "pcs", "traffic", "airport"];
+models = ["pcs", "traffic", "epidemic", "airport"];
 locktypes = ["mutexes", "spinlocks"];
 parttypes = ["rr", "pg", "block"];
 
@@ -51,6 +51,7 @@ def main():
     srollback_lines = list()
     speedup_lines = list()
     memory_lines = list()
+    memi_lines = list()
 
     for m in models:
 
@@ -62,6 +63,7 @@ def main():
         srb_y = list()
         mem_y = list()
         time_single = 0
+        mem_single = 0
 
         f = filenames()
         for filename in f:
@@ -80,6 +82,7 @@ def main():
             sq_x.append(sq)
 
             if sq == '1':
+                mem_single = np.mean(ydata['memory'])
                 time_single = np.mean(ydata['time'])
 
             time_y.append(np.mean(ydata['time']))
@@ -92,9 +95,11 @@ def main():
         speedup = [time_single / a for a in time_y]
         rollbacks = [a + b for a, b in zip(prb_y, srb_y)]
         event_rate = [a / b for a, b in zip(comm_y, time_y)]
-        efficiency = [a / b for a, b in zip(comm_y, proc_y)]
+        efficiency = [a / b * 100 for a, b in zip(comm_y, proc_y)]
+        mem_increase = [(a - mem_single) / a * 100 for a in mem_y]
 
         addLineXY(memory_lines, sq_x, mem_y, m)
+        addLineXY(memi_lines, sq_x, mem_increase, m)
         addLineXY(efficiency_lines, sq_x, efficiency, m)
         addLineXY(event_rate_lines, sq_x, event_rate, m)
         addLineXY(trollback_lines, sq_x, rollbacks, m)
@@ -103,7 +108,8 @@ def main():
         addLineXY(speedup_lines, sq_x, speedup, m)
 
     addPlotXY(plots, "", "# LTSF Queues", "Average Peak Memory", memory_lines)
-    addPlotXY(plots, "", "# LTSF Queues", "TotalRollbacks", trollback_lines)
+    addPlotXY(plots, "", "# LTSF Queues", "% Memory Increase", memi_lines)
+    addPlotXY(plots, "", "# LTSF Queues", "Total Rollbacks", trollback_lines)
 #    addPlotXY(plots, "", "# LTSF Queues", "Primary Rollbacks", prollback_lines)
 #    addPlotXY(plots, "", "# LTSF Queues", "Secondary Rollbacks", srollback_lines)
     addPlotXY(plots, "", "# LTSF Queues", "Efficiency (%)", efficiency_lines)
@@ -186,7 +192,7 @@ def main():
     plt.ylim(0.0, 3.0)
     plt.xlabel('Model')
     plt.ylabel('Speedup')
-    plt.xticks(index+2*bar_width, ('Epidemic', 'PCS', 'Traffic', 'Airport'))
+    plt.xticks(index+2*bar_width, ('PCS', 'Traffic', 'Epidemic', 'Airport'))
     plt.legend()
     plt.show()
 
@@ -282,7 +288,7 @@ def main():
     plt.ylim(0.0, 3.0)
     plt.xlabel('Model')
     plt.ylabel('Speedup')
-    plt.xticks(index+2*bar_width, ('Epidemic', 'PCS', 'Traffic', 'Airport'))
+    plt.xticks(index+2*bar_width, ('PCS', 'Traffic', 'Epidemic', 'Airport'))
     plt.legend()
     plt.show()
 
@@ -312,7 +318,7 @@ def main():
     plt.xlim(-bar_width, len(index)+10*bar_width)
     plt.xlabel('Model')
     plt.ylabel('% Decrease')
-    plt.xticks(index+2*bar_width, ('Epidemic', 'PCS', 'Traffic', 'Airport'))
+    plt.xticks(index+2*bar_width, ('PCS', 'Traffic', 'Epidemic', 'Airport'))
     plt.legend()
     plt.show()
 
@@ -324,6 +330,14 @@ def main():
     rbs_by_model_rr = list()
     rbs_by_model_pg = list()
     rbs_by_model_block = list()
+
+    comm_by_model_rr = list()
+    comm_by_model_pg = list()
+    comm_by_model_block = list()
+
+    proc_by_model_rr = list()
+    proc_by_model_pg = list()
+    proc_by_model_block = list()
 
     for m in models:
         f = filenames()
@@ -341,51 +355,84 @@ def main():
                            'committed', 'memory'])
 
             rbs = np.mean(ydata['srollbacks']) + np.mean(ydata['srollbacks'])
+            comm = np.mean(ydata['committed'])
+            proc = np.mean(ydata['processed'])
 
             if "rr" in filename:
                 if sq == '10':
                     times_by_model_rr.append(np.mean(ydata['time']))
                     rbs_by_model_rr.append(rbs)
+                    comm_by_model_rr.append(comm)
+                    proc_by_model_rr.append(proc)
             elif "pg" in filename:
                 if sq == '10':
                     times_by_model_pg.append(np.mean(ydata['time']))
                     rbs_by_model_pg.append(rbs)
+                    comm_by_model_pg.append(comm)
+                    proc_by_model_pg.append(proc)
             elif "block" in filename:
                 if sq == '10':
                     times_by_model_block.append(np.mean(ydata['time']))
                     rbs_by_model_block.append(rbs)
+                    comm_by_model_block.append(comm)
+                    proc_by_model_block.append(proc)
 
-    rects1 = plt.bar(index, times_by_model_rr, bar_width,
+    bar_width = 0.60
+
+    rects1 = plt.bar(index-bar_width, times_by_model_rr, bar_width,
             color='g', label='Round-Robin', alpha=0.7)
-    rects2 = plt.bar(index+bar_width, times_by_model_pg, bar_width,
+    rects2 = plt.bar(index, times_by_model_pg, bar_width,
             color='b', label = 'Profile-Guided', alpha=0.7)
-    rects3 = plt.bar(index+2*bar_width, times_by_model_block, bar_width,
+    rects3 = plt.bar(index+bar_width, times_by_model_block, bar_width,
             color='r', label = 'Block', alpha=0.7)
 
     autolabel(rects1)
     autolabel(rects2)
     autolabel(rects3)
-    plt.xlim(-bar_width, len(index)+10*bar_width)
+    plt.xlim(-2*bar_width, len(index)+7*bar_width)
     plt.xlabel('Model')
     plt.ylabel('Simulation Time (s)')
-    plt.xticks(index+2*bar_width, ('Epidemic', 'PCS', 'Traffic', 'Airport'))
+    plt.xticks(index+0.5*bar_width, ('PCS', 'Traffic', 'Epidemic', 'Airport'))
     plt.legend()
     plt.show()
 
-    rects1 = plt.bar(index, rbs_by_model_rr, bar_width,
+    rects1 = plt.bar(index-bar_width, rbs_by_model_rr, bar_width,
             color='g', label='Round-Robin', alpha=0.7)
-    rects2 = plt.bar(index+bar_width, rbs_by_model_pg, bar_width,
+    rects2 = plt.bar(index, rbs_by_model_pg, bar_width,
             color='b', label = 'Profile-Guided', alpha=0.7)
-    rects3 = plt.bar(index+2*bar_width, rbs_by_model_block, bar_width,
+    rects3 = plt.bar(index+bar_width, rbs_by_model_block, bar_width,
             color='r', label = 'Block', alpha=0.7)
 
     autolabel(rects1)
     autolabel(rects2)
     autolabel(rects3)
-    plt.xlim(-bar_width, len(index)+10*bar_width)
+    plt.xlim(-2*bar_width, len(index)+7*bar_width)
     plt.xlabel('Model')
     plt.ylabel('Rollbacks')
-    plt.xticks(index+2*bar_width, ('Epidemic', 'PCS', 'Traffic', 'Airport'))
+    plt.xticks(index+0.5*bar_width, ('PCS', 'Traffic', 'Epidemic', 'Airport'))
+    plt.legend()
+    plt.show()
+
+
+    efficiency_by_model_rr = [a / b * 100 for a, b in zip(comm_by_model_rr, proc_by_model_rr)]
+    efficiency_by_model_block = [a / b * 100 for a, b in zip(comm_by_model_block, proc_by_model_block)]
+    efficiency_by_model_pg = [a / b * 100 for a, b in zip(comm_by_model_pg, proc_by_model_pg)]
+
+    rects1 = plt.bar(index-bar_width, efficiency_by_model_rr, bar_width,
+            color='g', label='Round-Robin', alpha=0.7)
+    rects2 = plt.bar(index, efficiency_by_model_pg, bar_width,
+            color='b', label = 'Profile-Guided', alpha=0.7)
+    rects3 = plt.bar(index+bar_width, efficiency_by_model_block, bar_width,
+            color='r', label = 'Block', alpha=0.7)
+
+    autolabel(rects1)
+    autolabel(rects2)
+    autolabel(rects3)
+    plt.xlim(-2*bar_width, len(index)+7*bar_width)
+    plt.xlabel('Model')
+    plt.ylim(0, 140)
+    plt.ylabel('Efficiency (%)')
+    plt.xticks(index+0.5*bar_width, ('PCS', 'Traffic', 'Epidemic', 'Airport'))
     plt.legend()
     plt.show()
 
