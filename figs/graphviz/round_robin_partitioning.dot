@@ -1,0 +1,21 @@
+digraph round_robin {
+
+    node [shape = record];
+    nodesep = 0;
+
+    1   [style = filled, fillcolor = cadetblue3];
+    2   [style = filled, fillcolor = goldenrod3];
+    3   [style = filled, fillcolor = chartreuse3];
+
+    4   [style = filled, fillcolor = cadetblue3];
+    5   [style = filled, fillcolor = goldenrod3];
+    6   [style = filled, fillcolor = chartreuse3];
+
+    7   [style = filled, fillcolor = cadetblue3];
+    8   [style = filled, fillcolor = goldenrod3];
+    9   [style = filled, fillcolor = chartreuse3];
+
+    10  [style = filled, fillcolor = cadetblue3];
+    11  [style = filled, fillcolor = goldenrod3];
+    12  [style = filled, fillcolor = chartreuse3];
+}
