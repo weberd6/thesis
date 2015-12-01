@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import re
 
-ss_period_list = [1, 5, 10, 25, 50, 100, 150, 200, 300, 400];
+ss_period_list = [1, 5, 10, 25, 50, 100, 150, 200, 300, 400, 500, 600, 700, 800];
 models = ["epidemic", "pcs", "traffic"];
 
 warped_data_path = "."
@@ -69,6 +69,9 @@ def main():
         for filename in f:
             # obtain configs from filename
             nodes, wt, sq, ssp, gvtp = re.findall(r'\d+', filename)
+
+            if (m == 'pcs' and int(ssp) > 500):
+                continue
 
             with open("{}/{}/{}".format(warped_data_path, m, filename)) as plotpoint:
                 ydata = np.genfromtxt(filter_total_lines(plotpoint), delimiter=",",
