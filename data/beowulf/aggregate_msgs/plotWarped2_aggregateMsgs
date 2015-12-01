@@ -1,0 +1,141 @@
+#!/usr/bin/python
+
+import numpy as np
+import matplotlib.pyplot as plt
+import re
+
+agg_list = [1, 5, 10, 20, 30, 40, 50, 60, 70, 80];
+models = ["pcs", "traffic", "epidemic"];
+ssp_list = [5, 25, 150, 500];
+
+warped_data_path = "."
+
+def filenames(ssp):
+    for agg in agg_list:
+        filename = "8n7wt7sq{}ssp1000gvtp{}agg_block.csv".format(ssp, agg)
+        yield filename
+
+def filter_total_lines(f):
+    for line in f:
+        if "Total" in line:
+            yield line
+
+def addPlotXY(plots, title, xlab, ylab, lines):
+    new_plot = {"title": title, "xlabel": xlab, "ylabel": ylab, "lines": lines}
+    plots.append(new_plot)
+
+def addLineXY(lines, xvals, yvals, leg):
+    new_line = {"xvals": xvals, "yvals": yvals, "legend_title": leg}
+    lines.append(new_line)
+
+def main():
+
+    plots = list()
+
+    for m in models:
+
+        speedup_lines = list()
+        time_lines = list()
+        memory_lines = list()
+        efficiency_lines = list()
+        event_rate_lines = list()
+        premote_lines = list()
+        remote_lines = list()
+        rollback_lines = list()
+
+        time_single = 0
+
+        for sspl in ssp_list:
+
+            if ((m == "pcs") and (sspl == 500)) or ((m == "epidemic") and (sspl == 5)):
+                continue
+
+            agg_x = list()
+
+            time_y = list()
+            speedup_y = list()
+            prb_y = list()
+            srb_y = list()
+            rb_y = list()
+            rb_percent_y = list()
+            mem_y = list()
+            comm_y = list()
+            proc_y = list()
+            localp_y = list()
+            remotep_y = list()
+            localn_y = list()
+            remoten_y = list()
+
+            f = filenames(sspl)
+            for filename in f:
+                # obtain configs from filename
+                nodes, wt, sq, ssp, gvtp, agg = re.findall(r'\d+', filename)
+
+                if m == "epidemic" and ssp == '5' and int(agg) > 40:
+                    continue
+
+                with open("{}/{}/{}".format(warped_data_path, m, filename)) as plotpoint:
+                    ydata = np.genfromtxt(filter_total_lines(plotpoint), delimiter=",",
+                        names=['node', 'time', 'objects', 'localp', 'remotep', 'localn', 'remoten',
+                               'prollbacks', 'srollbacks', 'coasted','cancelled', 'processed',
+                               'committed', 'memory'])
+
+                agg_x.append(agg)
+
+                if agg == '1':
+                    time_single = np.mean(ydata['time'])
+
+                time_y.append(np.mean(ydata['time']))
+                prb_y.append(np.mean(ydata['prollbacks']))
+                srb_y.append(np.mean(ydata['srollbacks']))
+                mem_y.append(np.mean(ydata['memory']))
+                comm_y.append(np.mean(ydata['committed']))
+                proc_y.append(np.mean(ydata['processed']))
+                localp_y.append(np.mean(ydata['localp']))
+                remotep_y.append(np.mean(ydata['remotep']))
+                localn_y.append(np.mean(ydata['localn']))
+                remoten_y.append(np.mean(ydata['remoten']))
+
+            speedup_y = [time_single / y for y in time_y]
+            efficiency = [a / b for a, b in zip(comm_y, proc_y)]
+            rb_y = [a + b for a, b in zip(prb_y, srb_y)]
+            premote = [(a + b) / (a + b + c + d) * 100 for a, b, c, d in zip(remotep_y, remoten_y, localp_y, localn_y)]
+            remote = [a + b for a, b in zip(remotep_y, remoten_y)]
+
+#            addLineXY(speedup_lines, agg_x, speedup_y, "{}-{}".format(m, sspl))
+#            addLineXY(time_lines, agg_x, time_y, "{}-{}".format(m, sspl))
+            addLineXY(memory_lines, agg_x, mem_y, "{}-{}".format(m, sspl))
+#            addLineXY(efficiency_lines, agg_x, efficiency, "{}-{}".format(m, sspl))
+#            addLineXY(premote_lines, agg_x, premote, "{}-{}".format(m, sspl))
+#            addLineXY(remote_lines, agg_x, remote, "{}-{}".format(m, sspl))
+#            addLineXY(rollback_lines, agg_x, rb_y, "{}-{}".format(m, sspl))
+
+#        addPlotXY(plots, "", "Aggregated Messages", "Speedup", speedup_lines)
+#        addPlotXY(plots, "", "Aggregated Messages", "Simulation Time (s)", time_lines)
+        addPlotXY(plots, "", "Aggregated Messages", "Memory", memory_lines)
+#        addPlotXY(plots, "", "Aggregated Messages", "Efficiency", efficiency_lines)
+#        addPlotXY(plots, "", "Aggregated Messages", "% Remote", premote_lines)
+#        addPlotXY(plots, "", "Aggregated Messages", "Remote Events", remote_lines)
+#        addPlotXY(plots, "", "Aggregated Messages", "Total Rollbacks", rollback_lines)
+
+    for i, p in enumerate(plots):
+        fig = plt.figure(i)
+        plt.title(p["title"])
+        plt.xlabel(p["xlabel"])
+        plt.ylabel(p["ylabel"])
+
+        legend_entries = list()
+        for l in p["lines"]:
+            plt.plot(l["xvals"], l["yvals"], marker='o')
+            legend_entries.append(l["legend_title"])
+
+        plt.legend(legend_entries) 
+
+    plt.show()
+
+
+
+if __name__ == '__main__':
+    main()
+
+
