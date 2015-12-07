@@ -101,7 +101,7 @@ def main():
             addLineXY(speedup_lines, nodes_x, speedup, cm)
 #            addLineXY(efficiency_lines, nodes_x, efficiency, cm)
 #            addLineXY(memory_lines, nodes_x, memory_y, cm)
-#            addLineXY(premote_lines, nodes_x, premote, cm)
+            addLineXY(premote_lines, nodes_x, premote, cm)
 #            addLineXY(rollback_lines, nodes_x, rollbacks, cm)
             addLineXY(event_rate_lines, nodes_x, event_rate, cm)
 
@@ -109,7 +109,7 @@ def main():
         addPlotXY(plots, "{}".format(m), "# Nodes", "Speedup", speedup_lines)
 #        addPlotXY(plots, "{}".format(m), "# Nodes", "Efficiency (%)", efficiency_lines)
 #        addPlotXY(plots, "{}".format(m), "# Nodes", "Memory", memory_lines)
-#        addPlotXY(plots, "{}".format(m), "# Nodes", "% Remote", premote_lines)
+        addPlotXY(plots, "{}".format(m), "# Nodes", "% Remote", premote_lines)
 #        addPlotXY(plots, "{}".format(m), "# Nodes", "Total Rollbacks", rollback_lines)
         addPlotXY(plots, "{}".format(m), "# Nodes", "Event Rate", event_rate_lines)
 

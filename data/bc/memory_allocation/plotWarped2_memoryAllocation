@@ -7,7 +7,7 @@ import re
 models = ["epidemic", "pcs", "traffic", "airport"];
 mallocs = ["tcm", "ptm"];
 
-warped_data_path = "/home/weberd6/warped2-data.hagar/memory_allocation"
+warped_data_path = "."
 
 def filenames():
     for wt in range(1, 11):
@@ -45,6 +45,7 @@ def main():
         memory_lines = list()
         time_lines = list()
         efficiency_lines = list()
+        event_rate_lines = list()
 
         for m in models:
             wt_x = list()
@@ -75,14 +76,17 @@ def main():
                 time_std.append(np.std(ydata['time']))
 
             efficiency_y = [a / b for a, b in zip(comm_y, proc_y)]
+            event_rate = [a / b for a, b in zip(comm_y, time_y)]
 
             addLineXY(memory_lines, wt_x, mem_y, mem_std, m)
             addLineXY(time_lines, wt_x, time_y, mem_std, m)
             addLineXY(efficiency_lines, wt_x, efficiency_y, None, m)
+            addLineXY(event_rate_lines, wt_x, event_rate, None, m)
 
         addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Efficiency", efficiency_lines)
         addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Average Peak Memory", memory_lines)
-        addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Simulation Time (s)", time_lines)
+#        addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Simulation Time (s)", time_lines)
+        addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Event Rate", event_rate_lines)
 
     one_times_by_model_tcm = list()
     two_times_by_model_tcm = list()
@@ -331,7 +335,6 @@ def main():
     plt.xticks(index+6*bar_width, models)
     plt.legend()
     plt.show()
-
 
     for i, p in enumerate(plots):
         fig = plt.figure(i)

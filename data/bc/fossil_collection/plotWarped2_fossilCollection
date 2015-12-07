@@ -8,7 +8,7 @@ gvt_period_list = [1, 5, 10, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 10
 models = ["epidemic", "pcs", "traffic", "airport"];
 fcmethods = ["fcm", "fcw"];
 
-warped_data_path = "/home/weberd6/warped2-data.hagar/fossil_collection"
+warped_data_path = "."
 
 def filenames():
     for gvtp in gvt_period_list:
@@ -70,10 +70,13 @@ def main():
 
     fcm_times_by_model = list()
     fcw_times_by_model = list()
+    fcm_commits_by_model = list()
+    fcw_commits_by_model = list()
 
     for m in models:
         for fcmethod in fcmethods:
             average_time = list()
+            average_commit = list()
             f = filenames()
             for filename in f:
                 # obtain configs from filename
@@ -87,24 +90,30 @@ def main():
 
                 if gvtp == '100':
                     average_time.append(np.mean(ydata['time']))
+                    average_commit.append(np.mean(ydata['committed']))
 
             if fcmethod == "fcw":
                 fcw_times_by_model.append(average_time[0])
+                fcw_commits_by_model.append(average_commit[0])
             else:
                 fcm_times_by_model.append(average_time[0])
+                fcm_commits_by_model.append(average_commit[0])
 
+
+    fcm_commit_rate_by_model = [a / b for a, b in zip(fcm_commits_by_model, fcm_times_by_model)]
+    fcw_commit_rate_by_model = [a / b for a, b in zip(fcw_commits_by_model, fcw_times_by_model)]
 
     index = np.arange(4)
     bar_width = 0.35
-    rects1 = plt.bar(index, fcm_times_by_model, bar_width,
+    rects1 = plt.bar(index, fcm_commit_rate_by_model, bar_width,
             color='b', label='Manager', alpha=0.7)
-    rects2 = plt.bar(index+bar_width, fcw_times_by_model, bar_width,
+    rects2 = plt.bar(index+bar_width, fcw_commit_rate_by_model, bar_width,
             color='r', label = 'Worker', alpha=0.7)
     autolabel(rects1)
     autolabel(rects2)
     plt.xlim(-bar_width, len(index)+bar_width)
     plt.xlabel('Model')
-    plt.ylabel('Simulation Time (s)')
+    plt.ylabel('Event Rate')
     plt.xticks(index + bar_width, models)
     plt.legend()
     plt.show()

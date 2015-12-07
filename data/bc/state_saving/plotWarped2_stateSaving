@@ -37,6 +37,8 @@ def main():
     event_rate_lines = list()
     coasted_lines = list()
     rollback_lines = list()
+    rb_rate_lines = list()
+    cf_rate_lines = list()
 
     time_css = 0
     mem_css = 0
@@ -87,6 +89,8 @@ def main():
         efficiency = [a / b for a, b in zip(comm_y, proc_y)]
         rb_y = [a + b for a, b in zip(prb_y, srb_y)]
         average_coasted = [0 if b == 0 else a / b for a, b in zip(coast_y, rb_y)]
+        cf_rate = [a / b for a, b in zip(coast_y, time_y)]
+        rb_rate = [a / b for a, b in zip(rb_y, time_y)]
 
         addLineXY(speedup_lines, ssp_x, speedup_y, m)
         addLineXY(memory_lines, ssp_x, mem_reduction, m)
@@ -94,12 +98,16 @@ def main():
         addLineXY(event_rate_lines, ssp_x, event_rate, m)
         addLineXY(rollback_lines, ssp_x, rb_y, m)
         addLineXY(coasted_lines, ssp_x, average_coasted, m)
+        addLineXY(cf_rate_lines, ssp_x, cf_rate, m)
+        addLineXY(rb_rate_lines, ssp_x, rb_rate, m)
 
     addPlotXY(plots, "", "State Saving Period", "Speedup", speedup_lines)
     addPlotXY(plots, "", "State Saving Period", "% Decrease", memory_lines)
     addPlotXY(plots, "", "State Saving Period", "Average Coast Forward Events", coasted_lines)
     addPlotXY(plots, "", "State Saving Period", "Efficiency", efficiency_lines)
     addPlotXY(plots, "", "State Saving Period", "Total Rollbacks", rollback_lines)
+    addPlotXY(plots, "", "State Saving Period", "Coast Forward Rate", cf_rate_lines)
+    addPlotXY(plots, "", "State Saving Period", "Rollback Rate", rb_rate_lines)
 #    addPlotXY(plots, "Performance", "State Saving Period", "Event Rate", event_rate_lines)
 
     for i, p in enumerate(plots):

@@ -42,6 +42,8 @@ def main():
     rollback_lines = list()
     premote_lines = list()
     remote_lines = list()
+    rb_rate_lines = list()
+    cf_rate_lines = list()
 
     time_css = 0
     mem_css = 0
@@ -105,24 +107,31 @@ def main():
         average_coasted = [0 if b == 0 else a / b for a, b in zip(coast_y, rb_y)]
         premote = [(a + b) / (a + b + c + d) for a, b, c, d in zip(remotep_y, remoten_y, localp_y, localn_y)]
         remote = [(a + b) for a, b in zip(remotep_y, remoten_y)]
+        rb_rate = [a / b for a, b in zip(rb_y, time_y)]
+        cf_rate = [a / b for a, b in zip(coast_y, time_y)]
 
         addLineXY(speedup_lines, ssp_x, speedup_y, m)
         addLineXY(memory_lines, ssp_x, mem_reduction, m)
         addLineXY(efficiency_lines, ssp_x, efficiency, m)
 #        addLineXY(event_rate_lines, ssp_x, event_rate, m)
-        addLineXY(rollback_lines, ssp_x, rb_y, m)
-#        addLineXY(coasted_lines, ssp_x, average_coasted, m)
+        addLineXY(rollback_lines, ssp_x, prb_y, "{}-primary".format(m))
+        addLineXY(rollback_lines, ssp_x, srb_y, "{}-secondary".format(m))
+        addLineXY(coasted_lines, ssp_x, average_coasted, m)
 #        addLineXY(premote_lines, ssp_x, premote, m)
         addLineXY(remote_lines, ssp_x, remote, m)
+        addLineXY(rb_rate_lines, ssp_x, rb_rate, m)
+        addLineXY(cf_rate_lines, ssp_x, cf_rate, m)
 
     addPlotXY(plots, "", "State Saving Period", "Speedup", speedup_lines)
     addPlotXY(plots, "", "State Saving Period", "% Decrease", memory_lines)
-#    addPlotXY(plots, "", "State Saving Period", "Average Coast Forward Events", coasted_lines)
+    addPlotXY(plots, "", "State Saving Period", "Average Coast Forward Events", coasted_lines)
     addPlotXY(plots, "", "State Saving Period", "Efficiency", efficiency_lines)
     addPlotXY(plots, "", "State Saving Period", "Total Rollbacks", rollback_lines)
 #    addPlotXY(plots, "", "State Saving Period", "Event Rate", event_rate_lines)
 #    addPlotXY(plots, "", "State Saving Period", "% Remote", premote_lines)
     addPlotXY(plots, "", "State Saving Period", "Remote Events", remote_lines)
+    addPlotXY(plots, "", "State Saving Period", "Coast Forward Rate", cf_rate_lines)
+    addPlotXY(plots, "", "State Saving Period", "Rollback Rate", rb_rate_lines)
 
     for i, p in enumerate(plots):
         fig = plt.figure(i)
