@@ -277,8 +277,8 @@ communication and analyzes different approaches. Some preliminary results are sh
 to determining the best communication model, partitioning scheme and number of aggregated
 messages.
 
-Chapter \ref{big_little_platform} provides some observations of \textsc{warped2} on the
-ARM big.LITTLE architecture with Heterogeneous Multi-Processing (HMP).
+%%Chapter \ref{big_little_platform} provides some observations of \textsc{warped2} on the
+%%ARM big.LITTLE architecture with Heterogeneous Multi-Processing (HMP).
 
 Finally, Chapter \ref{conclude} contains some concluding remarks and suggestions for future
 research.
@@ -1004,10 +1004,12 @@ int main(int argc, const char **argv) {
 \section{Plans of Study}
 
 Experimental results will be presented throughout the remaining chapters as the various aspects
-of \textsc{warped2} are discussed. All chapters except for chapter \ref{big_little_platform} will
-contain experimental results for only x86 SMP nodes and clusters and will be targeted towards
-understanding and determining the best design options and configurations. Chapter \ref{big_little_platform}
-will contain seperate experiments and observations on the ARM big.LITTLE HMP platform.
+of \textsc{warped2} are discussed. All chapters
+%%except for chapter \ref{big_little_platform}
+will contain experimental results for only x86 SMP nodes and clusters and will be targeted towards
+understanding and determining the best design options and configurations.
+%%Chapter \ref{big_little_platform}
+%%will contain seperate experiments and observations on the ARM big.LITTLE HMP platform.
 
 The single node SMP experiments will be run on an Intel Xeon X5675 processor. The intel X5675
 has 6 cores with hyperthreading so that 12 simultaneous threads are supported.
@@ -1038,9 +1040,18 @@ table \ref{x86_platform} in appendix \ref{x86_nodes_and_clusters}.
 
 %% 
 
+\emph{Efficiency} is defined as:
+$$ Efficiency = {events_{committed}}/{events_{processed}} * 100 $$
+
+\noindent
+where $events_{committed}$ is the number of events that are processed and not rolled back and
+$events_{processed}$ is the total number of events that are processed whether they are rolled
+back or not. Thus, the efficiency is a measure of the percentage of events that are processed
+and not rolled back.
 
 
-\chapter{Interprocess Communication and Partitioning} \label{partitioning_communication}
+
+\chapter{Interprocess Communication} \label{partitioning_communication}
 
 This chapter first provides an overview of how to implement a system with a hybrid communication
 model. Then various partitioning schemes that are implemented in \textsc{warped2} are discussed
@@ -1071,14 +1082,15 @@ instability. Serialized or full multiple thread communication, however, can incr
 for access to MPI library calls and slow down the worker threads. Furthermore, it forces worker
 threads to take more time for serialization, deserialization, and memory allocation/deallocation.
 
-The plots in figure \ref{model_communication} summarize the performance of single, funnelled,
-serialized, and multiple thread communication in \textsc{warped2} for the Epidemic, PCS, and
-Traffic models. Furthermore, funnelled communication with aggregate messages is also shown.
+The plots in figure \ref{model_communication} summarize the performance and efficiency of single,
+funnelled, serialized, and multiple threaded communication in \textsc{warped2} for the Epidemic,
+PCS, and Traffic models. Funnelled communication with aggregated messages is also shown.
 
 For serialized communication, a single global spinlock is used to protect access to all MPI library
 calls. For the multithreaded communication models, 7 worker threads and a manager thread are used
-per noded and for single thread communication, 8 processes per node are used. Aggregated messages
-contain 5 ordinary messages.
+per node and for single threaded communication, 8 processes per node are used. Aggregated messages
+contain 5 ordinary messages which could be positive events, anti-messages, or other control
+tokens for GVT and termination detection.
 
 \pagebreak
 \begin{figure}
@@ -1121,41 +1133,100 @@ contain 5 ordinary messages.
       Efficiency - Traffic \\
     \end{center}
   \end{minipage}
-  \caption{Communication with Various Simulation Models}\label{model_communication}
+  \caption{Communication Models: Speedup and Efficiency}\label{model_communication}
 \end{figure}
 
+For the traffic and PCS simulation models, aggregated funnelled messages is a clear winner. It
+is also apparent that when using funnelled communication, aggregating messages makes a huge
+impact on increasing the efficiency. The epidemic model, on the other hand, works the best with
+a single threaded communication model. Both of these observations can be explained by looking
+at the percentage of events that are sent to a remote MPI process in figure \ref{communication_model_premote}.
 
+Only a small fraction of a percent of events are remote for epidemic but for PCS and traffic,
+the percentage of remote events is much larger. Having a much smaller percentage of remote
+events means that there will be very little synchronization overhead between threads and funnelled
+communication will only increase the communication latency, and thus increase rollbacks. As
+remote communication increases, however, the synchronization costs of worker threads increases
+and funnelling all communication to the manager thread can help to reduce synchronization and
+increase performance but the latency and rollbacks will both increase. Aggregating messages
+with funnelled communication can decrease the rollbacks even though latency is still increased
+since there is a chance that the anti-messages are sent with their positive counterpart.
 
-\section{Partitioning}
+\begin{figure}[H]
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_epidemic_premote.pdf} \\
+      \% Remote - Epidemic \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_pcs_premote.pdf} \\
+      \% Remote - PCS \\
+    \end{center}
+  \end{minipage}
+  \centering
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_traffic_premote.pdf} \\
+      \% Remote - Traffic \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \caption{Communication Models: \% Remote Events}\label{communication_model_premote} 
+\end{figure}
 
-\paragraph{Round-Robin} partitioning
+\section{Communication Tuning Parameters}
 
-The block size is the number of contiguous LPs that are allocated to a partition at a time.
-The block size can be between 1 and $NumLPs$/$NumProcesses$ where the former is a true round-robin
-partitioning scheme and the latter is a block partitioning scheme.
+To effectively scale simulations to larger number of nodes in a cluster, the interprocess communication
+should be minimized as much as possible to avoid synchronization and communication performance costs
+and rollbacks. To allow different types of models to run on larger scale cluster, \textsc{warped2}
+allows the user to choose how to partition LPs among the MPI processes and how many messages
+to aggregate for each receiver process. The following two sections will provide any overview
+of supported partitioning schemes and message aggregation, respectively.
 
-A block size in between the extreme values can be used to 
+\subsection{Interprocess Partitioning}
 
-\begin{figure}
+Partitioning the LPs among processes is necessary so that LPs that communicate with each other
+a lot remain on the same node and minimize network communication in clusters. Currently,
+\textsc{warped2} supports three partitioning schemes: \begin{inparaenum}[(1)] \item Round-Robin,
+\item Profile-Guided, and \item Custom \end{inparaenum}. 
+
+\paragraph{Round-Robin} partitioning is a simple partitioning scheme where $block\_size$ number
+of LPs are allocated to each process at a time and in order of increasing process id.
+$block size$ can be between 1 and $NumLPs$/$NumProcesses$ where the latter is simply known as
+block partitioning. From now on, a $block\_size$ of 1 will also be called simply round-robin.
+A block size in between the extreme values can be used in some models to make a second level
+partitioning scheme easier. Figure \ref{round_robin_partitioning} illustrates how a round-robin
+partitioning scheme would work with different values for $block_size$, where different partitions
+are represented by different colors and the numbers represent an LP id.
+
+\begin{figure}[H]
   \begin{center}
     \includegraphics[width=0.8\textwidth,keepaspectratio,quiet]{figs/graphviz/round_robin_partitioning.pdf} \\
     Round-Robin with blocksize = 1 \\
     \includegraphics[width=0.8\textwidth,keepaspectratio,quiet]{figs/graphviz/block_rr_partitioning.pdf} \\
     Round-Robin with blocksize = 2 \\
     \includegraphics[width=0.8\textwidth,keepaspectratio,quiet]{figs/graphviz/block_partitioning.pdf} \\
-    Round-Robin with blocksize = $NumLPs$/$NumProcesses$ \\
+    Round-Robin with blocksize = $NumLPs$/$NumProcesses$ (Block) \\
   \end{center}
-  \caption{Round Robin Partitioning}
+  \caption{Round Robin Partitioning}\label{round_robin_partitioning}
 \end{figure}
 
-\paragraph{Profile-Guided} partitioning is based on profile data that must be collected with a
-sequential simulation. The profile data contains a count of events for each communication pair
-of LPs. The partitioner uses that data to build a weighted graph and uses a graph partitioning
-tool to create partitions that minimize the cut-set.
+\paragraph{Profile-Guided} partitioning is based on profile data that is collected with a
+sequential simulation. The profile data contains a count of events for each communicating pair
+of LPs. When a time warp simulation is run, the partitioner uses that data to build a weighted
+graph and uses a graph partitioning tool to create partitions that minimize the cut-set so that
+cross-partition communication is also minimized. Profile-Guided partitioning should be used if
+a simulation model has a peculiar communication pattern among LPs that is not suitable for round-robin
+and does not implement a custom partitioning scheme. It will also work well for any odd number
+MPI processes which may not work well with other schemes.
 
-Profile guided partitioning is good for any number of partitions!!!!
+The plots in figure \ref{partitioning_8node} show a comparison of the round-robin, block, and
+profile-guided partitioning schemes.
 
-\begin{figure}
+\begin{figure}[H]
   \begin{minipage}{.5\textwidth}
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/partitioning_time_8node.pdf} \\
@@ -1176,13 +1247,18 @@ Profile guided partitioning is good for any number of partitions!!!!
       \% Remote Events \\
     \end{center}
   \end{minipage}
+  \caption{Interprocess Partitioning: 8 Node Cluster}\label{partitioning_8node}
 \end{figure}
 
-\section{Message Aggregation}
+\subsection{Aggregate Message Count}
 
-%% Explanation of why message aggregation works!!
-In general, MPI implementations are usually designed for coarse-grained parallelism with large
-message sizes.
+In general, MPI implementations are usually designed to efficiently use networking bandwidth
+and hence are better for coarse-grained parallelism with large message sizes. Parallel discrete
+event simulation is inherently fine-grained and the events are usually pretty small which makes
+it less suitable for MPI. To coarsen the granularity and make use the available network bandwidth,
+messages that are sent to the same destination process can be aggregated at the sender and
+split at the receiver. As seen previously, aggregating messages can also increases the efficiency
+of simulations.
 
 The idividual messages are aggregated into a single aggregate message until the aggregate message
 contains $N$ idividual messages or until a control message is included. A control message could be
@@ -1195,7 +1271,7 @@ of the header is easily determined by knowing how many individual message there 
 \ref{aggregate_format} illustrates the format of the aggregated message with the sizes of each
 field.
 
-\begin{figure}
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.8\textwidth,quiet]{figs/graphviz/aggregation_format.pdf}
     \caption{Aggregate Message Packet Format}\label{aggregate_format}
@@ -1205,49 +1281,49 @@ Size of the aggregated messages in bytes are:
 
 $$ 4 * (N + 1) + \sum_{n=0}^{N-1} length[n] $$
 
-%% Size based versus Number of messages.
-An alternative way of implementing message aggregation would be to combine messages until a
-certain size is reached rather than a number of messages.
+A message count approach was chosen over size base approach in \textsc{warped2} since the
+size of the messages would not be known until they are serialized and a seperate temporary buffer
+would be needed for each individual messaage before copying them into a new aggregate buffer.
+Using a header rather than a token seperator within the aggregate message is also necessary
+since a binary serialization technique is used making it impossible to deserialize the aggregate
+messages when they are received.
 
-Another alternative approach, that would minimize the size of the aggregated message would be to
-use a special character to seperate messages so that the header is not necessary.
+The plots in figures \ref{aggregate_pcs_traffic} show how various message aggregate sizes change
+performance, rollback, and remote events for the PCS and Traffic models. The results are also
+plotted for different state saving periods since different state saving period has a significant
+impact on the number of rollbacks and the number of remote events.
 
 \begin{figure}
-  \centering
   \begin{minipage}{.5\textwidth}
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_pcs_time.pdf} \\
-      Simulation Times (s) \\
-    \end{center}
-  \end{minipage}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_pcs_remote.pdf} \\
-      Remote Events \\
+      PCS - Simulation Times (s) \\
     \end{center}
   \end{minipage}%
   \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_pcs_rollbacks.pdf} \\
-      Rollbacks \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_traffic_time.pdf} \\
+      Traffic - Simulation Times (s) \\
     \end{center}
   \end{minipage}
-  \caption{Aggregate Messages: PCS Model}
-\end{figure}
-
-\begin{figure}
-  \centering
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_traffic_time.pdf} \\
-      Simulation Times (s) \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_pcs_remote.pdf} \\
+      PCS - Remote Events \\
     \end{center}
-  \end{minipage}
+  \end{minipage}%
+  \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_traffic_remote.pdf} \\
-      Remote Events \\
+      Traffic - Remote Events \\
+    \end{center}
+  \end{minipage}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_pcs_rollbacks.pdf} \\
+      PCS - Rollbacks \\
     \end{center}
   \end{minipage}%
   \hfill
@@ -1257,10 +1333,22 @@ use a special character to seperate messages so that the header is not necessary
       Rollbacks \\
     \end{center}
   \end{minipage}
-  \caption{Aggregate Messages: Traffic Model}
+  \caption{Aggregate Messages: PCS and Traffic Models}\label{aggregate_pcs_traffic}
 \end{figure}
 
-\begin{figure}
+The results for PCS and Traffic indicate that just a small number of aggregated messages has
+a durastic effect on increasing performance, and decreasing remote events and rollbacks. With
+a larger state saving period, the performance drops off much faster with an increasing number
+of aggregated messages than with a small state saving period. This is probably due a decrease
+in the forward computation time which would make the increased latency from message aggregation
+much more intolerable. 
+
+Not all models benefit from message aggregation, however. Figure \ref{aggregate_epidemic}
+illustrates this for the epidemic model which has very little interprocess communication.
+With such little remote communication due to excellent partitioning capabilities, any amount
+of message aggregation only hurts performance by increasing communication latency.
+
+\begin{figure}[H]
   \centering
   \begin{minipage}{.5\textwidth}
     \begin{center}
@@ -1281,14 +1369,15 @@ use a special character to seperate messages so that the header is not necessary
       Rollbacks \\
     \end{center}
   \end{minipage}
-  \caption{Aggregate Messages: Epidemic Model}
+  \caption{Aggregate Messages: Epidemic Model}\label{aggregate_epidemic}
 \end{figure}
 
 \section{Scaling up the Simulation Model}
 
 All previous simulation results have been from simulation models that were configured for
 10,000 LPs. This section analyzes the behavior of the simulations when the number of LPs are
-scaled up to larger numbers on an 8 node cluster. 
+scaled up to larger numbers on an 8 node cluster. Figure \ref{scaling} shows how the traffic
+and PCS simulation model scale up with 5 messages aggregated and no message aggregation.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -1311,8 +1400,24 @@ scaled up to larger numbers on an 8 node cluster.
       Event Rate \\
     \end{center}
   \end{minipage}
-  \caption{Scaling on Cluster: Efficiency and \% Remote Events}
+  \caption{Scaling \#LPs on a Cluster}\label{scaling}
 \end{figure}
+
+It appear, from these results, that as these models are scaled up, the benefit of aggregated
+messages decreases. That is, the efficiency and percent remote events for aggregate versus
+individual messages converge with more LPs.
+
+In general, whether aggregate messages are used or not, scaling up the number of LP always has
+the same effect. The efficiency increases significantly due to the work being spread out among
+more LPs. Statistically, the odds that two LPs will send events to the same LP and the receiving
+LP will process them out of order diminishes with a scaled simulation model.
+Also, each process processes events for a larger subset of the LPs. If the simulation model can
+be partitioned well in any way, scaling up will only make partitioning more effective since
+the cross-partition communication will remain small as the partition size grows. This is what
+ultimately reduces the reduction in the percentage of events that are remote.
+The event rate tends to decrease, however as the number of LPs increases. The reason for this
+is that each worker thread will have to use a larger percent its time to fossil collect LPs
+instead of processing events.
 
 
 
@@ -1440,7 +1545,7 @@ memory systems to differentiate between the same events which could be resent af
 keeps track of the number of events that have been sent from the LP. The count is then
 tagged in the event when it is sent and used for comparison at the receiver.
 
-\subsection{Performance Tuning Parameters}
+\section{Performance Tuning Parameters}
 
 To allow \textsc{warped2} to run on a large range of machines with different architectures and
 characteristics, a number of parameters are provided for the user to tune the simulation mechanism
@@ -1448,7 +1553,7 @@ for their needs. In the current implementation, the four main parameters that wi
 performance on a single SMP machine are the number of worker threads, the number of LTSF Queues,
 the LTSF partitioning method, and the state saving period.
 
-\subsubsection{Worker Threads and LTSF Queues}
+\subsection{Worker Threads and LTSF Queues}
 
 The number of worker threads that should be used will depend on the number of processors of the
 machine so it is left as a tunable parameter. \textsc{warped2} also allows the user to choose
@@ -1462,7 +1567,6 @@ and the number of rollbacks can increase significantly. The extent to which thes
 depending on the characteristics of the simulation model. Furthermore, they may also vary as
 the data structures and algorithms in \textsc{warped2} evolve to minimize contention.
 
-
 The plots shown in figure \ref{ltsf_analysis} illustrate the effects of increasing the number
 of LTSF queues with 10 worker threads. For the analysis of LTSF queues, speedup will be defined
 as:
@@ -1472,16 +1576,7 @@ $$ Speedup_{LTSF} = runtime_{1}/runtime_{n} $$
 \noindent
 where $runtime_{1}$ is the run time for a single LTSF queue and $runtime_{n}$ is the runtime
 for $n$ LTSF queues. The speedup is a better measure over runtime because it is shows relative
-performances and multiple simulation models can be compared. Another measure called the
-\emph{efficiency} is defined as:
-
-$$ Efficiency = {events_{committed}}/{events_{processed}} * 100 $$
-
-\noindent
-where $events_{committed}$ is the number of events that are processed and not rolled back and
-$events_{processed}$ is the total number of events that are processed whether they are rolled
-back or not. Thus, the efficiency is a measure of the percentage of events that are processed
-and not rolled back.
+performances and multiple simulation models can be compared.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -1517,7 +1612,7 @@ larger models, the efficiency would be expected to be better. Therefore, scaling
 of worker threads and LTSF queues together may not hinder performance if the simulation model
 is also scaled up since efficiency and contention will not get worse. 
 
-\subsubsection{LTSF Queue Partitioning}
+\subsection{LTSF Queue Partitioning}
 
 The LPs can also be partitioned between LTSF queues in various ways just like partitioning between
 processes. In fact, there is only a single partitioning parameter for both levels of partitioning.
@@ -1586,7 +1681,7 @@ connected as a grid of 100 x 100 LPs. Since the number of LTSF queues is a facto
 dimensions, the round-robin partitioning will still provide north-south locality. The same is
 not true with 8 LTSF queues so the simulations will be more unbalanced.
 
-\subsubsection{State Saving Period}
+\subsection{State Saving Period}
 
 Instead of saving the state of the LPs after every processed event processed, \textsc{warped2}
 allows the user to choose a state saving period value, $N$, so that each LP only has its state
@@ -1597,17 +1692,20 @@ get to the necessary state in a process known as \emph{coast forwarding}. The to
 rolling back, however, is small compared to the time taken for forward computation for moderate
 values of $N$.
 
-Figures \ref{ssp_analysis_smp_performance} and \ref{ssp_analysis_cluster} show the speedup over
-copy state saving and the efficiency as the state saving period is increased for all models for
-a single SMP machine and an 8 node cluster. $Speedup_{CSS}$ is defined as:
+Figure \ref{ssp_analysis_smp_performance} shows the speedup over copy state saving
+and average number of coast forwarded events per rollback as the state saving period is increased
+for all models on a single SMP machine. $Speedup_{CSS}$ is defined as:
 
 $$ Speedup_{CSS} = runtime_{1}/runtime_{N} $$
 
 \noindent
-where $runtime_{1}$ is the runtime with every state saved and $runtime_{N}$ is runtime with the
-state saving period of $N$.
+where $runtime_{1}$ is the runtime with a state saving period of 1 and $runtime_{N}$ is runtime
+with the state saving period of $N$. The coast forward rate and rollback rate are also used to
+analyze state saving and are related by:
 
-\begin{figure}
+$$ {Coast Forward Rate} = {Coast Forward Events \over Rollbacks} * {Rollback Rate}$$
+
+\begin{figure}[H]
   \begin{minipage}{.5\textwidth}
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/speedup.pdf} \\
@@ -1617,12 +1715,37 @@ state saving period of $N$.
   \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/efficiency.pdf} \\
-      $Efficiency$ \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/rb_rate.pdf} \\
+      $Rollback Rate$ \\
+    \end{center}
+  \end{minipage}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+    \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/average_cf.pdf} \\
+    ${Coast Forward Events \over Rollbacks}$
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+    \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/cf_rate.pdf} \\
+    $Coast Forward Rate$
     \end{center}
   \end{minipage}
   \caption{Periodic State Saving: Performance on SMP Machine}\label{ssp_analysis_smp_performance}
 \end{figure}
+
+For a single SMP machine, the speedup increases significantly for low state saving periods and
+flattens out pretty quickly. The initial speedup is a result of decreasing forward computation
+time by removing extra copying. As the state saving period increases though, the coast forward 
+increases to the point where it will cancel out the reduced time from reduced copying. An interesting
+result is that even though the rollback rate increases for lower state saving periods, a speedup
+is still observed. The coast forwarded rate depends on both the total rollback rate and the
+average number of events coast forwarded per rollback. The rollback rate decays exponentially
+but the average number of coast forward events per rollback increases linearly. Therefore the
+coast forward rate still increases logarithmically as the state saving period increases since
+the average number of events coast forwarded per rollback grows at faster rate than the rollback
+rate decreases. Similar results can be seen in figure \ref{ssp_analysis_cluster} for a cluster.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -1634,31 +1757,34 @@ state saving period of $N$.
   \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/efficiency.pdf} \\
-      $Efficiency$ \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/rb_rate.pdf} \\
+      $Rollback Rate$ \\
     \end{center}
   \end{minipage}
-  \caption{Periodic State Saving on Cluster: Speedup and Efficiency}\label{ssp_analysis_cluster}
-\end{figure}
-
-\begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/rollbacks.pdf} \\
-      Rollbacks \\
+    \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/average_cf.pdf} \\
+    ${Coast Forward Events \over Rollbacks}$
     \end{center}
   \end{minipage}%
   \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/remote_events.pdf} \\
-      Remote Events \\
+    \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/cf_rate.pdf} \\
+    $Coast Forward Rate$
     \end{center}
   \end{minipage}
-  \caption{Periodic State Saving on Cluster: Remote Events and Rollbacks}\label{ssp_analysis_cluster1}
+  \caption{Periodic State Saving: Performance on Cluster}\label{ssp_analysis_cluster}
 \end{figure}
 
-\subsection{Protecting Access to LTSF Queues}
+There are few key observations that become apparent on a cluster that are not seen on a single
+SMP machine. The most apparent is that once the state saving period is increased large enough,
+a noticable jump in the rollback rate starts degrading performance. This is easily explained
+by looking at the magnitude of the rollback rates and coast forward rate for a cluster versus
+a single SMP machine. The cluster has a much larger coast forward rate due to an increased rollback
+rate which is a result of an increased discrepancy in communication latency and event processing time.
+
+\section{Protecting Access to LTSF Queues}
 
 Worker threads must be able to access shared data structures without the possibility of
 race conditions. To deal with this, \textsc{warped2} uses mutexes to serialize worker thread
@@ -1666,8 +1792,8 @@ access to any section of code that accesses the LTSF queue. This method, however
 slows down access to the LTSF queues. In the default configuration, blocking mutexes are used
 which means that if a thread cannot aqcuire a the lock, it will be put to sleep and rescheduled
 for execution at a later time. However, this method can waiste a lot of exta time if access to the
-critical section is quick. All of these accesses are quick so
-the lock should only held for a short period of time.
+critical section is quick. All of the accesses to the LTSF queues are quick in \textsc{warped2}
+so the locks should only held for a short period of time.
 
 A \emph{spinlock} is a type of mutex that does not force threads to be rescheduled but
 instead continue to attempt to aqcuire the lock over and over until it successfully acquires
@@ -1677,7 +1803,7 @@ number of total threads is larger than the number of available processors, spinl
 even worse because a thread can be involuntarily pre-empted while holding the lock and entire
 timeslices can be waisted.
 
-\subsubsection{Spinlocks in \textsc{warped2}}
+\subsection{Spinlocks in \textsc{warped2}}
 
 \textsc{warped2} allows the user to optionally build the kernel to use spinlocks instead of
 blocking mutexes. It is not set as the default because spinlocks do not work well in all cases
@@ -1706,11 +1832,10 @@ release procedures is shown below in algorithm \ref{ticket_lock}.
     \caption{Ticket Lock Procedures\cite{wiki:ticketlock-15}}\label{ticket_lock}
 \end{algorithm}
 
-\noindent
 To acquire the lock, each thread atomically increments a counter and takes the old value as
-a "ticket" to provide first in first out order. Then when the ticket value reaches that
+a "ticket" to provide FIFO ordering. Then when the central ticket cound reaches the ticket number
 of the waiting thread, access to the critical section is given. To release the lock, the thread
-simply increments the ticket number and allows the next thread to access the critical section.
+simply increments the central ticket counter and allows the next thread to access the critical section.
 If there is no contention for the lock, the next number will be equal to the ticket number and
 a thread can access the critical section immediately.
 
@@ -1840,7 +1965,7 @@ with event processing. For this reason, asynchronous GVT algorithms perform much
 than synchronous GVT algorithms but are harder to implement because special cases must be
 considered.
 
-There are two special cases that must be considered in any GVT algorithms:
+There are two special cases that must be considered in a GVT algorithms:
 
 \begin{description}
     \item[Transient Message Problem:] is caused by messages(events) that have been sent by
@@ -1938,10 +2063,13 @@ operations very quickly.
 
 \subsection{GVT in \textsc{Warped2}}
 
-To calculate the GVT in \textsc{warped2}, Fujimoto's shared memory algorithm is used between
-worker threads and a variation of Mattern's algorithm with scalar message counters is used
-between processes. Fujimoto's algorithm is a subalgorithm of Mattern's algorithm. The details
-of the Mattern's algorithm implementation in \textsc{warped2} is detailed below as well as how
+\textsc{warped2} implements both a synchronous and asynchronous GVT algorithms. For the
+asynchronous GVT algorithm, Fujimoto's shared memory algorithm is used between worker threads
+and a variation of Mattern's algorithm with scalar message counters is used between processes.
+The synchronous algorithm is based on the global reduction algorithm mentioned above but also
+includes a reduction between worker threads as well as two thread synchronization barriers.
+
+The details of how the the Mattern's algorithm implementation in \textsc{warped2} is detailed below as well as how
 it is used with Fujimoto's algorithm. More details on Fujimoto's algorithm will not be detailed
 but they can be found by reading \cite{fujimoto-94}.
 
@@ -1979,13 +2107,13 @@ the colors must also be switched between successive runs.
             $e \gets \GetNextEvent{}$\;
             $lp \gets$ receiver of $e$\;
 
+            \If{$localGVTFlag_i$ and ($workerThread_i$ hasn't reported local min)}{
+                \Report{$timestamp_e$}\;
+            }
+
             \If{$e$ is straggler}{
                 Rollback\;
                 \Continue\;
-            }
-
-            \If{$localGVTFlag_i$ and ($workerThread_i$ hasn't reported local min)}{
-                \Report{$timestamp_e$}\;
             }
 
             $newEvents \gets \ProcessEvent{e}$\;
@@ -2033,13 +2161,13 @@ the colors must also be switched between successive runs.
                 $clock_{min} \gets \infty$
                 $msgcount \gets msgcount_{initial}$\;
                 $msgcount_{initial} \gets 0$\;
-            } \ElseIf {($localGVTFlag$ equals 0) and (started local GVT)}{
+            } \ElseIf {($localGVTFlag = 0$) and (started local GVT)}{
                 $localMin = \infty$\;
                 \ForEach{worker thread, i}{
                     $localMin \gets \min{(localMin, localMin_i)}$\;
                 }\;
 
-                \uIf{$processCount$ > 1}{
+                \uIf{$processCount > 1$}{
                     \SendToken{$i, (i+1) \bmod N, localMin, \min{(ts_{min}, clock_{min})}, msgcount$}\;
                 } \Else {
                     $gvtApprox \gets localMin$\;
@@ -2049,7 +2177,7 @@ the colors must also be switched between successive runs.
     }\;
 
     \ReceiveToken{
-        \uIf{$ID_process$ does not equal 0}{
+        \uIf{$PID \neq 0$}{
             \If{$color = color_{initial}$}{
                 $ts_{min} \gets \infty$\;
                 Toggle Color\;
@@ -2058,7 +2186,7 @@ the colors must also be switched between successive runs.
             $localGVTFlag \gets numWorkerThreads$\;
             $clock_{min} \gets \min{(clock_{min}, mclock)}$\;
         } \Else {
-            \uIf {$mcount$ equals 0} {
+            \uIf {$mcount \neq 0$} {
                 $gvtApprox \gets \min{(mclock, msend)}$\;
                 Broadcast $gvtApprox$\;
             } \Else {
@@ -2079,7 +2207,7 @@ the colors must also be switched between successive runs.
 \SetKwBlock{ProgressGVTs}{progressGVT}{end}
 
     \ProgressGVTs{
-        $localGVTFlag \gets true$\;
+        $localGVTFlag \gets 1$\;
         $THREAD\_BARRIER$\;\;
 
         \While{$true$}{
@@ -2088,14 +2216,14 @@ the colors must also be switched between successive runs.
             $\sumAllreduce{localMsgCount, globalMsgCount}$\;
         }\;
 
-        $localMin = \infty$\;
+        $localMin \gets \infty$\;
         \ForEach{worker thread, i}{
             $localMin \gets \min{(localMin, \min{(localMin_i, sendMin_i)})}$\;
         }\;
 
         $\minAllreduce{localMin, GVT}$\;\;
 
-        $localGVTFlag \gets false$\;
+        $localGVTFlag \gets 0$\;
         $THREAD\_BARRIER$\;
     }
 
@@ -2120,7 +2248,8 @@ any parallel discrete event simulation must satisfy the following properties:
 
 \begin{description}
     \item[Safety Property:] Termination will not be detected if any unprocessed event is still
-        present in system which includes all local pending event sets and events still in transit.
+        present in system which includes all unprocessed events that have been received at each
+        process and events still in transit.
     \item[Liveness Property:] Termination will be detected at some finite amount of time after
         all events have been processed.
 \end{description}
@@ -2191,21 +2320,22 @@ algorithm \ref{termination_token_receive}.
 \SetKw{And}{ and }
 \SetKwFunction{SendToken}{SendToken}
     $initiator \gets true$\;
-    \If{$state_{sticky} = PASSIVE \And state_{process} = minitiator$} {
-        \If{$mstate = PASSIVE$} {
+    \If{$state_{sticky} = PASSIVE \And PID = minitiator$} {
+        \If{$mstate = PASSIVE$ \And $mcount = 0$} {
             Signal termination\;
         }
     } \ElseIf{$state_{sticky} = PASSIVE$} {
         $initiator \gets false$\;
-        \SendToken{$mstate, minitiator$}\;
+        \SendToken{$mstate, minitiator, mcount$}\;
     }
     $state_{sticky} \gets state_{actual}$\;
 \caption{Termination Token Receive Procedure}\label{termination_token_receive}
 \end{algorithm}
 
 It should also be noted that this algorithm is only guarenteed to work if the message order
-is preserved between any two processes. If that is not the case, then message counters or
-acknowledgements are necessary to ensure transient activation messages are not missed.
+is preserved between any two processes or if it can be determined that no transient messages
+can exist. For this reason, the termination algorithm also keeps message counters and accumulates
+the counters from each process just like with GVT.
 
 
 
@@ -2293,14 +2423,9 @@ methods such as global state checkpointing must also be implemented to recover f
 \subsection{Fossil Collection in \textsc{warped2}}
 
 Currently, \textsc{warped2} implements a GVT-based fossil collection. The GVT is calculated by
-the manager thread, but the worker threads carry out the fossil collection. Each LP keeps track
-of the last GVT value that it was last fossil collected and after each processed event, it is
-compared to the current GVT value, and the LP is fossil collected if the value is smaller than
-the GVT.
-
-There are two ways that fossil collection can be achieved in \textsc{warped2}. The first way
-is to have the worker threads fossil collect one LP at a time as they process events. The last
-fossil collect time can be recorded for each LP so that the worker threads can know when fossil
+the manager thread but there are two ways that fossil collection can be achieved in \textsc{warped2}.
+The first way is to have the worker threads fossil collect one LP at a time as they process events.
+The last fossil collect time can be recorded for each LP so that the worker threads can know when fossil
 collection is needed by comparing the times to the current GVT. The second way is to have the
 manager thread fossil collect all LPs. Once the GVT is calculated, all LPs can be fossil collected
 all at once.
@@ -2311,40 +2436,20 @@ processed queue, output queue, and state queue for each LP. Worker thread fossil
 will be the more scalable approach for both the number of LPs and the number of processes since
 the manager thread must perform other tasks such as GVT and interprocess communication.
 
-Figure \ref{fc_times} shows how the simulation times compare in a single SMP machine with
+Figure \ref{fc_times} shows how the event rates compare in a single SMP machine with
 10 worker threads, 10 LTSF Queues, a GVT period of 100ms, and a state saving period of 25 events.
 
 \begin{figure}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \begin{tabular}{| c | c |}
-        \hline
-        Model   & Maximum Time \\
-        \hline
-        PCS     & 10,000  \\
-        Traffic & 100,000 \\
-        Epidemic& 100,000 \\
-        Airport & 100,000 \\
-        \hline
-      \end{tabular}\\
-      (a) Termination Times
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,quiet]{figs/fossil_collection/simulation_times.pdf}\\
-      (b) Simulation Run Times
-    \end{center}
-  \end{minipage}
+  \centering
+  \includegraphics[width=\textwidth,quiet]{figs/fossil_collection/event_rates.pdf}\\
   \caption{Performance Comparison for Fossil Collection Methods}\label{fc_times}
 \end{figure}
 
-The results show that on average, having the worker threads do fossil collection yields slightly
-better performance, but not much. It is uncertain what will happen when the manager thread has
-more LPs to fossil collect or if it had remote messages to send. The time taken to fossil collect
-with more LPs could interfere with sending and receiving remote messages or with calculating
-the GVT.
+The results show that on average, having the manager thread do fossil collection will yields a
+slightly better event rate, but not significant. It is uncertain what will happen when the
+manager thread has more LPs to fossil collect or if it had remote messages to send. The time
+taken to fossil collect with more LPs could interfere with sending and receiving remote messages
+or with calculating the GVT.
 
 One observation is that unstable behavior will occur with manager thread fossil collection
 if the state saving period is set very low with model that have a large state size such as with
@@ -2353,6 +2458,10 @@ be due to fossil collection interfering with the GVT calculation which would fur
 to build up faster than it can be freed. Each fossil collection period and GVT period will grow
 and grow in a positive feedback loop until memory in the system runs out.
 
+Ultimately, a worker thread approach was chosen so that the \textsc{warped2} will be able to
+safely scale up simulations in terms of both the number of LPs and the number of nodes. We feel
+that adding better scalability outweighs the loss in the single node event rate, especially since
+scaling up the number of nodes will still allow faster event rates anyway.
 
 \section{Memory Allocation}
 
@@ -2383,56 +2492,105 @@ TCMalloc is a memory allocator that is designed to efficiently allocate memory i
 multi-threaded applications liked \textsc{warped2}. In TCMalloc, seperate thread-local
 caches of free memory are maintained to avoid contention when allocating and freeing memory.
 
-All results shown before now have all been with TCMalloc
+All results shown before now have all been with TCMalloc but until now, we have not shown why.
+A comparison of the event rates for ptmalloc2 which is the default allocator for GLIBC and tcmalloc
+is shown in figure \ref{allocator_analysis_eventrate}.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/ptm_times.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/ptmalloc_eventrate.pdf} \\
       PTMalloc2 \\
     \end{center}
   \end{minipage}%
   \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/tcm_times.pdf} \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/tcmalloc_eventrate.pdf} \\
       TCMalloc \\
     \end{center}
   \end{minipage}
-  \caption{Memory Allocator Performance Comparison}\label{allocator_analysis}
+  \caption{Memory Allocator Event Rate Comparison}\label{allocator_analysis_eventrate}
 \end{figure}
 
+TCMalloc is the clear winner in terms of speed and scalability. For the aiport model, it may
+appear that ptmalloc2 almost performs as well as tcmalloc but this is just a special case since
+aiport is a smaller model with less LPs and thus requires less memory. The more interesting
+observation is what happens when the number of worker threads reaches six and the event rate
+drops. However, it is just a result of the underlying architecture of the
+Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} X5675. As shown in
+table \ref{x86_platform} in appendix \ref{x86_nodes_and_clusters}, it supports up to 12 simultaneous
+threads on 6 cores. By adding a sixth worker thread which is the seventh thread counting the
+manager thread, we may start seeing some bad cache effects such as false sharing, or inconsistent
+task scheduling. An imbalance can also be observed in the number of rollbacks as shown in
+figure \ref{allocator_analysis_efficiency} which shows the efficiency with ptmalloc2 and tcmalloc.
+
 \begin{figure}
-  \centering
-  \includegraphics[width=\textwidth,quiet]{figs/memory_allocation/tcmalloc_speedup.pdf}
-  \caption{TCMalloc Speedup with Varying Worker Threads}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/ptmalloc_efficiency.pdf} \\
+      PTMalloc2 \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/tcmalloc_efficiency.pdf} \\
+      TCMalloc \\
+    \end{center}
+  \end{minipage}
+  \caption{Memory Allocator Efficiency Comparison}\label{allocator_analysis_efficiency}
 \end{figure}
+
+Figure \ref{allocator_analysis_efficiency} also illustrates how ptmalloc2 can lead to unstable
+behavior with a smaller number of threads. The reason for this may come from the data structures
+that are used by the allocators. With both ptmalloc2 and tcmalloc, a thread-local cache is used
+to allocate memory from but with ptmalloc2, freed memory cannot move from one local cache to
+another and must be obtained from the OS. This alone, can create an imbalance in processing
+speed among threads and trigger lots of rollbacks.
 
 \section{Memory Tuning Parameters in \textsc{warped2}}
 
 To allow \textsc{warped2} to run on machines that might have different memory constraints,
 some parameters are available for fine tuning the memory footprint of the simulation. The
-two main parameters that make a difference with regard to memory are the state saving period
-and the GVT period.
+three main parameters that make a difference with regard to memory are the number of LTSF queues,
+the state saving period and the GVT period. For this analysis, the Average Peak Memory will be
+defined as:
+
+$$ Average Peak Memory = {\sum_{n=0}^{N-1} {mem[n]} \over N} $$
+
+\noindent
+where $mem[n]$ is the amount memory allocated just after the $n$\textsuperscript{th} GVT calculation
+but before fossil collection and $N$ is the total number of GVT calculations.
 
 \subsection{Number of LTSF Queues}
 
+Increasing the number of LTSF Queues can speed up the simulation significantly by removing
+the necessity to be shared among worker threads. However, by increasng the number of LTSF queues,
+more memory is required. The plot in figure \ref{ltsf_memory} illustrates this by showing the
+percent increase in average peak memory. For all data points, the LTSF queues were shared among
+10 worker threads. Also the memory measurements are taken from the actual memory used by a
+\textsc{warped2} process, and not the memory allocated by the OS for the process.
+
 \begin{figure}
   \centering
-  \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/pending_event_set/ltsf_memory_increase.pdf}
-  \caption{LTSF Queues: \% Increase in Average Peak Memory}
+  \includegraphics[width=0.6\textwidth,keepaspectratio,quiet]{figs/pending_event_set/ltsf_memory_increase.pdf}
+  \caption{LTSF Queues: \% Increase in Average Peak Memory}\label{ltsf_memory}
 \end{figure}
+
+The reason for this increase in memory as more LTSF queues are used is due to spread out of the
+critical path of the simulation which increases the odds that events will be received out of
+order and cause a rollback. Because of this, the GVT will progress more slowly and more previous
+states and events will have to be saved. 
 
 \subsection{State Saving Period}
 
 The state saving period is just as important for reducing memory requirements as it is for
 speeding up event processing. A larger state saving period means that fewer states must remain
 in memory but also means that more processed events must be saved. Therefore the amount of
-memory required will depend on the relative sizes of states and events. Not only that, but it
-will also depend on the extent to which the simulation follows the critical path. If more
-rollbacks can occur, then fewer events and states will need to be saved. Users should pay attention
-to this when scaling up the number of LTSF queus and the number of processes, which will spread
-out the critical path more.
+memory required will depend on the relative sizes of states and events. The percent memory
+reduction with an increasing state saving period is shown in figure \ref{ssp_analysis_smp_memory}
+for various simulation models.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -2448,16 +2606,10 @@ out the critical path more.
       8 Node Cluster
     \end{center}
   \end{minipage}
-  \caption{Periodic State Saving: \% Decrease in Average Peak Memory on SMP Machine}\label{ssp_analysis_smp_memory}
+  \caption{Periodic State Saving: \% Decrease in Average Peak Memory}\label{ssp_analysis_smp_memory}
 \end{figure}
 
-It is apparent these results that the benefits of increasing the state saving period are very good
-for lower periods due to less copying and lower memory requirements. However, with larger periods
-the increased number of coast foward events will start to counteract the copying and memory
-overheads. The memory requirements will increase due to the extra processed events saved for
-coast forwarding. The increased rollback time doesn't seem to make much difference even at large
-periods but the memory footprint increases linearly so the ideal period should be the point at
-which the memory requirements are the lowest. The ideal period will be different for all models
+The best state saving period for memory reduction will be different for all models
 because it will depend on the relative size of the events and states. The period for the PCS,
 Traffic, and Airport models appears to be the best around 25 but for the Epidemic model which
 has a large state to event ratio will be much larger.
@@ -2478,8 +2630,8 @@ as the previous experiments. The peak memory is the point in time right after GV
 since fossil collection is initiated by a GVT calculation. As expected, the average peak memory
 increases with an increased GVT period for all models. The performance of the simulations, on
 the other hand, is not affected by the GVT period at all except for extremely low values at ~1ms
-which is smaller than should ever need to be used. Even with an extremely small period, the
-performance is only worsened by a very small amount.
+which is as small as it can be and probably smaller than it should ever need to be used. Even
+with an extremely small period, the performance is only worsened by a very small amount.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -2493,125 +2645,136 @@ performance is only worsened by a very small amount.
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/fossil_collection/time_fcw.pdf} \\
     \end{center}
   \end{minipage}
-  \caption{Memory and Performance Comparison for Various GVT Periods}\label{fc_memory_analysis}
+  \caption{GVT Period: Memory and Performance Comparison}\label{fc_memory_analysis}
 \end{figure}
 
 
 
-\chapter{ARM big.LITTLE Platform}\label{big_little_platform}
+%%\chapter{ARM big.LITTLE Platform}\label{big_little_platform}
 
-\pagebreak
+%%\pagebreak
 
-\begin{table}
-    \centering
-    \begin{tabular}{|| l | l | c c ||}
-    \hline
-        \multicolumn{2}{|l|}{} & \multicolumn{2}{c||}{Exynos 5422} \\ \cline{3-4}
-        \multicolumn{2}{|l|}{} & Cortex-A15 & Cortex-A7 \\ [0.5ex]
-        \hline\hline
-        \multirow{8}{*}{Processor}
-            & ISA           & \multicolumn{2}{c||}{ARMv7} \\
-            & \# Cores      & 4         & 4 \\
-            & \# Threads    & \multicolumn{2}{c||}{8} \\
-            & Frequency     & 2.0 GHz   & 1.4 GHz \\
-            & L1 Data Cache & 32kB      & 32kB \\
-            & L1 Inst Cache & 32kB      & 32kB \\
-            & L2 Cache      & 2MB       & 512kB\\
-        \hline
-        \multirow{2}{*}{Memory}
-            & Type          & \multicolumn{2}{c||}{2 x LPDDR3-933}  \\
-            & Max Bandwidth & \multicolumn{2}{c||}{14.9 GB/s}       \\
-        \hline
-        \multirow{3}{*}{Runtime}
-            & OS Kernel         & \multicolumn{2}{c||}{Linux 3.10.82}                   \\
-            & C Library         & \multicolumn{2}{c||}{Ubuntu EGLIBC 2.19-0ubuntu6.1}   \\
-            & Compiler          & \multicolumn{2}{c||}{GCC v4.8.2}                      \\
-            & MPI               & \multicolumn{2}{c||}{OpenMPI v1.8.5a1}                \\
-            & Memory Allocator  & \multicolumn{2}{c||}{TCMalloc v2.4}                   \\
-        \hline
-    \end{tabular}
-    \caption{ODROID XU3 Platforms}\label{odroid_platform}
-\end{table}
+%%\begin{table}
+%%    \centering
+%%    \begin{tabular}{|| l | l | c c ||}
+%%    \hline
+%%        \multicolumn{2}{|l|}{} & \multicolumn{2}{c||}{Exynos 5422} \\ \cline{3-4}
+%%        \multicolumn{2}{|l|}{} & Cortex-A15 & Cortex-A7 \\ [0.5ex]
+%%        \hline\hline
+%%        \multirow{8}{*}{Processor}
+%%            & ISA           & \multicolumn{2}{c||}{ARMv7} \\
+%%            & \# Cores      & 4         & 4 \\
+%%            & \# Threads    & \multicolumn{2}{c||}{8} \\
+%%            & Frequency     & 2.0 GHz   & 1.4 GHz \\
+%%            & L1 Data Cache & 32kB      & 32kB \\
+%%            & L1 Inst Cache & 32kB      & 32kB \\
+%%            & L2 Cache      & 2MB       & 512kB\\
+%%        \hline
+%%        \multirow{2}{*}{Memory}
+%%            & Type          & \multicolumn{2}{c||}{2 x LPDDR3-933}  \\
+%%            & Max Bandwidth & \multicolumn{2}{c||}{14.9 GB/s}       \\
+%%        \hline
+%%        \multirow{3}{*}{Runtime}
+%%            & OS Kernel         & \multicolumn{2}{c||}{Linux 3.10.82}                   \\
+%%            & C Library         & \multicolumn{2}{c||}{Ubuntu EGLIBC 2.19-0ubuntu6.1}   \\
+%%            & Compiler          & \multicolumn{2}{c||}{GCC v4.8.2}                      \\
+%%            & MPI               & \multicolumn{2}{c||}{OpenMPI v1.8.5a1}                \\
+%%            & Memory Allocator  & \multicolumn{2}{c||}{TCMalloc v2.4}                   \\
+%%        \hline
+%%    \end{tabular}
+%%    \caption{ODROID XU3 Platforms}\label{odroid_platform}
+%%\end{table}
 
-\section{Comparison of Big and LITTLE Performances}
+%%\section{Comparison of Big and LITTLE Performances}
 
-\begin{figure}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/pcs_rr.pdf} \\
-      PCS \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/traffic_rr.pdf} \\
-      Traffic \\
-    \end{center}
-  \end{minipage}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/epidemic_rr.pdf} \\
-      Epidemic \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/airport_rr.pdf} \\
-      Airport \\
-    \end{center}
-  \end{minipage}
-\end{figure}
+%%\begin{figure}
+%%  \begin{minipage}{.5\textwidth}
+%%    \begin{center}
+%%      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/pcs_rr.pdf} \\
+%%      PCS \\
+%%    \end{center}
+%%  \end{minipage}%
+%%  \hfill
+%%  \begin{minipage}{.5\textwidth}
+%%    \begin{center}
+%%      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/traffic_rr.pdf} \\
+%%      Traffic \\
+%%    \end{center}
+%%  \end{minipage}
+%%  \begin{minipage}{.5\textwidth}
+%%    \begin{center}
+%%      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/epidemic_rr.pdf} \\
+%%      Epidemic \\
+%%    \end{center}
+%%  \end{minipage}%
+%%  \hfill
+%%  \begin{minipage}{.5\textwidth}
+%%    \begin{center}
+%%      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/airport_rr.pdf} \\
+%%      Airport \\
+%%    \end{center}
+%%  \end{minipage}
+%%\end{figure}
 
-\section{CPU Affinity and LTSF Queue Partitioning}
+%%\section{CPU Affinity and LTSF Queue Partitioning}
 
-\begin{figure}
-    \centering
-    \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/os_partitioning_times.pdf}
-\end{figure}
+%%\begin{figure}
+%%    \centering
+%%    \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/os_partitioning_times.pdf}
+%%\end{figure}
 
-\begin{figure}
-    \centering
-    \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/os_partitioning_rbs.pdf}
-\end{figure}
+%%\begin{figure}
+%%    \centering
+%%    \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/os_partitioning_rbs.pdf}
+%%\end{figure}
 
-\section{Atomic Instructions on ODROID XU3}
+%%\section{Atomic Instructions on ODROID XU3}
 
-\begin{figure}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/fetchadd.eps} \\
-      Fetch and add \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/fetchsub.eps} \\
-      Fetch and subtract \\
-    \end{center}
-  \end{minipage}
-  \centering
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/sharedptr_copy.eps} \\
-      Shared\_ptr copy \\
-    \end{center}
-  \end{minipage}
-\end{figure}
+%%\begin{figure}
+%%  \begin{minipage}{.5\textwidth}
+%%    \begin{center}
+%%      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/fetchadd.eps} \\
+%%      Fetch and add \\
+%%    \end{center}
+%%  \end{minipage}%
+%%  \hfill
+%%  \begin{minipage}{.5\textwidth}
+%%    \begin{center}
+%%      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/fetchsub.eps} \\
+%%      Fetch and subtract \\
+%%    \end{center}
+%%  \end{minipage}
+%%  \centering
+%%  \begin{minipage}{.5\textwidth}
+%%    \begin{center}
+%%      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/sharedptr_copy.eps} \\
+%%      Shared\_ptr copy \\
+%%    \end{center}
+%%  \end{minipage}
+%%\end{figure}
 
 \chapter[Conclusions \& Future Research]{Conclusions and Suggestions for Future Research}
 \label{conclude}
 
 \section{Summary of Findings}
 
+%% Paragraph on cluster best practices and reduction of remote events
+
+%% Paragraph on SMP best practices and decreasing contention
+
 \section{Detailed Conclusions}
+
+%% Scalability versus Performance
+
+%% Performance versus Memory consumption
+
+%% What happens with larger simulation models
 
 \section{Suggestions for Future Work}
 
 %% Lock contention
 %% Scaling up the number of LPs/Nodes
+%% Memory Management
 
 \appendix
 \chapter{x86 SMP Nodes and Cluster}\label{x86_nodes_and_clusters}

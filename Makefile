@@ -1,5 +1,5 @@
 PX=pdflatex
-PX_OPTS="--interaction=batchmode -halt-on-error"
+PX_OPTS="-interaction batchmode -halt-on-error"
 
 BX=bibtex
 BX_OPTS=
