@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import re
 
 models = ["epidemic", "pcs", "traffic", "airport"];
-mallocs = ["tcm", "ptm"];
+mallocs = ["tcm", "ptm", "jem"];
 
 warped_data_path = "."
 
@@ -85,7 +85,7 @@ def main():
 
         addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Efficiency", efficiency_lines)
         addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Average Peak Memory", memory_lines)
-#        addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Simulation Time (s)", time_lines)
+        addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Simulation Time (s)", time_lines)
         addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Event Rate", event_rate_lines)
 
     one_times_by_model_tcm = list()
