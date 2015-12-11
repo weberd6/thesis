@@ -97,17 +97,17 @@
 \chapter*{Abstract}
 
 Parallel Discrete Event Simulation (PDES) systems have traditionally been designed for either
-clusters using message passing communication for shared-memory multiprocessors using shared
-data structures. PDES appications are an example of fine-grained parallelism which means that
-there is a high cost of communication with message passing. Message passing, however, is necessary
-to scale up the computational power and memory required for larger simulation models that would
-be limited in a single shared-memory processor. Shared memory communication, on the other hand
-significantly reduces communication costs by minimizing copying overheads with pointers and
-eliminating network latency.
+clusters using message passing communication \emph{or} for shared-memory multiprocessors using
+shared data structures but not both. The fine granularity of PDES appications makes the communication
+latency of message passing a target issue. Message passing, however, is necessary to scale up
+the computational power and memory required for larger simulation models that would be limited
+in a single shared-memory processor. Shared memory communication, on the other hand, means that
+the latency of exchanging events is significantly reduced since buffer copying and network
+communication can be avoided.
 
-To get the best of both forms of communication, \textsc{warped2}, a new PDES simulation kernel
+To get the best of both forms of communication, \textsc{warped2}, a PDES simulation kernel
 which implements the time warp mechanism, uses a hybrid approach where a set of mulithreaded
-processes communicate with message passing but threads within each process communicate with
+processes communicate with message passing but threads within each process communicate through
 shared data structures. If the logical processes (LPs) of the simulation model are partitioned
 well, then the interprocess communication can be minimized and the simulation models can scale
 to more reasonable levels.
@@ -125,21 +125,16 @@ and using a separate thread to handle message passing communication.
 The second, and more time warp specific problem arises with a hybrid communication model is with
 developing asynchronous GVT and termination detection algorithms which are usually designed for
 either shared-memory multiprocessors \emph{or} message passing systems, but not both. For both
-GVT and termination detection, a two level approach for each will be discussed and analyzed
-as well as alternative approaches.
+GVT and termination detection, a two level approach for each will be discussed and analyzed.
 
 Experimental analysis will be performed on SMP nodes and clusters to gain a better understanding
-of the tunable performance and memory parameters of \textsc{warped2}. Preliminary results
-indicate that any optimization that minimizes thread synchronization is usually preferrable on
-a single SMP node even though rollbacks usually increase and efficiency decreases. Furthermore,
-TCMalloc, a memory allocator for multithreaded applications also enhances performance.
-
-On a cluster, funneling communication to a dedicated thread increases performance over multi-thread
-communication but does not scale well due to an extreme decrease in efficiency with more nodes.
-Aggregating messages that are destined for the same node, however, significantly increases
-efficiency and performance.
-
-
+of the tunable performance, communication, and memory parameters of \textsc{warped2}. Preliminary
+results indicate that any optimization that minimizes thread synchronization is usually preferrable
+on a single SMP node even though rollbacks usually increase and efficiency decreases.
+On a cluster, minimizing remote communication is the key to minimizing rollbacks and increasing
+performance. Funneling communication to a dedicated thread has been shown to be more effective
+than a multi-threaded communication model which means that a high synchronization costs in the
+message passing library is more limiting than an increased communication latency.
 
 \chapter*{Acknowledgments}
 
@@ -200,9 +195,8 @@ The \textsc{warped2} simulation kernel, which is a reimplementation of the origi
 \textsc{warped} simulation kernel, uses a hybrid approach by using shared memory between a set
 of \emph{worker threads} in a single process to eliminate communication overheads, but uses
 message passing between processes to allow the system to scale to larger sizes. A dedicated
-\emph{manager thread} handles all message passing communication between processes.
-Figure \ref{warped2_communication} illustrates the communication model that is
-used in \textsc{warped2}.
+\emph{manager thread} handles all global operations between such as GVT and termination detection.
+Figure \ref{warped2_communication} illustrates the communication model that is used in \textsc{warped2}.
 
 \begin{figure}[H]
     \centering
@@ -228,8 +222,9 @@ LPs. In \textsc{warped2}, a two phase partitioning scheme will be explored. The 
 is for partitiong LPs among processes in order to minimize interprocess communication and the
 second phase is for further partioning the LPs in a process to an event scheduling data structure
 which will localize LP communication among worker threads, allowing better cache locality,
-and lowering rollbacks. To further reduce message passing communication, messages that are
-sent to the same process are aggregated and sent together as a single larger message.
+and lowering rollbacks. To further reduce the side effects of message passing communication,
+messages that are sent to the same process are aggregated and sent together as a single larger
+message.
 
 %% GVT and Termination
 The combination of shared memory and message passing communication does create some
@@ -240,10 +235,10 @@ that some kind of message passing scheme would have to be implemented for worker
 to communicate. This scheme would still use shared memory for message communication but
 would still have the overheads of explicit message passing. On the contrary, it is possible
 to have a single shared memory algorithm that extends to distributed memory systems but
-would require a shared virtual memory system. However, a shared virtual memory system would still
-have to transparently use message passing to achieve synchronization. For these reasons,
-the GVT and termination algorithms developed for \textsc{warped2} include a message
-passing algorithm and a shared memory algorithm that work in conjunction.
+would require more complex algorithms that would either not scale efficiently or would require
+extra synchronization and communication. For these reasons, the GVT and termination algorithms
+developed for \textsc{warped2} include both a message passing algorithm and a shared memory
+algorithm that work in conjunction.
 
 \section{Thesis Overview}
 
@@ -257,11 +252,15 @@ that use the Time Warp synchronization protocol. The software architecture and t
 compute platforms for each is described.
 
 Chapter \ref{warped2_overview} introduces the software architecture and modeling API for
-the \textsc{warped2} simulation kernel. A basic overview of the communication model and
-partitioning schemes will also be described.
+the \textsc{warped2} simulation kernel.
+
+Chapter \ref{partitioning_communication} describes the importance of efficient message passing
+communication and analyzes different approaches. Some preliminary results are shown and analyzed
+to determine the best communication model, partitioning scheme and number of aggregated
+messages.
 
 Chapter \ref{warped2_ds} describes the basic event scheduling algorithms in \textsc{warped2}
-as well as the data structures used and the organization of the data structures. The parameters
+as well as the data structures used and the organization of the data structures. Some parameters
 that can be used to tune the performance of the simulation will also be discussed.
 
 Chapter \ref{gvt_termination} analyzes the probem of GVT and termination detection in distributed
@@ -271,14 +270,6 @@ systems and describes various algorithms that have been used as well as algorith
 Chapter \ref{memory_management} analyzes techniques for managing memory efficiently. A brief
 overview of state saving techniques, fossil collection, and memory allocation will be analyzed
 and some of the memory tuning parameters in \textsc{warped2} will be discussed.
-
-Chapter \ref{partitioning_communication} describes the importance of efficient message passing
-communication and analyzes different approaches. Some preliminary results are shown analyzed
-to determining the best communication model, partitioning scheme and number of aggregated
-messages.
-
-%%Chapter \ref{big_little_platform} provides some observations of \textsc{warped2} on the
-%%ARM big.LITTLE architecture with Heterogeneous Multi-Processing (HMP).
 
 Finally, Chapter \ref{conclude} contains some concluding remarks and suggestions for future
 research.
@@ -1004,12 +995,9 @@ int main(int argc, const char **argv) {
 \section{Plans of Study}
 
 Experimental results will be presented throughout the remaining chapters as the various aspects
-of \textsc{warped2} are discussed. All chapters
-%%except for chapter \ref{big_little_platform}
-will contain experimental results for only x86 SMP nodes and clusters and will be targeted towards
-understanding and determining the best design options and configurations.
-%%Chapter \ref{big_little_platform}
-%%will contain seperate experiments and observations on the ARM big.LITTLE HMP platform.
+of \textsc{warped2} are discussed. All chapters will contain experimental results for only x86
+SMP nodes and clusters and will be targeted towards understanding and determining the best
+design options and configurations.
 
 The single node SMP experiments will be run on an Intel Xeon X5675 processor. The intel X5675
 has 6 cores with hyperthreading so that 12 simultaneous threads are supported.
@@ -1036,9 +1024,6 @@ table \ref{x86_platform} in appendix \ref{x86_nodes_and_clusters}.
 
 %% Scaling Up
 
-\subsection{Experiments ARM big.LITTLE Nodes}
-
-%% 
 
 \emph{Efficiency} is defined as:
 $$ Efficiency = {events_{committed}}/{events_{processed}} * 100 $$
@@ -1051,7 +1036,7 @@ and not rolled back.
 
 
 
-\chapter{Interprocess Communication} \label{partitioning_communication}
+\chapter[Communication]{Interprocess Communication} \label{partitioning_communication}
 
 This chapter first provides an overview of how to implement a system with a hybrid communication
 model. Then various partitioning schemes that are implemented in \textsc{warped2} are discussed
@@ -1189,17 +1174,18 @@ of supported partitioning schemes and message aggregation, respectively.
 \subsection{Interprocess Partitioning}
 
 Partitioning the LPs among processes is necessary so that LPs that communicate with each other
-a lot remain on the same node and minimize network communication in clusters. Currently,
-\textsc{warped2} supports three partitioning schemes: \begin{inparaenum}[(1)] \item Round-Robin,
-\item Profile-Guided, and \item Custom \end{inparaenum}. 
+a lot remain on the same node and minimize network communication in clusters. When network
+communication is minimized, the latency of sending events is decreased and will help to keep
+the number of rollbacks down. Currently, \textsc{warped2} supports three partitioning schemes:
+\begin{inparaenum}[(1)] \item Round-Robin, \item Profile-Guided, and \item Custom \end{inparaenum}. 
 
-\paragraph{Round-Robin} partitioning is a simple partitioning scheme where $block\_size$ number
+\paragraph{Round-Robin} partitioning is a simple partitioning scheme where $blocksize$ number
 of LPs are allocated to each process at a time and in order of increasing process id.
-$block size$ can be between 1 and $NumLPs$/$NumProcesses$ where the latter is simply known as
-block partitioning. From now on, a $block\_size$ of 1 will also be called simply round-robin.
+$blocksize$ can be between 1 and $NumLPs$/$NumProcesses$ where the latter is simply known as
+block partitioning. From now on, a $blocksize$ of 1 will also be called simply round-robin.
 A block size in between the extreme values can be used in some models to make a second level
 partitioning scheme easier. Figure \ref{round_robin_partitioning} illustrates how a round-robin
-partitioning scheme would work with different values for $block_size$, where different partitions
+partitioning scheme would work with different values for $blocksize$, where different partitions
 are represented by different colors and the numbers represent an LP id.
 
 \begin{figure}[H]
@@ -1224,7 +1210,10 @@ and does not implement a custom partitioning scheme. It will also work well for 
 MPI processes which may not work well with other schemes.
 
 The plots in figure \ref{partitioning_8node} show a comparison of the round-robin, block, and
-profile-guided partitioning schemes.
+profile-guided partitioning schemes. In general, more performance is closely tied with a lower
+percentage of remote events and a higher efficiency. The biggest exception is with the airport
+model, which has a very low efficiency with the profile-guided partitioning. This could just
+be a result of the model size which is only 2500 LPs making each node individually less efficient.
 
 \begin{figure}[H]
   \begin{minipage}{.5\textwidth}
@@ -1421,7 +1410,7 @@ instead of processing events.
 
 
 
-\chapter{\textsc{warped2} Data Structures and Organization}\label{warped2_ds}
+\chapter[\textsc{warped2} Data Structures]{\textsc{warped2} Data Structures and Organization}\label{warped2_ds}
 
 \section{Pending Event Set Data Structures}
 
@@ -1854,7 +1843,7 @@ is slowed down by other computation.
   \caption{Speedup with Spinlocks}\label{spinlock_speedup}
 \end{figure}
 
-\section{Data Structures to Support Rollback and Cancellation}
+\section[Rollback \& Cancellation]{Data Structures to Support Rollback and Cancellation}
 
 Jefferson\cite{jefferson-85} described the rollback and cancellation process in terms of three
 data structures: the input queue, output queue, and state queue. The data structures that are
@@ -2051,40 +2040,29 @@ network transactions.
 
 \paragraph{Global Reductions} provide a good way to do a synchronous minimum calculation
 which and is a common way to implement a synchronous GVT algorithm. ROSS implements a
-synchronous GVT algorithm which uses global reductions\cite{holder-08}. First, to prevent
-the transient message problem, a global reduction on message counts of each process is
-performed until it reaches zero which is guarenteed because the reduction acts as a barrier
-for each process. The message counting is necessary because asynchronous communication is
-used for sending and receiving events. When the messages count reaches zero a global
-reduction is performed on the local minimum timestamp of all processes to give a GVT value
-which is broadcast to all processes. This algorithm is efficient when time warp simulation
-are run on large supercomputing platforms like the blue gene machine which perform collective
-operations very quickly.
+synchronous GVT algorithm which uses global reductions to implement a variant of Mattern's
+algorithm\cite{holder-08}. First, to prevent the transient message problem, a global reduction
+on message counts of each process is performed until the total reaches zero. Any events received
+after the start of the algorithm are considered to be "red" messages and are recorded.
+When the messages count reaches zero a global reduction is performed on the local minimum
+timestamp of all processes while also taking into account the red messages timestamps. The reduction
+yields a GVT value for all processes. This algorithm is efficient when time warp simulation are
+run on large supercomputing platforms like the blue gene machine which perform collective operations
+very quickly.
 
 \subsection{GVT in \textsc{Warped2}}
 
-\textsc{warped2} implements both a synchronous and asynchronous GVT algorithms. For the
+\textsc{warped2} implements both synchronous and asynchronous GVT algorithms. For the
 asynchronous GVT algorithm, Fujimoto's shared memory algorithm is used between worker threads
 and a variation of Mattern's algorithm with scalar message counters is used between processes.
 The synchronous algorithm is based on the global reduction algorithm mentioned above but also
 includes a reduction between worker threads as well as two thread synchronization barriers.
 
-The details of how the the Mattern's algorithm implementation in \textsc{warped2} is detailed below as well as how
-it is used with Fujimoto's algorithm. More details on Fujimoto's algorithm will not be detailed
-but they can be found by reading \cite{fujimoto-94}.
-
-In the \textsc{warped2} implementation, scalar counters are used to keep track of message
-that are sent that carry the initial color. That means that each process keeps track of
-the number of sent messages minus the number of received messages to and from all other
-process as a single count. The reason that scalar counters are used over vector counters
-is that vector counters require that communication is stopped after receiving a control token
-until all known transient messages that are bound for the receiving process are received. With
-scalar counters, this is not possible because all counts are combined into a single counter.
-However, with scalar counters it is possible that more than two rounds of the control token will
-be necessary. This is usually not a problem in practice though since two rounds is usually
-sufficient. Also, each process must maintain a counter for both white messages \emph{and} red
-messages so that counters can be consistent between multiple runs of the algorithm. The roles of
-the colors must also be switched between successive runs.
+The details of how a GVT algorithm is integrated into the worker threads in \textsc{warped2}
+is outlined below in algorithm \ref{gvt_workers} which shows the main event processing loop
+with an emphasis on GVT contribution as well as the send routine and the remote event receive
+routine. This system of GVT integration is fairly ambiguous and should work for any combination of
+shared memory and message passing GVT algorithms whether they are synchronous or asynchronous.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -2139,13 +2117,58 @@ the colors must also be switched between successive runs.
             Insert into Unprocessed Queue for $lp$\;
         }
 
-        \If{$localGVTFlag_i$ and ($workerThread_i$ hasn't reported local min)}{
+        \If{$localGVTFlag_i > 0$ and ($workerThread_i$ hasn't reported local min)}{
             \ReportSend{$timestamp_ne$}\;
         }
     }
 
     \caption{GVT: Worker Threads}\label{gvt_workers}
 \end{algorithm}
+
+The routines for \texttt{ReportThreadMin}, \texttt{GVTReceiveEventUpdate}, \texttt{GVTSendEventUpdate},
+and \texttt{ReportThreadSendMin} are intentionally abstract since they will vary with the exact
+GVT algorithm implementation. In general though, the purpose of each doesn't really change. The
+purpose of each is:
+
+\begin{description}
+    \item[ReportThreadMin ] is used for the worker threads to report a minimum event timestamp
+        which will usually be the current event since the LTSF queue orders events.
+    \item[ReportThreadSendMin ] is used for the worker threads to report any events that are sent
+        after the localGVTFlag has been set and it has not yet called \texttt{ReportThreadMin}.
+    \item[GVTReceiveEventUpdate ] is used to update any message counters, send acknowledgements or
+        record the timestamps of received events. 
+    \item[GVTSendEventUpdate ] is used to update any message counters, track sent messages, or get
+        the current color of the process to tag events being sent.
+\end{description}
+
+This system of GVT calculation will work as long as the localGVTFlag indicator is retrieved before
+obtaining the next event and the sends are reported after sending an event. The manager thread
+controls the initiation and termination of the GVT algorithms and vary greatly depending on
+the exact implementation.
+
+\subsubsection{Asynchronous}
+
+The asynchronous GVT algorithm in \textsc{warped2} is based around a variant of Mattern's
+algorithm for the message passing part. In the \textsc{warped2} implementation, scalar counters
+are used to keep track of message that are sent that carry the initial color. That means that
+each process keeps track of the number of sent messages minus the number of received messages
+to and from all other process as a single count. The reason that scalar counters are used over
+vector counters is that vector counters require that communication is stopped after receiving a
+control token until all known transient messages that are bound for the receiving process are
+received. With scalar counters, this is not possible because all counts are combined into a single
+counter. However, with scalar counters it is possible that more than two rounds of the control
+token will be necessary. This is usually not a problem in practice though since two rounds is
+usually sufficient. Also, each process must maintain a counter for both white messages \emph{and}
+red messages so that counters can be consistent between multiple runs of the algorithm. The roles
+of the colors must also be switched between successive runs.
+
+A GVT token will be sent by the manager thread when a local minimum has been reported by all
+worker threads and the local GVT calculation will begin either when a token is received or
+when the initiator process determines that is should start. The initiator process is the process
+with PID of 0. Due to the asynchrony of this algorithm, there are two phases of the algorithm,
+one phase to check the state of the algorithm and progress it further and the other phase is
+to receive the token and update the state. The two phases are put into psuedocode in algorithm
+\ref{gvt_manager_asynchronous}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -2154,11 +2177,13 @@ the colors must also be switched between successive runs.
 \SetKwBlock{ReceiveToken}{receiveToken}{end}
 
     \ProgressGVTa{
-        \If {Local GVT is needed}{
+        \If {$needLocalGVT = true$}{
+            $needLocalGVT \gets false$\;\;
+
             \uIf{($localGVTFlag$ equals 0) and (haven't started local GVT)}{
-                Toggle Color\;
+                $color \gets color_{final}$\;
                 $ts_{min} \gets \infty$\;
-                $clock_{min} \gets \infty$
+                $clock_{min} \gets \infty$\;
                 $msgcount \gets msgcount_{initial}$\;
                 $msgcount_{initial} \gets 0$\;
             } \ElseIf {($localGVTFlag = 0$) and (started local GVT)}{
@@ -2180,18 +2205,22 @@ the colors must also be switched between successive runs.
         \uIf{$PID \neq 0$}{
             \If{$color = color_{initial}$}{
                 $ts_{min} \gets \infty$\;
-                Toggle Color\;
+                $color \gets color_{final}$\;
             }
             Accumulate $ts_{min}$ and $msgcount$\; 
+            $clock_{min} \gets \min{(clock_{min}, mclock)}$\;\;
+
             $localGVTFlag \gets numWorkerThreads$\;
-            $clock_{min} \gets \min{(clock_{min}, mclock)}$\;
+            $needLocalGVT \gets true$\;
         } \Else {
             \uIf {$mcount \neq 0$} {
                 $gvtApprox \gets \min{(mclock, msend)}$\;
                 Broadcast $gvtApprox$\;
             } \Else {
-                Accumulate $ts_{min}$ and $msgcount$\; 
+                Accumulate $ts_{min}$ and $msgcount$\;\;
+
                 $localGVTFlag \gets numWorkerThreads$\;
+                $needLocalGVT \gets true$\;
             }       
             $clock_{min} \gets \infty$\;
         }
@@ -2199,6 +2228,22 @@ the colors must also be switched between successive runs.
 
     \caption{Asynchronous GVT: Manager Thread}\label{gvt_manager_asynchronous}
 \end{algorithm}
+
+The asynchronous algorithm desribed above works well in cases where the remote communication is
+relatively low but has been shown to be problematic under heavy remote communication. The root
+of the problem is that the GVT token must compete with remote events that must be sent and and
+received by all worker threads. During the course of the GVT calculation the manager thread cannot
+stop sending and receiving these events and the token is slowed down significantly. To get around
+this constraint, users can either increase the number LPs or decrease the number of worker threads
+to reduce the network load.
+
+\subsubsection{Synchronous}
+
+The synchronous GVT algorithm is a simple extension of the allreduce algorithm implemented
+in the ROSS simulation kernel. The biggest difference is that the manager thread must block
+the worker threads from processing any more events. Also, Unlike the algorithm used in ROSS,
+the processes are not considered to be colored and any event sent by the worker threads before
+reporting a local minimum are recorded on the send side rather than the receive side.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -2229,6 +2274,17 @@ the colors must also be switched between successive runs.
 
     \caption{Synchronous GVT: Manager Thread}\label{gvt_manager_synchronous}
 \end{algorithm}
+
+When the worker threads report their local minimum, they must wait at TWO thread barriers. Both
+barriers are needed so that the manager thread can ensure that no more remote events are sent.
+When every worker thread calls the first barrier, it indicates to the manager thread that it all
+local minimums have been reported and it can continue. The second barrier is an indicator to
+release the worker threads and indicates that the manager thread has completed the GVT calculation.  
+
+The advantage of the synchronous GVT algorithm in \textsc{warped2} is that it is very robust
+and works well even under very heavy remote communication. Furthermore, it will be produce the
+exact GVT unlike the asynchronous algorithm since event processing will not continue until it
+is complete.
 
 \section{Termination Detection}
 
@@ -2332,10 +2388,10 @@ algorithm \ref{termination_token_receive}.
 \caption{Termination Token Receive Procedure}\label{termination_token_receive}
 \end{algorithm}
 
-It should also be noted that this algorithm is only guarenteed to work if the message order
+It should also be noted that this algorithm is only gaurenteed to work if the message order
 is preserved between any two processes or if it can be determined that no transient messages
 can exist. For this reason, the termination algorithm also keeps message counters and accumulates
-the counters from each process just like with GVT.
+the counters from each process just like with the Mattern GVT algorithm.
 
 
 
@@ -2486,15 +2542,16 @@ through callback functions and accesses them indirectly. By doing this, we allow
 developers to implement their own memory management schemes or override the default malloc with
 allocators such as TCMalloc, JEMalloc, Hoard, etc.
 
-\subsection{Thread-Caching Malloc (TCMalloc)}
+\subsection{TCMalloc and JEMalloc}
 
-TCMalloc is a memory allocator that is designed to efficiently allocate memory in
-multi-threaded applications liked \textsc{warped2}. In TCMalloc, seperate thread-local
-caches of free memory are maintained to avoid contention when allocating and freeing memory.
+TCMalloc and JEMalloc are two good examples of memory allocators that are designed to efficiently
+allocate memory in multi-threaded applications liked \textsc{warped2}. In both TCMalloc and
+JEMalloc, seperate thread-local caches of free memory are maintained to avoid contention when
+allocating and freeing memory.
 
 All results shown before now have all been with TCMalloc but until now, we have not shown why.
-A comparison of the event rates for ptmalloc2 which is the default allocator for GLIBC and tcmalloc
-is shown in figure \ref{allocator_analysis_eventrate}.
+A comparison of the event rates for ptmalloc2 which is the default allocator for GLIBC, jemalloc
+and tcmalloc is shown in figure \ref{allocator_analysis_eventrate}.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -2508,6 +2565,13 @@ is shown in figure \ref{allocator_analysis_eventrate}.
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/tcmalloc_eventrate.pdf} \\
       TCMalloc \\
+    \end{center}
+  \end{minipage}
+  \centering
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/jemalloc_eventrate.pdf} \\
+      JEMalloc \\
     \end{center}
   \end{minipage}
   \caption{Memory Allocator Event Rate Comparison}\label{allocator_analysis_eventrate}
@@ -2537,6 +2601,13 @@ figure \ref{allocator_analysis_efficiency} which shows the efficiency with ptmal
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/tcmalloc_efficiency.pdf} \\
       TCMalloc \\
+    \end{center}
+  \end{minipage}
+  \centering
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/jemalloc_efficiency.pdf} \\
+      JEMalloc \\
     \end{center}
   \end{minipage}
   \caption{Memory Allocator Efficiency Comparison}\label{allocator_analysis_efficiency}
@@ -2650,131 +2721,71 @@ with an extremely small period, the performance is only worsened by a very small
 
 
 
-%%\chapter{ARM big.LITTLE Platform}\label{big_little_platform}
-
-%%\pagebreak
-
-%%\begin{table}
-%%    \centering
-%%    \begin{tabular}{|| l | l | c c ||}
-%%    \hline
-%%        \multicolumn{2}{|l|}{} & \multicolumn{2}{c||}{Exynos 5422} \\ \cline{3-4}
-%%        \multicolumn{2}{|l|}{} & Cortex-A15 & Cortex-A7 \\ [0.5ex]
-%%        \hline\hline
-%%        \multirow{8}{*}{Processor}
-%%            & ISA           & \multicolumn{2}{c||}{ARMv7} \\
-%%            & \# Cores      & 4         & 4 \\
-%%            & \# Threads    & \multicolumn{2}{c||}{8} \\
-%%            & Frequency     & 2.0 GHz   & 1.4 GHz \\
-%%            & L1 Data Cache & 32kB      & 32kB \\
-%%            & L1 Inst Cache & 32kB      & 32kB \\
-%%            & L2 Cache      & 2MB       & 512kB\\
-%%        \hline
-%%        \multirow{2}{*}{Memory}
-%%            & Type          & \multicolumn{2}{c||}{2 x LPDDR3-933}  \\
-%%            & Max Bandwidth & \multicolumn{2}{c||}{14.9 GB/s}       \\
-%%        \hline
-%%        \multirow{3}{*}{Runtime}
-%%            & OS Kernel         & \multicolumn{2}{c||}{Linux 3.10.82}                   \\
-%%            & C Library         & \multicolumn{2}{c||}{Ubuntu EGLIBC 2.19-0ubuntu6.1}   \\
-%%            & Compiler          & \multicolumn{2}{c||}{GCC v4.8.2}                      \\
-%%            & MPI               & \multicolumn{2}{c||}{OpenMPI v1.8.5a1}                \\
-%%            & Memory Allocator  & \multicolumn{2}{c||}{TCMalloc v2.4}                   \\
-%%        \hline
-%%    \end{tabular}
-%%    \caption{ODROID XU3 Platforms}\label{odroid_platform}
-%%\end{table}
-
-%%\section{Comparison of Big and LITTLE Performances}
-
-%%\begin{figure}
-%%  \begin{minipage}{.5\textwidth}
-%%    \begin{center}
-%%      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/pcs_rr.pdf} \\
-%%      PCS \\
-%%    \end{center}
-%%  \end{minipage}%
-%%  \hfill
-%%  \begin{minipage}{.5\textwidth}
-%%    \begin{center}
-%%      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/traffic_rr.pdf} \\
-%%      Traffic \\
-%%    \end{center}
-%%  \end{minipage}
-%%  \begin{minipage}{.5\textwidth}
-%%    \begin{center}
-%%      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/epidemic_rr.pdf} \\
-%%      Epidemic \\
-%%    \end{center}
-%%  \end{minipage}%
-%%  \hfill
-%%  \begin{minipage}{.5\textwidth}
-%%    \begin{center}
-%%      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/airport_rr.pdf} \\
-%%      Airport \\
-%%    \end{center}
-%%  \end{minipage}
-%%\end{figure}
-
-%%\section{CPU Affinity and LTSF Queue Partitioning}
-
-%%\begin{figure}
-%%    \centering
-%%    \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/os_partitioning_times.pdf}
-%%\end{figure}
-
-%%\begin{figure}
-%%    \centering
-%%    \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/os_partitioning_rbs.pdf}
-%%\end{figure}
-
-%%\section{Atomic Instructions on ODROID XU3}
-
-%%\begin{figure}
-%%  \begin{minipage}{.5\textwidth}
-%%    \begin{center}
-%%      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/fetchadd.eps} \\
-%%      Fetch and add \\
-%%    \end{center}
-%%  \end{minipage}%
-%%  \hfill
-%%  \begin{minipage}{.5\textwidth}
-%%    \begin{center}
-%%      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/fetchsub.eps} \\
-%%      Fetch and subtract \\
-%%    \end{center}
-%%  \end{minipage}
-%%  \centering
-%%  \begin{minipage}{.5\textwidth}
-%%    \begin{center}
-%%      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/big_little/sharedptr_copy.eps} \\
-%%      Shared\_ptr copy \\
-%%    \end{center}
-%%  \end{minipage}
-%%\end{figure}
-
 \chapter[Conclusions \& Future Research]{Conclusions and Suggestions for Future Research}
 \label{conclude}
 
 \section{Summary of Findings}
 
-%% Paragraph on cluster best practices and reduction of remote events
+To better allow the system to scale to a larger number of nodes, a seperate manager thread which all
+remote communication is funnelled to has been shown to be the best communication model. The
+reason is that the high contention for resources within the MPI library seem to be much more
+of a problem than a small delay in communication latency. In general, though, avoiding remote
+communication at all costs by partitioning and aggregating messages further decreases these
+communication latency overheads and rollbacks, and thus increases performance.
 
-%% Paragraph on SMP best practices and decreasing contention
+For a single SMP node, increasing the number of LTSF queues to the same as the number of worker
+threads so that there is no sharing between the LTSF queues shows the best performance. Furthermore,
+partitioning the LPs to the LTSF queues using a block partitioning scheme seems to work the best
+for all models that were tested. Other compile time optimizations to further increase performance
+such as replacing the default ptmalloc2 allocator with tcmalloc and jemalloc and replacing blocking
+mutexes with spinlocks has also been proven to effective.
 
 \section{Detailed Conclusions}
 
-%% Scalability versus Performance
+\subsection{Synchronization and Communication}
 
-%% Performance versus Memory consumption
+The limitations of \textsc{warped2} all seem to be centered around the necessity of synchronization
+and communication. For message passing between nodes in a cluster, any optimization
+that reduces remote communication will usually give optimistic results and for a shared memory
+communication between worker threads, any optimization that reduces synchronization to shared
+data structures is usually better. The two coincide, however, when figuring out how worker threads
+should use the message passing interface in a thread safe manner, which makes interprocess
+communication especially difficult for hybrid communication applications.
 
-%% What happens with larger simulation models
+For a single SMP node, increasing the numbe of LTSF queues, LTSF queue partitioning,
+replacing blocking mutexes with spinlocks, and replacing the default allocator all work to
+minimize the costs associated with thread synchronization and all have been shown to increase
+performance to some extent.
+
+For reducing communication overheads, partitioning and 
+
+%% More about manager thread and communication
+
+\subsection{Scalability versus Scalability}
+
+There is also a fundamental tradeoff between scalability and performance. Message passing between
+multiple processes will be a bottleneck but is necessary for scaling up. Also, for better scalability,
+a fossil collection method which is carried out by the worker threads is more suitable so that
+remote communication can be completed with minimal latency on the manager thread. Although this
+method may slow down the maximum event rate for a single node, it will actually allow a larger
+event rate to be achieved by scaling up.
+
+The tradeoff between performance and memory consumption is also apparent
 
 \section{Suggestions for Future Work}
 
-%% Lock contention
-%% Scaling up the number of LPs/Nodes
-%% Memory Management
+\subsection{Scaling Simulations}
+
+It is still largely unknown on what will happen as the simulations are scaled up to larger
+multi-core processors and/or larger clusters and whether a strong scaling or a weak scaling
+approach should be taken. Scaling will be particularly tricky with multi-core clusters that
+have a large number of cores per processor. 
+
+\subsection{Memory Management}
+
+%% Custom in-kernel allocator
+%% Optimistic Fossil Collection
+%% Reverse Computation
 
 \appendix
 \chapter{x86 SMP Nodes and Cluster}\label{x86_nodes_and_clusters}

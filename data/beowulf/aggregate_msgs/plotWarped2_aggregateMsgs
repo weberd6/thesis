@@ -41,7 +41,9 @@ def main():
         event_rate_lines = list()
         premote_lines = list()
         remote_lines = list()
+        remote_rate_lines = list()
         rollback_lines = list()
+        rb_rate_lines = list()
 
         time_single = 0
 
@@ -101,22 +103,28 @@ def main():
             rb_y = [a + b for a, b in zip(prb_y, srb_y)]
             premote = [(a + b) / (a + b + c + d) * 100 for a, b, c, d in zip(remotep_y, remoten_y, localp_y, localn_y)]
             remote = [a + b for a, b in zip(remotep_y, remoten_y)]
+            rb_rate = [a / b for a, b in zip(rb_y, time_y)]
+            remote_rate = [(a + b) / c for a, b, c in zip(remotep_y, remoten_y, time_y)]
 
 #            addLineXY(speedup_lines, agg_x, speedup_y, "{}-{}".format(m, sspl))
 #            addLineXY(time_lines, agg_x, time_y, "{}-{}".format(m, sspl))
-            addLineXY(memory_lines, agg_x, mem_y, "{}-{}".format(m, sspl))
+#            addLineXY(memory_lines, agg_x, mem_y, "{}-{}".format(m, sspl))
 #            addLineXY(efficiency_lines, agg_x, efficiency, "{}-{}".format(m, sspl))
 #            addLineXY(premote_lines, agg_x, premote, "{}-{}".format(m, sspl))
 #            addLineXY(remote_lines, agg_x, remote, "{}-{}".format(m, sspl))
 #            addLineXY(rollback_lines, agg_x, rb_y, "{}-{}".format(m, sspl))
+            addLineXY(rb_rate_lines, agg_x, rb_rate, "{}-{}".format(m, sspl))
+            addLineXY(remote_rate_lines, agg_x, remote_rate, "{}-{}".format(m, sspl))
 
 #        addPlotXY(plots, "", "Aggregated Messages", "Speedup", speedup_lines)
 #        addPlotXY(plots, "", "Aggregated Messages", "Simulation Time (s)", time_lines)
-        addPlotXY(plots, "", "Aggregated Messages", "Memory", memory_lines)
+#        addPlotXY(plots, "", "Aggregated Messages", "Memory", memory_lines)
 #        addPlotXY(plots, "", "Aggregated Messages", "Efficiency", efficiency_lines)
 #        addPlotXY(plots, "", "Aggregated Messages", "% Remote", premote_lines)
 #        addPlotXY(plots, "", "Aggregated Messages", "Remote Events", remote_lines)
 #        addPlotXY(plots, "", "Aggregated Messages", "Total Rollbacks", rollback_lines)
+        addPlotXY(plots, "", "Aggregated Messages", "Rollback Rate", rb_rate_lines)
+        addPlotXY(plots, "", "Aggregated Messages", "Remote Rate", remote_rate_lines)
 
     for i, p in enumerate(plots):
         fig = plt.figure(i)
