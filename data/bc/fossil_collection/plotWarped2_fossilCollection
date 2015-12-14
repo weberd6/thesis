@@ -32,7 +32,7 @@ def autolabel(rects):
     # attach some text labels
     for rect in rects:
         height = rect.get_height()
-        plt.text(rect.get_x()+rect.get_width()/2.0, 1.05*height, '%.02f'%float(height), ha='center', va='bottom')
+        plt.text(rect.get_x()+rect.get_width()/2.0, 1.05*height, '%d'%height, ha='center', va='bottom')
 
 def main():
 

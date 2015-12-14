@@ -37,7 +37,7 @@
 \setlength{\headsep}{25pt}
 \setlength{\headheight}{14pt}
 
-\pdfsuppresswarningpagegroup=1
+%\pdfsuppresswarningpagegroup=1
 \vbadness=10000
 
 \definecolor{dkgreen}{rgb}{0,0.6,0}
@@ -278,8 +278,8 @@ research.
 
 \chapter{Background}\label{background}
 
-This chapter describes some of the basics of Parallel Discrete Event Simulation (PDES) with
-a focus on the Time Warp mechanism. Then a brief overview of parallel architectures and
+This chapter first describes some of the basics of Parallel Discrete Event Simulation (PDES)
+with a focus on the Time Warp mechanism. Then a brief overview of parallel architectures and
 parallel communication models and their strengths and weaknesses are compared.
 
 \section{Discrete Event Simulation}
@@ -313,19 +313,18 @@ a single LP.
 \section{Parallel Discrete Event Simulation}
 
 \emph{Parallel} Discrete Event Simulation (PDES) is a method running a discrete event
-simulation on a parallel computer which could be a shared-memory multiprocessor, a distributed
-memory system such as cluster or NUMA system, or a combination of both. In a parallel
-discrete event simulation the state of the system is usually split among the logical
-processes so that each one contains a portion of system's state without any sharing of
-state variables\cite{fujimoto-90}. In addition to each logical process having it's own
-separate state, the logical processes also have seperate simulation clocks and pending
-event sets. Event's from different LP's can then be processed concurrently without the
-need to worry about sharing state variables and the model can be viewed as concurrent
-processes operating independantly which contribute to the overall progression of the
-simulation. This has the potential to increase performance significantly; However, it is
-possible that events at a receiving LP can be received and processed out of order, violating
-causality. These \emph{causality errors} can occur because of the independant nature of the
-logical processes and because the LP's can be processing events at different rates.
+simulation on a parallel computer which could be a shared-memory multiprocessor or a
+cluster, or a combination of both. In a parallel discrete event simulation the state of
+the system is usually split among the logical processes so that each one contains a portion
+of system's state without any sharing of state variables\cite{fujimoto-90}. In addition to
+each logical process having it's own separate state, the logical processes also have seperate
+simulation clocks and pending event sets. Event's from different LP's can then be processed
+concurrently without the need to worry about sharing state variables and the model can be
+viewed as concurrent processes operating independantly which contribute to the overall
+progression of the simulation. This has the potential to increase performance significantly;
+However, it is possible that events at a receiving LP can be received and processed out of
+order, violating causality. These \emph{causality errors} can occur because of the independant
+nature of the LPs and because the LP's can be processing events at different rates.
 Causality errors can produce incorrect changes in state variables and incorrect events to
 be sent to other LP's. Parallel Discrete Event Simulation techniques can be categorized in
 terms of how causality errors are handled. \emph{Conservative} approaches use methods to
@@ -347,7 +346,7 @@ for parallel discrete event simulation, Virtual Time is synonymous with simulati
 The current time of an LP's simulation clock in Time Warp is called the \emph{Local Virtual
 Time} (LVT).
 
-When an a causality error is detected at an LP (next event to be processed is less than the
+When a causality error is detected at an LP (next event to be processed is less than the
 LVT) the effects of the incorrectly processed event(s) must be undone. The process
 of undoing the effects is called a \emph{rollback} and the event that triggers a rollback
 is called a \emph{straggler event}. When a straggler event is detected at an LP, the first
@@ -380,7 +379,7 @@ rollback. The state queue contains previous states of the LP and allows the prop
 to be restored during a rollback.
 
 The \emph{Global Virtual Time} (GVT) of the simulation at a given point during the simulation
-is the minimum of all unprocessed events and the receive times of all events that have been
+is the minimum timestamp of all unprocessed events including the events that have been
 sent but not received\cite{jefferson-85}. There are numerous algorithms for determining
 the GVT which will be discussed further in chapter\ref{gvt_termination}. LP's cannot send
 events that are less than their LVT value and so the GVT acts as a lower bound on how far
@@ -396,15 +395,16 @@ The need to save the state of the LP's is one of the fundamental overheads in th
 mechanism in terms of both the amount of time it takes to copy the LP's states to save them
 and the amount of memory that must be used to store them. Because of this, a number of
 different approaches have been developed to reduce the overhead of state saving such as
-periodic state saving, incremental state saving, and reverse computation.
+periodic state saving, incremental state saving, and reverse computation. These methods
+will also be discussed more in chapter \ref{memory_management}.
 
 \section{Parallel Systems Architectures}
 
 Systems that support parallel processing come in many forms. They can generally be characterized
-by how processors and memories are grouped together. A shared memory systems is a single machine
+by how processors and memories are grouped together. A shared memory system is a single machine
 which shares a common address space for all processes and can have a either a single physical
 memory unit or multiple memory units. A cluster is a system comprised of multiple machines with
-seperate process address spaces connected over an interconnection network. 
+seperate process address spaces connected over an interconnection network.
 
 \subsection{Shared Memory Multiprocessor Systems}
 
@@ -541,13 +541,12 @@ as well as the strengths and weaknesses.
 
 \section{Georgia Tech Time Warp (GTW)}
 
-Georgia Tech Time Warp wass a general purpose Time Warp Simulator designed specifically for
+Georgia Tech Time Warp was a general purpose Time Warp Simulator designed specifically for
 shared memory multiprocessors. It is not used anymore, however, because it was only written
-to target SparcStation and SGI PowerChallenge architectures which are now obsolete. Although
-GTW is not used any more, it's design has influenced the design of other simulators that are
-still used widely in practice. GTW simulation models run in a single processes, multi-threaded
-environment and uses only shared memory to communicate between threads that are bound to single
-processor.
+to target architectures that are now obselete such as the SparcStation and SGI PowerChallenge.
+Although GTW is not used any more, it's design has influenced the design of other simulators that
+are still used widely in practice. GTW simulation models run in a single multi-threaded processes
+and use only shared data structures to communicate between threads which are bound to single processor.
 
 The LP's for all models are statically allocated to a single thread so that events for the
 LP's are processed only on a single processor. The pending event set is distributed among
@@ -614,11 +613,11 @@ message queue to hold all unprocessed events for each processor.
 
 \section{Clustered Time Warp (CTW)}
 
-Clustered Time Warp\cite{avril-95} (CTW) uses a hybrid approach by processing events within
-a \emph{cluster} of LP's sequentially and using the Time Warp mechanism between the clusters.
-This design was chosen because it works well for digital logic simulation which tend to have
-localized computation within a group of LP's. Furthermore, digital logic simulation tends to
-have low computational granularity and lot's of LP's which can lead to a lot of rollbacks
+Clustered Time Warp\cite{avril-95} (CTW) uses a hybrid sequential/time-warp approach by processing
+events within a \emph{cluster} of LP's sequentially and using the Time Warp mechanism between
+the clusters. This design was chosen because it works well for digital logic simulation which tend
+to have localized computation within a group of LP's. Furthermore, digital logic simulation tends
+to have low computational granularity and lot's of LP's which can lead to a lot of rollbacks
 and a large memory footprint in a traditional Time Warp simulator. CTW is implemented for
 shared memory multiprocessors but only uses shared memory for use with a custom message passing
 system so that it can better support NUMA architectures. It is not designed for use on a
@@ -658,7 +657,7 @@ ROSS\cite{carothers-00} is a general purpose simulator that is capable of runnin
 conservatively and optimistically synchronized parallel simulations as well as sequential
 simulations. It is most often used for optimistic parallel simulations which is implemented
 with the time warp mechanism. ROSS started as a reimplementation of GTW and is still
-modeled after it but has had many enhancesments. The same basic event scheduling mechanism is
+modeled after it but has had many enhancements. The same basic event scheduling mechanism is
 used but ROSS supports different priority queue implementations and different algorithms
 are used for fossil collection, state saving, and gvt calculation. In addition, ROSS uses
 processes instead of threads and uses message passing explicitly with MPI instead of shared
@@ -687,16 +686,20 @@ To reduce the time taken to fossil collect LPs, ROSS further divides the LPs in 
 into groups called Kernel Processes (KPs). All LPs in a KP are rolled back together and fossil
 collected together in a similar manner as a clustered rollback in CTW.
 
+ROSS also uses reverse computation\cite{carothers-99} to rollback LPs to a previous state instead
+of using the traditional copy state saving. This method allows simulations to run in a much smaller
+memory footprint because the previous states of LPs are not required to be saved.
+
 \section{\textsc{warped}}
 
 \textsc{warped} is the predecessor of \textsc{warped2} and serves as the basis for the design
 and architecture of \textsc{warped2}. \textsc{warped}, unlike the previous time warp simulators,
 follows Jefferson's classic model with LPs having their own input, output, and state queues. It
-started as a completely processed based solution with only message passing for communication.
-Eventually, with the development of multicore processors, each process was extended into multiple
-threads to further enhance concurrent processing of events. Over the years, though, with many
-students developing new algorithms, the complexity of \textsc{warped} became unmaintainable, mainly
-because of the great deal of indirection which, although made for a super configurable and modular
+started as a completely processed based solution with only message passing for communication,
+but eventually, with the development of multicore processors, each process was extended into
+multiple threads to further enhance concurrent processing of events. Over the years, though, with
+many students developing new algorithms, the complexity of \textsc{warped} became unmaintainable.
+A great deal of indirection which, although made for a super configurable and modular
 design, became too complex for new students to learn it and enhance it. This has led to the
 development of \textsc{warped2} which is detailed throughout the remained of this document.
 
@@ -1410,7 +1413,7 @@ instead of processing events.
 
 
 
-\chapter[\textsc{warped2} Data Structures]{\textsc{warped2} Data Structures and Organization}\label{warped2_ds}
+\chapter[Event Scheduling]{Event Scheduling and Data Structures in \textsc{warped2}}\label{warped2_ds}
 
 \section{Pending Event Set Data Structures}
 
