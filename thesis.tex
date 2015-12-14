@@ -20,6 +20,7 @@
 \usepackage{float}
 \usepackage{multirow}
 \usepackage{paralist}
+\usepackage[htt]{hyphenat}
 
 \setcounter{topnumber}{2}
 \setcounter{bottomnumber}{3}
@@ -726,7 +727,7 @@ also optimizes the memory management so that it is more NUMA aware.
 
 
 
-\chapter{The \textsc{warped2} Simulation Kernel}\label{warped2_overview}
+\chapter[\textsc{warped2}]{The \textsc{warped2} Simulation Kernel}\label{warped2_overview}
 
 This chapter describes the software architecture of the \textsc{warped2} simulation kernel.
 The main compenents are described and the dependencies between each of them. The modeling API
@@ -739,13 +740,14 @@ extendable, and maintainable. All components are configured and created at start
 and subcomponents are accessed through pointers. Furthermore, \textsc{warped2} is written in
 C++ so each component can also be an object of derived subclass that implement a well-defined
 interface by a base class. The main central component is the event dispatcher which is responsible
-for calling the LP callback methods during the course of the simulation. The event dispatcher can
-be configured for sequential simulation or a time warp simulation. The sequential simulation
-does not depend on any other components and contains only a single list of unprocessed events.
-The time warp event dispatcher on the other hand depends on multiple components that implement
-specialized algorithms for event scheduling, state saving, cancellation, GVT, termination,
-interprocess communication, and statistics. The main components and how they depend on eachother
-are illustrated in figure \ref{warped2_architecture}.
+for calling the a set of LP callback methods that are implemented in the simulation model during
+the course of the simulation. The event dispatcher can be configured for sequential simulation
+or a time warp simulation. The sequential simulation does not depend on any other components and
+contains only a single list of unprocessed events. The time warp event dispatcher on the other
+hand depends on multiple components that implement specialized algorithms for event scheduling,
+state saving, cancellation, GVT, termination, interprocess communication, and statistics. The
+main components for time warp and how they depend on each other are illustrated in figure
+\ref{warped2_architecture}.
 
 \begin{figure}[H]
     \centering
@@ -755,7 +757,7 @@ are illustrated in figure \ref{warped2_architecture}.
 
 The time warp components can be categorized as either a local time warp component or a global
 time warp component. The local time warp components are used only for the local control
-mechanism of the individual LP's such as rolling back LPs and fossil collecting LPs whereas
+mechanism of the individual LP's such as rolling back and fossil collecting whereas
 the global time warp components are concerned with the global control mechanisms such as GVT,
 termination detection and statistics counting. The global time warp components must be able to
 communicate with all other processes in the system so that it is possible to determine the
@@ -763,41 +765,85 @@ global state of the system.
 
 \subsection{Local Time Warp Components}
 
-\paragraph{The Event Set} contains the data structures for all of the unprocessed and
+The three local time warp components are \begin{inparaenum}[(1)] \item the EventSet,
+\item the OutputManager, and \item the StateManager\end{inparaenum}. The \texttt{OutputManager} and
+\texttt{StateManager} are abstract base classes that have a well defined API for cancellation
+and state saving techniques, respectively. 
+
+\paragraph{The EventSet} contains the data structures for all of the unprocessed and
 processed events for the LPs that are local to the process. This includes the input queues for
-each LP as well as a scheduling data structure. The event set provides methods for retrieving the
-next event, processing a rollback, and fossil collecting the processed events. All the data
-structures that have pending events must necessarily be thread safe.
+each LP and possibly any extra scheduling data structures. The event set provides methods for
+obtaining the next event, processing a rollback, and fossil collecting processed events. All the
+data structures that have pending events must necessarily be thread safe since multiple worker
+threads could access them.
 
-\paragraph{The Output Manager} contains all of the output queues and implements a single
-cancellation technique. The \texttt{OutputManager} base class provides a set of methods that a derived
-class must implement. The derived class must have methods for adding an event to an output queue,
+\paragraph{The OutputManager} contains all of the output queues and implements a single
+cancellation technique. The derived class must implement methods for adding an event to an output queue,
 processing a rollback, and fossil collecting old output events. Currently, \textsc{warped2} only
-implements aggressive cancellation but may support more cancellation techniques in the future.
+implements aggressive cancellation through the \texttt{AggressiveOutputManager} subclass but
+may support more cancellation techniques in the future such as lazy cancellation.
 
-\paragraph{The State Manager} contains all of the state queues and implements a single technique
-for state saving and state restoration. Similar to the output manager, the state manager is
-based on a \texttt{StateManager} base class. The derived class provide methods for saving the
+\paragraph{The StateManager} contains all of the state queues and implements a single technique
+for state saving and state restoration. The derived class must implement methods for saving the
 state of an LP, restoring the state of an LP, and fossil collecting old states. Currently,
-\textsc{warped2} only implements periodic state saving.
+\textsc{warped2} only implements periodic state saving through the \texttt{PeriodicStateSaving}
+subclass.
 
-\subsection{Global Time Warp Components and Communication Manager}
+\subsection{Global Time Warp Components}
 
-The communication manager provides an interface between the underlying message passing library
+The three time warp components are \begin{inparaenum}[(1)] \item the GVTManager, \item
+the TerminationManager, and \item the StatisticsManager \end{inparaenum}. The \texttt{GVTManager}
+is an abstract base class which defines a well defined API for a GVT algorithm but the
+\texttt{TerminationManager} and \texttt{StatisticsManager} are concrete classes which implement
+a termination detection algorithm and a central statistics manager, respectively.
+
+\paragraph{The GVTmanager} keeps track of the GVT and implements a specific Global Virtual Time
+(GVT) algorithm. Due to the hybrid communication design of \textsc{warped2}, the GVT algorithms
+will have some contribution from the worker threads and must also use the \texttt{CommunicationManager}
+for a message passing algorithm to use between the set of processes. Currently, \textsc{warped2}
+implements an \texttt{AsynchronousGVTManager} and a \texttt{SynchronousGVTManager}. The algorithms
+implemented within each one will be detailed further in chapter \ref{gvt_termination}.
+
+\paragraph{The TerminationManager} impements an algorithm for determining when all processes
+become inactive and initiates termination when that occurs. Just like the \texttt{GVTManager},
+some contribution must come from the worker threads within each process and each process must
+communicate through the \texttt{CommunicationManager}. A more detailed description of the
+termination detection algorithm used in \textsc{warped2} is given in chapter \ref{gvt_termination}.
+
+\paragraph{The StatisticsManager} keeps track of all local statistics and provides methods for
+performing global reductions on the them. 
+
+\subsection{CommunicationManager}
+
+The \texttt{CommunicationManager} provides an interface between the underlying message passing library
 and the global time warp components in the \textsc{warped2} simulation kernel. Any interprocess
-communication must go through the communication manager, including remote events that must be
+communication must go through the \texttt{CommunicationManager}, including remote events that must be
 sent to another process or received from another process. Any class that has to do interprocess
 communication must register message types and a recieve callback function for each type with
-the communication manager.
+the \texttt{CommunicationManager}. The \texttt{WARPED\_REGISTER\_MSG\_HANDLER} macro can be used
+to register the message types and recieve callbacks as long as the communicating class contains
+a data member that is a pointer the \texttt{CommunicationManager} and is named \texttt{comm\_manager\_}.
 
-The GVT manager is actually two classes that implement two algorithms for determining the Global
-Virtual Time of the simulation. Because of the nature of \textsc{warped2}, the GVT algorithm has
-a message passing algorithm to use between the set of processes and shared memory subalgorithm
-to used between worker threads. The termination manager impements an algorithm for determining
-when all processes become inactive and initiates termination when that occurs. A more detailed
-description of the GVT and termination detection algorithms used in \textsc{warped2} are given
-in chapter \ref{gvt_termination}. The Time Warp statistics manager keeps track of all local
-statistics and provides methods for global reductions on the them. 
+The message type must also be derived from the \texttt{TimeWarpKernelMessage} base class and
+must be serializable which means that all member variables must be registered with the serialization
+API so that a storage order can be defined. To do this, the \texttt{WARPED\_REGISTER\_SERIALIZABLE\_MEMBERS}
+macro is provided. All member variable must be passed to this macro as well as
+\texttt{cereal::base\_class<TimeWarpKernelMessage>(this)} to ensure that all members that are
+inherited from \texttt{TimeWarpKernelMessage} are also serialized. The order that the members are
+listed is completely arbitrary and does not matter. In addition, the derived message type must
+be registered using the \texttt{WARPED\_REGISTER\_POLYMORPHIC\_SERIALIZABLE\_CLASS} macro. 
+
+Currently, \textsc{warped2} only implements an MPI based \texttt{CommunicationManager} through
+the \texttt{MPICommunicationManager} subclass.
+
+\subsection{Partitioner}
+
+The \texttt{Partitioner} is an abstract base class for implementating a method of logical
+process partitioning. Given a vector of LPs and some number of partitions, $N$, the \texttt{Partitioner}
+returns $N$ vectors of LPs by using some partitioning technique. The \textsc{warped2} kernel
+implements a \texttt{RoundRobin} partitioner and a \texttt{ProfileGuidedPartitioner} but also
+allows simulation models to define their own custom partitioners. More details of these
+partitioning techniques are given in chapter \ref{partitioning_communication}.
 
 \section{The Modeling API of \textsc{warped2}}
 
@@ -810,10 +856,10 @@ are shown for each.
 
 \subsection{The LPState Structure}
 
-The state of the LPs must be defined with the \texttt{warped\_define\_lp\_state\_struct}
+The state of the LPs must be defined with the \texttt{WARPED\_DEFINE\_LP\_STATE\_STRUCT}
 macro which automatically derives from an intermediate structure that defines a necessary
-clone method so that the model developer does not have to. It is needed to ensure that the warped2
-kernel can save a copy of the state and restore the state from a pointer to the LogicalProcess
+clone method so that the model developer does not have to. It is needed to ensure that the \textsc{warped2}
+kernel can save a copy of the state and restore the state from a pointer to the \texttt{LogicalProcess}
 base class. A simple example of a LP state that contains just message counts is shown below in
 listing \ref{example_state}.
 
@@ -833,18 +879,13 @@ suffice for restoring the state.
 
 \subsection{The Event Class}
 
-The event base class is used as the basis for creating model specific events. The user must
+The \texttt{Event} base class is used as the basis for creating model specific events. The user must
 implement at least two methods: \begin{inparaenum}[(1)] \item \texttt{receiverName()} and 
 \item \texttt{timestamp()} \end{inparaenum}. It is necessary so that the name of the receiver
 and receive time, respectively, can be obtained for each instance of an event within the kernel.
-The user must also register all member variables with the serialization API so that a storage
-order can be defined for events that are sent and received through the message passing system.
-To do this, the \texttt{WARPED\_REGISTER\_SERIALIZABLE\_MEMBERS} macro is provided. All member
-variable must be passed to this macro as well as \texttt{cereal::base\_class<warped::Event>(this)} to
-ensure that all members that are inherited are also serialized. The order that the members are
-listed is completely arbitrary and does not matter. In addition, the derived event type must
-be registered using the \texttt{WARPED\_REGISTER\_POLYMORPHIC\_SERIALIZABLE\_CLASS} macro. A
-basic example of an event implementation is shown below in listing \ref{event_example}.
+The user must also that events are serializable so that they can be sent and received through
+the message passing system. A basic example of an event implementation is shown below in listing
+\ref{event_example}.
 
 \begin{lstlisting}[caption=Example \textsc{warped2} Event Definition, label=event_example, float]
 class ExampleEvent : public warped::Event {
@@ -864,26 +905,26 @@ WARPED_REGISTER_POLYMORPHIC_SERIALIZABLE_CLASS(ExampleEvent)
 
 \subsection{The LogicalProcess class}
 
-The most important class definition in the simulation model is the LogicalProcess class.
-The implementation of the LogicalProcess class defines the callback functions that the
-event dispatcher with the warped2 kernel calls and thus it defines the behavior of the simulation.
-The user must include a single LPState as a data member of the LogicalProcess and provide three
-callback method implementations:
+The most important class definition in the simulation model is the \texttt{LogicalProcess} class.
+The implementation of the \texttt{LogicalProcess} class defines the callback functions that the
+event dispatcher with the \textsc{warped2} kernel calls and thus it defines the behavior of the simulation.
+The user must include a single \texttt{LPState} as a data member of the \texttt{LogicalProcess}
+and provide three callback method implementations:
 
 \begin{enumerate}
     \item The \texttt{initializeLP} method is called to perform any initializations of an LP that
         must be done prior to the start of the simulation and must return a set of initial events.
     \item The \texttt{receiveEvent} method is called to perform the forward computation based on
-        the event that is passed. The implementation of this method must process the event by
+        the event that is passed. The implementation of this method should process the event by
         updating the state of the LP and returning a set of new events with future timestamps.
-    \item The \texttt{getState} method provides a way for the warped2 kernel to get the current
-        state of the LP so that it can be saved in the state queue.
+    \item The \texttt{getState} method provides a way for the \textsc{warped2} kernel to get the
+        current state of the LP so that it can be saved.
 \end{enumerate}
 
 It is necessary that at least one LP has an initial event that is returned by initializeLP,
 otherwise no events can be received and simulation will terminate immediately. Also note that
 it will be called once for \emph{every} LP instance so it is possible that initial events
-are returned only in some cases. An example of a LogicalProcess implementation is shown below
+are returned only in some cases. An example of a \texttt{LogicalProcess} implementation is shown below
 in listing \ref{lp_example}.
 
 \begin{lstlisting}[caption=Example \textsc{warped2} LogicalProcess Definition, label=lp_example, float]
@@ -912,13 +953,13 @@ public:
 
 \subsection{The Partitioner class}\label{partitioner}
 
-The warped2 kernel already provides a set of partitioners but the model developer can define
+The \textsc{warped2} kernel already provides a set of partitioners but the model developer can define
 their own partitioner that is customized for the model. The user must derive from the Partitioner
 base class and implement just a single method which takes a vector of all LPs and the number of
 partitions desired and returns a vector of vectors of LP's. In general, the partitioner should
 work for any number of partitions and not impose any constraints because the partition method
-is called back from the kernel. A simple template of a partitioner is shown in listing
-\ref{partitioner_example}.
+is called back in a general way from the kernel. A simple template of a partitioner is shown in
+listing \ref{partitioner_example}.
 
 \begin{lstlisting}[caption=Example \textsc{warped2} Partitioner Definition, label=partitioner_example, float]
 class ExamplePartitioner : public Partitioner {
@@ -934,14 +975,14 @@ class ExamplePartitioner : public Partitioner {
 \subsection{Random Number Generation}
 
 If the simulation model must use random number generators, then they must all be registered
-with the warped2 kernel so that the state of the random number generator can be saved and
+with the \textsc{warped2} kernel so that the state of the random number generator can be saved and
 restored in case of rollbacks and provide deterministic result. The random number generators
 can be any type as long as they implement the \texttt{<< operator} and \texttt{>> operator} to
 allow the kernel to save and restore the internal state of the random number generator. The
 random number generators in the C++11 standard libraries\cite{c++11-rng} all fit this requirement
 and can all be used so it is not necessary to always build a custom random number generator. To
-register the random number generator, the registerRNG template function must be used which is
-a member of the LogicalProcess class. All LP's must have separate random number generators and
+register the random number generator, the \texttt{registerRNG} template function must be used which is
+a member of the \texttt{LogicalProcess} class. All LP's must have separate random number generators and
 must be registered in the initializeLP callback function as shown in listing \ref{lp_example}.
 
 \subsection{Command Line Arguments and the Kernel Entry Point}
@@ -992,40 +1033,26 @@ int main(int argc, const char **argv) {
 }
 \end{lstlisting}
 
-\section{Plans of Study}
+\chapter{Plans of Study}
 
 Experimental results will be presented throughout the remaining chapters as the various aspects
 of \textsc{warped2} are discussed. All chapters will contain experimental results for only x86
 SMP nodes and clusters and will be targeted towards understanding and determining the best
 design options and configurations.
 
-The single node SMP experiments will be run on an Intel Xeon X5675 processor. The intel X5675
-has 6 cores with hyperthreading so that 12 simultaneous threads are supported.
-Cluster experiments will be run on Intel Xeon E5410. The Intel Xeon E5410 is a quad core processor
-but each machine contains two sockets so that 8 cores are available.
-A summary of the architectural features and runtime systems for both machines are summarized in
-table \ref{x86_platform} in appendix \ref{x86_nodes_and_clusters}.
+The single node SMP experiments will be run on an Intel\textsuperscript{\textregistered}
+Xeon\textsuperscript{\textregistered} X5675 processor. The intel\textsuperscript{\textregistered} Xeon
+\textsuperscript{\textregistered} X5675 has 6 cores with hyperthreading so that 12 simultaneous
+threads are supported. Cluster experiments will be run on Intel\textsuperscript{\textregistered}
+Xeon\textsuperscript{\textregistered} E5410. The Intel\textsuperscript{\textregistered}
+Xeon\textsuperscript{\textregistered} E5410 is a quad core processor but each machine contains
+two sockets so that 8 cores are available. A summary of the architectural features and runtime
+systems for both machines are summarized in table \ref{x86_platform} in appendix \ref{x86_nodes_and_clusters}.
 
-\subsection{Experiments on x86 SMP Nodes}
+Throughout the rest of this text, a measure called the \emph{efficieny} will be one of the main
+measures used to analyze behavior. Other measures will be introduced as needed. The efficiency
+is defined as:
 
-%% Increasing LTSF Queues, LTSF Queue Partitioning, State Saving Period (Performance), Spinlocks
-
-%% Fossil Collection, State Saving Period (Memory), Memory Allocation
-
-\subsection{Experiments x86 Clusters}
-
-%% State Saving Period
-
-%% Communication Model
-
-%% Partitioning
-
-%% Message Aggregation
-
-%% Scaling Up
-
-
-\emph{Efficiency} is defined as:
 $$ Efficiency = {events_{committed}}/{events_{processed}} * 100 $$
 
 \noindent
@@ -1033,6 +1060,190 @@ where $events_{committed}$ is the number of events that are processed and not ro
 $events_{processed}$ is the total number of events that are processed whether they are rolled
 back or not. Thus, the efficiency is a measure of the percentage of events that are processed
 and not rolled back.
+
+\section{Experiments}
+
+The experiments carried out on a single node SMP machine will be strongly tied to thread
+synchronization, state saving, memory allocation, and fossil collection. On the other hand,
+experiments carried out on a cluster will be strongly tied to communication, partitioning,
+state saving, and scaling up simulations. The experiments for a single SMP node are summarized
+in table \ref{smp_experiments} and for a cluster in table \ref{cluster_experiments}.
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{| c | c | c | c |}
+        \hline
+        \textbf{Comparison} & \textbf{Measure(s)}  & \textbf{Figure(s)}   & \textbf{Machine(s)}  \\
+        \hline
+        Number of LTSF Queues & Speedup and Efficiency   & Figure \ref{ltsf_analysis}    & X5675             \\
+        \hline
+        LTSF Queue Partitioning & Time and Efficiency    & Figures \ref{ltsf_partitioning_bc},
+            \ref{ltsf_partitioning_beowulf}    & X5675, E5410 \\
+        \hline
+        State Saving Period & Speedup, ...  & Figure \ref{ssp_analysis_smp_performance} & X5675 \\
+        \hline
+        Spinlocks & Speedup  & Figure \ref{spinlock_speedup} & X5675 \\
+        \hline
+        Fossil Collection Techniques & Event Rate    & Figure \ref{fc_times} & X5675 \\
+        \hline
+        Memory Allocators & Event Rate   & Figure \ref{allocator_analysis_eventrate} & X5675 \\
+        \hline
+        Memory Allocators & Efficiency   & Figure \ref{allocator_analysis_efficiency}    & X5675 \\
+        \hline
+        LTSF Queues & \% Memory Increase & Figure \ref{ltsf_memory}  & X5675 \\
+        \hline
+        State Saving Period & \% Memory Decrease & Figure \ref{ssp_analysis_smp_memory}  & X5675 \\
+        \hline
+        GVT Period & Memory and Time & Figure \ref{fc_memory_analysis}   & X5675 \\
+        \hline
+    \end{tabular}
+    \caption{SMP Node Experiments}\label{smp_experiments}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{| c | c | c | c |}
+        \hline
+        \textbf{Comparison} & \textbf{Measure(s)}  & \textbf{Figure(s)}   & \textbf{Machine(s)}  \\
+        \hline
+        Communication Model & Speedup and Efficiency & Figure \ref{model_communication}  & E5410 \\
+        \hline
+        Communication Model & \% Remote Events   & Figure \ref{communication_model_premote}  & E5410 \\
+        \hline
+        Interprocess Partitioning & Time, Efficiency, \% Remote Events   & Figure \ref{partitioning_8node} & E5410 \\
+        \hline
+        Aggregate Messages & Time, Rollbacks, Remote Events  & Figures \ref{aggregate_pcs_traffic},
+            \ref{aggregate_epidemic} & E5410 \\ 
+        \hline
+        Scaling LPs & Efficiency, \% Remote Events, Event Rate & Figure \ref{scaling}    & E5410 \\
+        \hline
+        State Saving Period & Speedup, ...   & Figure \ref{ssp_analysis_cluster} & E5410 \\
+        \hline
+        State Saving Period & \% Memory Decrease & Figure \ref{ssp_analysis_smp_memory}  & E5410 \\
+        \hline
+    \end{tabular}
+    \caption{Cluster Experiments}\label{cluster_experiments}
+\end{table}
+
+\section{Simulation Models}
+
+This section describes some of the \textsc{warped2} simulation models that will be used for
+experiments. The model configurations that are used are included within tables in appendix
+\ref{model_configurations}.
+
+\subsection{PCS}
+
+The model describes a type of wireless communication network known as a Portable Cellular
+Service (PCS) network. A PCS network provides services for a number of \emph{portables} which
+are the subscribers to the network. The service area of the network is divided into
+\emph{cells} and a single \emph{port} covers a single cell which has a certain number channels that
+it can allocate for calls. When an incoming or outgoing call is made, a port must allocate
+a channel from the port and if one cannot be allocated then the call is \emph{blocked}\cite{lin-96b}.
+The only type of logical processes in the PCS simulation are the cells. The cells in the
+\textsc{warped2} model form a rectangular grid as shown in figure \ref{pcs_model_lps}.
+Portables can only move to other cells from an adjacent cell with a wrap around occuring
+at the edges.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.6\textwidth,quiet]{figs/graphviz/pcs_model.pdf}
+    \caption{PCS Model Logical Processes}\label{pcs_model_lps}
+\end{figure}
+
+The portables stay within a cell for a period of time which follows a poisson distribution
+before moving to another cell. If the all cells are busy in the cell that the portable
+is moving to then the call is dropped. This is called a \emph{handoff block}.
+
+Every LP keeps track of the following state variables:
+\begin{itemize}
+    \item Number of idle channels
+    \item Number of call attempts
+    \item Number of channel blocks
+    \item Number of handoff blocks
+\end{itemize}
+
+\noindent
+Call arrivals to a portable also follow a poisson distribution. The cells in the model
+generate all of their own incoming calls in a self-initiating process.
+Four types of events are used to model the network: \begin{inparaenum}[(1)] \item NextCall,
+\item CallCompletion, \item PortableMoveOut, and \item PortableMoveIn \end{inparaenum}.
+The NextCall, CallCompletion, and PortableMoveOut events are all sent to self whereas
+the PortableMoveIn event is sent to an adjacent cell based on a random variable with
+uniform probability.
+
+\subsection{Traffic}
+
+The traffic model describes a grid of intersections and the movement of cars through
+the intersections and between the intersections. All intersections are four way intersections
+and have three lanes in each direction. The LPs in the traffic model are the intersections
+and form a rectangular grid in the same way as that of the PCS model.
+
+The simulation starts with a uniform distribution of cars at each intersection and each
+car is a assigned a destination which it finishes at. With each arrival at an intersection
+the car always goes in the direction that gets it closer to its destination.
+The number of cars going out of an intersection in the same direction is limited to a
+maximum number due to traffic on the destination road. An incoming car that cannot travel in
+a specific direction is forced back in the same direction it came from and tries another
+route. For each intersection, the state consists of:
+
+\begin{itemize}
+    \item Number of cars coming into the intersection from each direction
+    \item Number of cars going out of the intersection to each direction
+    \item Total cars arrived at the intersection
+    \item Total cars finished at the intersection
+\end{itemize}
+
+A car goes through three event phase in every intersection as shown in figure
+\ref{traffic_events}. The three types of events are: \begin{inparaenum}[(1)] \item Arrival,
+\item Direction Select, and \item Departure \end{inparaenum}. The arrival and departure
+events are mainly used for simple state updates and timing of the next events.
+The direction select event is where the complexity of the simulation is and determines the
+direction that the car should go in order to reach its destination or whether the car should
+take another route due to traffic.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.6\textwidth,quiet]{figs/graphviz/traffic_events.pdf}
+    \caption{Intersection Event Sequence}\label{traffic_events}
+\end{figure}
+
+All events in the traffic model follow an exponential distribution and a single event
+is generated with the processing of each event. The departure and direction select events
+are self-generated but the arrival event is from an adjacent intersection.
+
+\subsection{Epidemic}
+
+The epidemic model describes the spreading of an infectious disease across a set of
+geographic locations in a region and across a set of regions. The logical processes in
+the simulation are geographic locations which represent a portion of the population. The
+interactions between people in different geographic locations and regions are modeled with
+a diffusion network. An abstract view of the simulation model is shown below in figure
+\ref{epidemic_model}.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.6\textwidth,quiet]{figs/graphviz/epidemic.pdf}
+    \caption{Epidemic Model}\label{epidemic_model}
+\end{figure}
+
+The model is based on reaction-diffusion model\cite{perumalla-12}. A reaction process
+models the behavior of the disease within a person as well as the transmission of the
+disease between people within the same location. A probabilistic reaction function defines
+the behavior of the disease between individuals\cite{barrett-08}. The disease within an
+individual is modeled by a Probabilistic Timed Transition System (PTTS)\cite{barrett-08}
+which is a finite state machine describing states of the disease and the transitions between states.
+Together, the reaction function and PTTS models of the disease form the \emph{disease model}.
+The diffusion network models the social interactions of people between locations and between
+regions\cite{barrett-08}.
+
+\subsection{Airport}
+
+The airport model describes the departure and arrivals of airplanes between a connected
+set of airports. The logical processes represent airports and the events are simply
+departures and arrivals. For simplicity, the airports are connected in a rectangular grid
+and can only fly to aiports to the north, east, south, or west of the aiport departed from.
+The time spent between takeoff and landing and between landing and takeoff both follow an
+exponential distributions.
 
 
 
@@ -1077,7 +1288,6 @@ per node and for single threaded communication, 8 processes per node are used. A
 contain 5 ordinary messages which could be positive events, anti-messages, or other control
 tokens for GVT and termination detection.
 
-\pagebreak
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
@@ -1337,7 +1547,7 @@ illustrates this for the epidemic model which has very little interprocess commu
 With such little remote communication due to excellent partitioning capabilities, any amount
 of message aggregation only hurts performance by increasing communication latency.
 
-\begin{figure}[H]
+\begin{figure}
   \centering
   \begin{minipage}{.5\textwidth}
     \begin{center}
@@ -1694,7 +1904,7 @@ analyze state saving and are related by:
 
 $$ {Coast Forward Rate} = {Coast Forward Events \over Rollbacks} * {Rollback Rate}$$
 
-\begin{figure}[H]
+\begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/speedup.pdf} \\
@@ -1871,7 +2081,7 @@ same process, the same events can be pointed to from the output queue and an unp
 processed event from another LP. The organization of the processed queue, state queue and output
 queue for a single LP is illustrated in figure \ref{rollback_ds}.
 
-\begin{figure}[H]
+\begin{figure}
     \centering
     \includegraphics[width=\textwidth,quiet]{figs/graphviz/rollback_ds.pdf}
     \caption{Rollback and Cancellation Data Structures in \textsc{warped2}}\label{rollback_ds}
@@ -2667,7 +2877,7 @@ for various simulation models.
   \begin{minipage}{.5\textwidth}
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/percent_memory_decrease.pdf} \\
-      Single SMP Noded \\
+      Single SMP Node \\
     \end{center}
   \end{minipage}%
   \hfill
@@ -2708,12 +2918,14 @@ with an extremely small period, the performance is only worsened by a very small
   \begin{minipage}{.5\textwidth}
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/fossil_collection/memory_fcw.pdf} \\
+      Memory (MB) \\
     \end{center}
   \end{minipage}%
   \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/fossil_collection/time_fcw.pdf} \\
+      Simulation Time (s) \\
     \end{center}
   \end{minipage}
   \caption{GVT Period: Memory and Performance Comparison}\label{fc_memory_analysis}
@@ -2818,122 +3030,6 @@ have a large number of cores per processor.
     \end{tabular}
     \caption{x86 Assessment Platforms}\label{x86_platform}
 \end{table}
-
-\chapter{Simulation Models}
-
-\subsection{PCS}
-
-The model describes a type of wireless communication network known as a Portable Cellular
-Service (PCS) network. A PCS network provides services for a number of \emph{portables} which
-are the subscribers to the network. The service area of the network is divided into
-\emph{cells} and a single \emph{port} covers a single cell which has a certain number channels that
-it can allocate for calls. When an incoming or outgoing call is made, a port must allocate
-a channel from the port and if one cannot be allocated then the call is \emph{blocked}\cite{lin-96b}.
-The only type of logical processes in the PCS simulation are the cells. The cells in the
-\textsc{warped2} model form a rectangular grid as shown in figure \ref{pcs_model_lps}.
-Portables can only move to other cells from an adjacent cell with a wrap around occuring
-at the edges.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.6\textwidth,quiet]{figs/graphviz/pcs_model.pdf}
-    \caption{PCS Model Logical Processes}\label{pcs_model_lps}
-\end{figure}
-
-The portables stay within a cell for a period of time which follows a poisson distribution
-before moving to another cell. If the all cells are busy in the cell that the portable
-is moving to then the call is dropped. This is called a \emph{handoff block}.
-
-Every LP keeps track of the following state variables:
-\begin{itemize}
-    \item Number of idle channels
-    \item Number of call attempts
-    \item Number of channel blocks
-    \item Number of handoff blocks
-\end{itemize}
-
-\noindent
-Call arrivals to a portable also follow a poisson distribution. The cells in the model
-generate all of their own incoming calls in a self-initiating process.
-Four types of events are used to model the network: \begin{inparaenum}[(1)] \item NextCall,
-\item CallCompletion, \item PortableMoveOut, and \item PortableMoveIn \end{inparaenum}.
-The NextCall, CallCompletion, and PortableMoveOut events are all sent to self whereas
-the PortableMoveIn event is sent to an adjacent cell based on a random variable with
-uniform probability.
-
-\subsection{Traffic}
-
-The traffic model describes a grid of intersections and the movement of cars through
-the intersections and between the intersections. All intersections are four way intersections
-and have three lanes in each direction. The LPs in the traffic model are the intersections
-and form a rectangular grid in the same way as that of the PCS model.
-
-The simulation starts with a uniform distribution of cars at each intersection and each
-car is a assigned a destination which it finishes at. With each arrival at an intersection
-the car always goes in the direction that gets it closer to its destination.
-The number of cars going out of an intersection in the same direction is limited to a
-maximum number due to traffic on the destination road. An incoming car that cannot travel in
-a specific direction is forced back in the same direction it came from and tries another
-route. For each intersection, the state consists of:
-
-\begin{itemize}
-    \item Number of cars coming into the intersection from each direction
-    \item Number of cars going out of the intersection to each direction
-    \item Total cars arrived at the intersection
-    \item Total cars finished at the intersection
-\end{itemize}
-
-A car goes through three event phase in every intersection as shown in figure
-\ref{traffic_events}. The three types of events are: \begin{inparaenum}[(1)] \item Arrival,
-\item Direction Select, and \item Departure \end{inparaenum}. The arrival and departure
-events are mainly used for simple state updates and timing of the next events.
-The direction select event is where the complexity of the simulation is and determines the
-direction that the car should go in order to reach its destination or whether the car should
-take another route due to traffic.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.6\textwidth,quiet]{figs/graphviz/traffic_events.pdf}
-    \caption{Intersection Event Sequence}\label{traffic_events}
-\end{figure}
-
-All events in the traffic model follow an exponential distribution and a single event
-is generated with the processing of each event. The departure and direction select events
-are self-generated but the arrival event is from an adjacent intersection.
-
-\subsection{Epidemic}
-
-The epidemic model describes the spreading of an infectious disease across a set of
-geographic locations in a region and across a set of regions. The logical processes in
-the simulation are geographic locations which represent a portion of the population. The
-interactions between people in different geographic locations and regions are modeled with
-a diffusion network. An abstract view of the simulation model is shown below in figure
-\ref{epidemic_model}.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.6\textwidth,quiet]{figs/graphviz/epidemic.pdf}
-    \caption{Epidemic Model}\label{epidemic_model}
-\end{figure}
-
-The model is based on reaction-diffusion model\cite{perumalla-12}. A reaction process
-models the behavior of the disease within a person as well as the transmission of the
-disease between people within the same location. A probabilistic reaction function defines
-the behavior of the disease between individuals\cite{barrett-08}. The disease within an
-individual is modeled by a Probabilistic Timed Transition System (PTTS)\cite{barrett-08}
-which is a finite state machine describing states of the disease and the transitions between states.
-Together, the reaction function and PTTS models of the disease form the \emph{disease model}.
-The diffusion network models the social interactions of people between locations and between
-regions\cite{barrett-08}.
-
-\subsection{Airport}
-
-The airport model describes the departure and arrivals of airplanes between a connected
-set of airports. The logical processes represent airports and the events are simply
-departures and arrivals. For simplicity, the airports are connected in a rectangular grid
-and can only fly to aiports to the north, east, south, or west of the aiport departed from.
-The time spent between takeoff and landing and between landing and takeoff both follow an
-exponential distributions.
 
 \chapter{Simulation Model Configurations}\label{model_configurations}
 
