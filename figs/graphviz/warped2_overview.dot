@@ -41,15 +41,16 @@ digraph overview {
     }
 
     subgraph cluster_kernel {
-        event_dispatcher [label = "Time Warp Event Dispatcher", style = filled, color = plum3];
+        event_dispatcher [label = "TimeWarpEventDispatcher", style = filled, color = plum3];
         comm_manager [label = "Communication Manager", style = filled, color = plum3];
+        partitioner1 [label = "Partitioner", style = filled, color = plum3];
 
-        event_set [label = "Event Set", style = filled, color = lightgoldenrod3];
-        state_manager [label = "State Manager", style = filled, color = lightgoldenrod3];
-        output_manager [label = "Output Manager", style = filled, color = lightgoldenrod3];
-        gvt_manager [label = "GVT Manager", style = filled, color = lightgoldenrod4];
-        termination_manager [label = "Termination Manager", style = filled, color = lightgoldenrod4];
-        time_warp_statistics [label = "Time Warp Statistics Manager", style = filled, color = lightgoldenrod4];
+        event_set [label = "EventSet", style = filled, color = lightgoldenrod3];
+        state_manager [label = "StateManager", style = filled, color = lightgoldenrod3];
+        output_manager [label = "OutputManager", style = filled, color = lightgoldenrod3];
+        gvt_manager [label = "GVTManager", style = filled, color = lightgoldenrod4];
+        termination_manager [label = "TerminationManager", style = filled, color = lightgoldenrod4];
+        time_warp_statistics [label = "StatisticsManager", style = filled, color = lightgoldenrod4];
 
         "event_dispatcher" -> "event_set";
         "event_dispatcher" -> "state_manager";
@@ -70,7 +71,7 @@ digraph overview {
 
     // Kernel Interface
     "lp_api2" -> "event_dispatcher" [lhead=cluster_kernel, ltail=cluster_lps];
-    "partitioner" -> "event_dispatcher" [lhead=cluster_kernel, style = dashed];
+    "partitioner" -> "partitioner1" [style = dashed];
     "command_line_args" -> "event_dispatcher" [lhead=cluster_kernel, style = dashed];
 
     // Callback API
