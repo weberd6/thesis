@@ -209,11 +209,11 @@ Figure \ref{warped2_communication} illustrates the communication model that is u
 \noindent
 This communication model not only allows for high scalability and reduced communication
 overhead within processes, but allows time warp simulations to follow the critical path better
-since the worker threads can share a scheduling data structure to process events from.
-Fewer scheduling data structures creates a bottleneck since multiple worker threads cannot
-access them simultaneously without race conditions. On the other hand, more scheduling
-data structures allows more concurrency but spreads out the critical path of execution,
-allowing more rollbacks so the efficiency decreases.
+since the worker threads can share a scheduling data structure to process events from. In
+\textsc{warped2} this scheduling data structure is call an \emph{LTSF Queue}. Fewer LTSF queues
+creates a bottleneck since multiple worker threads cannot access them simultaneously without
+race conditions. On the other hand, more LTSF queues allows more concurrency but spreads out the
+critical path of execution, allowing more rollbacks so the efficiency decreases.
 
 %% Partitioning and Message Aggregation
 To reduce communication overheads in both message passing and shared memorory communication,
@@ -221,7 +221,7 @@ partitioning the work between processes and threads will also be explored. Parti
 the work in a parallel discrete event simulation is achieved by simply partitioning the
 LPs. In \textsc{warped2}, a two phase partitioning scheme will be explored. The first phase
 is for partitiong LPs among processes in order to minimize interprocess communication and the
-second phase is for further partioning the LPs in a process to an event scheduling data structure
+second phase is for further partioning the LPs in a process among LTSF queues
 which will localize LP communication among worker threads, allowing better cache locality,
 and lowering rollbacks. To further reduce the side effects of message passing communication,
 messages that are sent to the same process are aggregated and sent together as a single larger
@@ -254,6 +254,9 @@ compute platforms for each is described.
 
 Chapter \ref{warped2_overview} introduces the software architecture and modeling API for
 the \textsc{warped2} simulation kernel.
+
+Chapter \ref{plans_of_study} provides an overview of experiments for single SMP nodes and clusters
+and the models that are used in the experiments.
 
 Chapter \ref{partitioning_communication} describes the importance of efficient message passing
 communication and analyzes different approaches. Some preliminary results are shown and analyzed
@@ -760,7 +763,7 @@ main components for time warp and how they depend on each other are illustrated 
 
 The time warp components can be categorized as either a local time warp component or a global
 time warp component. The local time warp components are used only for the local control
-mechanism of the individual LP's such as rolling back and fossil collecting whereas
+mechanism of the individual LPs such as rolling back and fossil collecting whereas
 the global time warp components are concerned with the global control mechanisms such as GVT,
 termination detection and statistics counting. The global time warp components must be able to
 communicate with all other processes in the system so that it is possible to determine the
@@ -775,10 +778,9 @@ and state saving techniques, respectively.
 
 \paragraph{The EventSet} contains the data structures for all of the unprocessed and
 processed events for the LPs that are local to the process. This includes the input queues for
-each LP and possibly any extra scheduling data structures. The event set provides methods for
-obtaining the next event, processing a rollback, and fossil collecting processed events. All the
-data structures that have pending events must necessarily be thread safe since multiple worker
-threads could access them.
+each LP and also the LTSF queues. The event set provides methods for obtaining the next event,
+processing a rollback, and fossil collecting processed events. All the data structures that have
+pending events must necessarily be thread safe since multiple worker threads could access them.
 
 \paragraph{The OutputManager} contains all of the output queues and implements a single
 cancellation technique. The derived class must implement methods for adding an event to an output queue,
@@ -1036,7 +1038,7 @@ int main(int argc, const char **argv) {
 }
 \end{lstlisting}
 
-\chapter{Plans of Study}
+\chapter{Plans of Study}\label{plans_of_study}
 
 Experimental results will be presented throughout the remaining chapters as the various aspects
 of \textsc{warped2} are discussed. All chapters will contain experimental results for only x86
@@ -1252,10 +1254,11 @@ exponential distributions.
 
 \chapter[Communication]{Interprocess Communication} \label{partitioning_communication}
 
-This chapter first provides an overview of how to implement a system with a hybrid communication
-model. Then various partitioning schemes that are implemented in \textsc{warped2} are discussed
-and analyzed. Lastly, the message aggregation technique that is used is described and the
-behavior with various aggregate message counts are explored.
+This chapter first provides an overview of different hybrid communication models that can be
+used with MPI and compares the performances of them. Then various partitioning schemes that are
+implemented in \textsc{warped2} are discussed and analyzed. Lastly, the message aggregation
+technique that is used is described and the behavior with various aggregate message counts are
+explored.
 
 \section{Multithreaded Message Passing with MPI}
 
@@ -1266,7 +1269,7 @@ impact performance and stability of the simulator.
 The MPI standard specifies four level of thread support that each implementation may support:
 
 \begin{description}
-    \item[MPI\_THREAD\_SINGLE:] The application uses only a single thread.
+    \item[MPI\_THREAD\_SINGLE:] The application uses only a single thread. 
     \item[MPI\_THREAD\_FUNNELED:] The application is multithreaded but only a single thread will
         make MPI calls.
     \item[MPI\_THREAD\_SERIALIZED:] The application is multithreaded but only a single thread at
@@ -2000,7 +2003,7 @@ so the locks should only held for a short period of time.
 A \emph{spinlock} is a type of mutex that does not force threads to be rescheduled but
 instead continue to attempt to aqcuire the lock over and over until it successfully acquires
 the lock or the timeslice of the thread expires. The downside of spinlocks is that the CPU time
-can be waised, especially as the number of contending threads increase. Furthermore, if the
+can be waisted, especially as the number of contending threads increase. Furthermore, if the
 number of total threads is larger than the number of available processors, spinlocks are
 even worse because a thread can be involuntarily pre-empted while holding the lock and entire
 timeslices can be waisted.
@@ -2079,7 +2082,7 @@ a rollback but is used to determine which events should be sent as anti-messages
 
 The processed queues only contain a pointer to the processed events. The dereferenced events
 from the processed queue are the same as dereferenced source events from output queue and state
-queue so that no copying of the events is needed. Furthermore, if events are sent withing the
+queue so that no copying of the events is needed. Furthermore, if events are sent within the
 same process, the same events can be pointed to from the output queue and an unprocessed or
 processed event from another LP. The organization of the processed queue, state queue and output
 queue for a single LP is illustrated in figure \ref{rollback_ds}.
