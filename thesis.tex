@@ -2283,6 +2283,7 @@ shared memory and message passing GVT algorithms whether they are synchronous or
 \begin{algorithm}
 \DontPrintSemicolon
 \SetKw{Continue}{continue}
+\SetKw{In}{in}
 \SetKwFunction{GetNextEvent}{getNextEvent}
 \SetKwFunction{Report}{reportThreadMin}
 \SetKwFunction{ReportSend}{reportThreadSendMin}
@@ -2306,13 +2307,13 @@ shared memory and message passing GVT algorithms whether they are synchronous or
             }
 
             \If{$e$ is straggler}{
-                Rollback\;
+                Rollback $lp$\;
                 \Continue\;
             }
 
             $newEvents \gets \ProcessEvent{e}$\;
             
-            \ForEach{$ne$ in $newEvents$}{
+            \ForEach{$ne$ \In $newEvents$}{
                 \SendEvent{$ne$}\;
             }
         }
@@ -2326,14 +2327,14 @@ shared memory and message passing GVT algorithms whether they are synchronous or
 
     \Send{
         \uIf{$ne$ is remote event}{
-            $color \gets \GVTSendUpdate{}$\;
+            $color \gets \GVTSendUpdate{ne}$\;
             Insert into Send Queue\;
         } \Else {
             $lp \gets$ receiver of $ne$\;
             Insert into Unprocessed Queue for $lp$\;
         }
 
-        \If{$localGVTFlag_i > 0$ and ($workerThread_i$ hasn't reported local min)}{
+        \If{$localGVTFlag_i$ and ($workerThread_i$ hasn't reported local min)}{
             \ReportSend{$timestamp_ne$}\;
         }
     }
@@ -2366,17 +2367,23 @@ the exact implementation.
 
 The asynchronous GVT algorithm in \textsc{warped2} is based around a variant of Mattern's
 algorithm for the message passing part. In the \textsc{warped2} implementation, scalar counters
-are used to keep track of message that are sent that carry the initial color. That means that
+are used to keep track of whites message instead of vector counters. That means that
 each process keeps track of the number of sent messages minus the number of received messages
 to and from all other process as a single count. The reason that scalar counters are used over
-vector counters is that vector counters require that communication is stopped after receiving a
-control token until all known transient messages that are bound for the receiving process are
-received. With scalar counters, this is not possible because all counts are combined into a single
-counter. However, with scalar counters it is possible that more than two rounds of the control
-token will be necessary. This is usually not a problem in practice though since two rounds is
-usually sufficient. Also, each process must maintain a counter for both white messages \emph{and}
-red messages so that counters can be consistent between multiple runs of the algorithm. The roles
-of the colors must also be switched between successive runs.
+vector counters is that vector counters require extra space and are only necessary if communication
+is stopped after receiving a control token until all known transient messages that are bound for
+the receiving process are received. With scalar counters, this is not possible because all counts
+are combined into a single counter. However, with scalar counters it is possible that more than
+two rounds of the control token will be necessary. This is usually not a problem in practice
+though since two rounds is usually sufficient. Also, each process must maintain a counter for
+both white messages \emph{and} red messages so that counters can be consistent between multiple
+runs of the algorithm. The roles of the colors must also be switched between successive runs.
+
+Another major different between the classic Mattern algorithm and the variant in \textsc{warped2}
+is that the classic algorithm assumes that the timestamps of the white messages that are received
+will always be counted in the minimum clock value before another token is sent. Since this cannot
+be gaurenteed in \textsc{warped2}, a running minimum of the white message timestamps received is
+recorded to ensure that all white messages are included in the final GVT value.
 
 A GVT token will be sent by the manager thread when a local minimum has been reported by all
 worker threads and the local GVT calculation will begin either when a token is received or
@@ -2385,65 +2392,6 @@ with PID of 0. Due to the asynchrony of this algorithm, there are two phases of 
 one phase to check the state of the algorithm and progress it further and the other phase is
 to receive the token and update the state. The two phases are put into psuedocode in algorithm
 \ref{gvt_manager_asynchronous}.
-
-\begin{algorithm}
-\DontPrintSemicolon
-\SetKwFunction{SendToken}{SendToken}
-\SetKwBlock{ProgressGVTa}{progressGVT}{end}
-\SetKwBlock{ReceiveToken}{receiveToken}{end}
-
-    \ProgressGVTa{
-        \If {$needLocalGVT = true$}{
-            $needLocalGVT \gets false$\;\;
-
-            \uIf{($localGVTFlag$ equals 0) and (haven't started local GVT)}{
-                $color \gets color_{final}$\;
-                $ts_{min} \gets \infty$\;
-                $clock_{min} \gets \infty$\;
-                $msgcount \gets msgcount_{initial}$\;
-                $msgcount_{initial} \gets 0$\;
-            } \ElseIf {($localGVTFlag = 0$) and (started local GVT)}{
-                $localMin = \infty$\;
-                \ForEach{worker thread, i}{
-                    $localMin \gets \min{(localMin, localMin_i)}$\;
-                }\;
-
-                \uIf{$processCount > 1$}{
-                    \SendToken{$i, (i+1) \bmod N, localMin, \min{(ts_{min}, clock_{min})}, msgcount$}\;
-                } \Else {
-                    $gvtApprox \gets localMin$\;
-                }
-            }
-        }
-    }\;
-
-    \ReceiveToken{
-        \uIf{$PID \neq 0$}{
-            \If{$color = color_{initial}$}{
-                $ts_{min} \gets \infty$\;
-                $color \gets color_{final}$\;
-            }
-            Accumulate $ts_{min}$ and $msgcount$\; 
-            $clock_{min} \gets \min{(clock_{min}, mclock)}$\;\;
-
-            $localGVTFlag \gets numWorkerThreads$\;
-            $needLocalGVT \gets true$\;
-        } \Else {
-            \uIf {$mcount \neq 0$} {
-                $gvtApprox \gets \min{(mclock, msend)}$\;
-                Broadcast $gvtApprox$\;
-            } \Else {
-                Accumulate $ts_{min}$ and $msgcount$\;\;
-
-                $localGVTFlag \gets numWorkerThreads$\;
-                $needLocalGVT \gets true$\;
-            }       
-            $clock_{min} \gets \infty$\;
-        }
-    }\;
-
-    \caption{Asynchronous GVT: Manager Thread}\label{gvt_manager_asynchronous}
-\end{algorithm}
 
 The asynchronous algorithm desribed above works well in cases where the remote communication is
 relatively low but has been shown to be problematic under heavy remote communication. The root
@@ -2463,44 +2411,48 @@ reporting a local minimum are recorded on the send side rather than the receive 
 
 \begin{algorithm}
 \DontPrintSemicolon
-\SetKwFunction{sumAllreduce}{sumAllreduce}
-\SetKwFunction{minAllreduce}{minAllreduce}
+\SetKw{Break}{break}
+\SetKwFunction{SumAllreduce}{sumAllreduce}
+\SetKwFunction{MinAllreduce}{minAllreduce}
 \SetKwBlock{ProgressGVTs}{progressGVT}{end}
 
     \ProgressGVTs{
+        $color \gets RED$\;
         $localGVTFlag \gets 1$\;
-        $THREAD\_BARRIER$\;\;
+        $THREAD\_SYNCHRONIZATION\_BARRIER$\;\;
 
         \While{$true$}{
             Flush send queue\;
             Receive messages\;
-            $\sumAllreduce{localMsgCount, globalMsgCount}$\;
+            $\SumAllreduce{localMsgCount, globalMsgCount}$\;
+            \lIf{$globalMsgCount = 0$}{\Break}
         }\;
 
-        $localMin \gets \infty$\;
+        $localMin \gets recvMin$\;
         \ForEach{worker thread, i}{
             $localMin \gets \min{(localMin, \min{(localMin_i, sendMin_i)})}$\;
         }\;
 
-        $\minAllreduce{localMin, GVT}$\;\;
+        $\MinAllreduce{localMin, GVT}$\;\;
 
+        $color \gets WHITE$\;
         $localGVTFlag \gets 0$\;
-        $THREAD\_BARRIER$\;
+        $THREAD\_SYNCHRONIZATION\_BARRIER$\;
     }
 
     \caption{Synchronous GVT: Manager Thread}\label{gvt_manager_synchronous}
 \end{algorithm}
 
-When the worker threads report their local minimum, they must wait at TWO thread barriers. Both
-barriers are needed so that the manager thread can ensure that no more remote events are sent.
+When the worker threads report their local minimum, they must wait at \emph{two} thread barriers.
+Both barriers are needed so that the manager thread can ensure that no more remote events are sent.
 When every worker thread calls the first barrier, it indicates to the manager thread that it all
 local minimums have been reported and it can continue. The second barrier is an indicator to
-release the worker threads and indicates that the manager thread has completed the GVT calculation.  
+the worker threads so they can be released and continue processing events.  
 
 The advantage of the synchronous GVT algorithm in \textsc{warped2} is that it is very robust
 and works well even under very heavy remote communication. Furthermore, it will be produce the
 exact GVT unlike the asynchronous algorithm since event processing will not continue until it
-is complete.
+is complete so the GVT cannot increase.
 
 \section{Termination Detection}
 
@@ -2549,6 +2501,44 @@ boolean array to keep track of which worker threads are active. Worker threads u
 state when they change and atomically update the counter. The manager thread periodically
 checks to see if the counter has reached zero. If the count has reached zero and the process
 is the master, then the interprocess message passing alorithm is initiated.
+
+\begin{algorithm}
+\DontPrintSemicolon
+\SetKw{Continue}{continue}
+\SetKw{In}{in}
+\SetKwFunction{Report}{ReportThreadMin}
+\SetKwFunction{GetNextEvent}{getNextEvent}
+\SetKwFunction{ProcessEvent}{processEvent}
+\SetKwFunction{SendEvent}{sendEvent}
+\SetKwBlock{Process}{processEvents}{end}
+\SetKwBlock{Send}{sendEvent}{end}
+
+    \Process{
+        \While{termination not detected} {
+            $e \gets \GetNextEvent{}$\;
+            \If{$e \neq nullEvent$} {
+                \If{$state_i = PASSIVE$}{
+                    $state_i = ACTIVE$\;
+                }
+                \;
+                $lp \gets$ receiver of $e$\;
+                \If{$e$ is straggler}{
+                    Rollback $lp$\;
+                    \Continue\;
+                }
+                \;
+                process event $e$\;
+                send new events\;
+            } \Else {
+                \If{$state_i = ACTIVE$}{
+                    $state_i = PASSIVE$\;
+                }
+                \Report{$\infty$}\;
+            }
+        }
+    }
+    \caption{Termination: Worker Threads}
+\end{algorithm}
 
 The safety property is not necessarily achieved because it is possible that the last active
 thread sends an event to another LP which will be processed by another thread. Then if the sending
@@ -2601,7 +2591,7 @@ algorithm \ref{termination_token_receive}.
         \SendToken{$mstate, minitiator, mcount$}\;
     }
     $state_{sticky} \gets state_{actual}$\;
-\caption{Termination Token Receive Procedure}\label{termination_token_receive}
+\caption{Termination Token Receive}\label{termination_token_receive}
 \end{algorithm}
 
 It should also be noted that this algorithm is only gaurenteed to work if the message order
