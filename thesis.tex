@@ -1111,7 +1111,7 @@ in table \ref{smp_experiments} and for a cluster in table \ref{cluster_experimen
         \hline
         \textbf{Comparison} & \textbf{Measure(s)}  & \textbf{Figure(s)}   & \textbf{Machine(s)}  \\
         \hline
-        Communication Model & Speedup and Efficiency & Figure \ref{model_communication}  & E5410 \\
+        Communication Model & Event Rate and Efficiency & Figure \ref{model_communication}  & E5410 \\
         \hline
         Communication Model & \% Remote Events   & Figure \ref{communication_model_premote}  & E5410 \\
         \hline
@@ -1264,9 +1264,8 @@ explored.
 
 In a hybrid communication model, the choice of which threads and how many threads should be
 involved in message passing communication is an important design decision that can significantly
-impact performance and stability of the simulator.
-
-The MPI standard specifies four level of thread support that each implementation may support:
+impact performance and stability of the simulator. The MPI standard specifies four level of
+thread support that each implementation may support:
 
 \begin{description}
     \item[MPI\_THREAD\_SINGLE:] The application uses only a single thread. 
@@ -1281,7 +1280,7 @@ Funnelling the communication to the manager thread can increase latency because 
 for temporarily queueing the message is necessary. Furthermore, with too fine of a granularity,
 the number of messages can pile up and create a bottleneck in the communication and cause
 instability. Serialized or full multiple thread communication, however, can increase contention
-for access to MPI library calls and slow down the worker threads. Furthermore, it forces worker
+for access to MPI library calls and slow down the worker threads and also forces worker
 threads to take more time for serialization, deserialization, and memory allocation/deallocation.
 
 The plots in figure \ref{model_communication} summarize the performance and efficiency of single,
@@ -1289,7 +1288,7 @@ funnelled, serialized, and multiple threaded communication in \textsc{warped2} f
 PCS, and Traffic models. Funnelled communication with aggregated messages is also shown.
 
 For serialized communication, a single global spinlock is used to protect access to all MPI library
-calls. For the multithreaded communication models, 7 worker threads and a manager thread are used
+calls. For all multithreaded communication models, 7 worker threads and a manager thread are used
 per node and for single threaded communication, 8 processes per node are used. Aggregated messages
 contain 5 ordinary messages which could be positive events, anti-messages, or other control
 tokens for GVT and termination detection.
@@ -1297,8 +1296,8 @@ tokens for GVT and termination detection.
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_epidemic_speedup.pdf} \\
-      Speedup - Epidemic \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_epidemic_eventrate.pdf} \\
+      Event Rate - Epidemic \\
     \end{center}
   \end{minipage}%
   \hfill
@@ -1310,8 +1309,8 @@ tokens for GVT and termination detection.
   \end{minipage}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_pcs_speedup.pdf} \\
-      Speedup - PCS \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_pcs_eventrate.pdf} \\
+      Event Rate - PCS \\
     \end{center}
   \end{minipage}%
   \hfill
@@ -1323,8 +1322,8 @@ tokens for GVT and termination detection.
   \end{minipage}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_traffic_speedup.pdf} \\
-      Speedup - Traffic \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_traffic_eventrate.pdf} \\
+      Event Rate - Traffic \\
     \end{center}
   \end{minipage}%
   \hfill
@@ -1345,15 +1344,16 @@ at the percentage of events that are sent to a remote MPI process in figure \ref
 
 Only a small fraction of a percent of events are remote for epidemic but for PCS and traffic,
 the percentage of remote events is much larger. Having a much smaller percentage of remote
-events means that there will be very little synchronization overhead between threads and funnelled
-communication will only increase the communication latency, and thus increase rollbacks. As
-remote communication increases, however, the synchronization costs of worker threads increases
-and funnelling all communication to the manager thread can help to reduce synchronization and
-increase performance but the latency and rollbacks will both increase. Aggregating messages
-with funnelled communication can decrease the rollbacks even though latency is still increased
-since there is a chance that the anti-messages are sent with their positive counterpart.
+events means that there will be very little synchronization overhead between threads for communication
+and funnelled communication will only increase the communication latency due to the queueing delay,
+and thus increase rollbacks. As remote communication increases, however, the synchronization costs
+of worker threads increases and funnelling all communication to the manager thread can help to
+reduce synchronization and increase performance but the queueing delay and rollbacks will both
+increase. Aggregating messages with funnelled communication can decrease the rollbacks even
+though the queueing delay is still increased. However, this might be a result of a smaller network
+latency due to larger network bandwidth utilization.
 
-\begin{figure}[H]
+\begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_epidemic_premote.pdf} \\
@@ -1381,7 +1381,7 @@ since there is a chance that the anti-messages are sent with their positive coun
 \section{Communication Tuning Parameters}
 
 To effectively scale simulations to larger number of nodes in a cluster, the interprocess communication
-should be minimized as much as possible to avoid synchronization and communication performance costs
+should be minimized as much as possible to avoid synchronization and communication costs
 and rollbacks. To allow different types of models to run on larger scale cluster, \textsc{warped2}
 allows the user to choose how to partition LPs among the MPI processes and how many messages
 to aggregate for each receiver process. The following two sections will provide any overview
@@ -1404,7 +1404,7 @@ partitioning scheme easier. Figure \ref{round_robin_partitioning} illustrates ho
 partitioning scheme would work with different values for $blocksize$, where different partitions
 are represented by different colors and the numbers represent an LP id.
 
-\begin{figure}[H]
+\begin{figure}
   \begin{center}
     \includegraphics[width=0.8\textwidth,keepaspectratio,quiet]{figs/graphviz/round_robin_partitioning.pdf} \\
     Round-Robin with blocksize = 1 \\
@@ -1420,7 +1420,7 @@ are represented by different colors and the numbers represent an LP id.
 sequential simulation. The profile data contains a count of events for each communicating pair
 of LPs. When a time warp simulation is run, the partitioner uses that data to build a weighted
 graph and uses a graph partitioning tool to create partitions that minimize the cut-set so that
-cross-partition communication is also minimized. Profile-Guided partitioning should be used if
+cross-partition communication is minimized. Profile-Guided partitioning should be used if
 a simulation model has a peculiar communication pattern among LPs that is not suitable for round-robin
 and does not implement a custom partitioning scheme. It will also work well for any odd number
 MPI processes which may not work well with other schemes.
@@ -1431,7 +1431,7 @@ percentage of remote events and a higher efficiency. The biggest exception is wi
 model, which has a very low efficiency with the profile-guided partitioning. This could just
 be a result of the model size which is only 2500 LPs making each node individually less efficient.
 
-\begin{figure}[H]
+\begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/partitioning_time_8node.pdf} \\
@@ -1476,7 +1476,7 @@ of the header is easily determined by knowing how many individual message there 
 \ref{aggregate_format} illustrates the format of the aggregated message with the sizes of each
 field.
 
-\begin{figure}[H]
+\begin{figure}
     \centering
     \includegraphics[width=0.8\textwidth,quiet]{figs/graphviz/aggregation_format.pdf}
     \caption{Aggregate Message Packet Format}\label{aggregate_format}
