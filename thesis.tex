@@ -1054,7 +1054,7 @@ Xeon\textsuperscript{\textregistered} E5410 is a quad core processor but each ma
 two sockets so that 8 cores are available. A summary of the architectural features and runtime
 systems for both machines are summarized in table \ref{x86_platform} in appendix \ref{x86_nodes_and_clusters}.
 
-Throughout the rest of this text, a measure called the \emph{efficieny} will be one of the main
+Throughout the rest of this text, the \emph{efficieny} and \emph{event rate} will be two of the main
 measures used to analyze behavior. Other measures will be introduced as needed. The efficiency
 is defined as:
 
@@ -1064,7 +1064,9 @@ $$ Efficiency = {events_{committed}}/{events_{processed}} * 100 $$
 where $events_{committed}$ is the number of events that are processed and not rolled back and
 $events_{processed}$ is the total number of events that are processed whether they are rolled
 back or not. Thus, the efficiency is a measure of the percentage of events that are processed
-and not rolled back.
+and not rolled back. The event rate is defined as:
+
+$$ Event Rate = {events_{committed}}/{runtime} $$
 
 \section{Experiments}
 
@@ -1080,12 +1082,12 @@ in table \ref{smp_experiments} and for a cluster in table \ref{cluster_experimen
         \hline
         \textbf{Comparison} & \textbf{Measure(s)}  & \textbf{Figure(s)}   & \textbf{Machine(s)}  \\
         \hline
-        Number of LTSF Queues & Speedup and Efficiency   & Figure \ref{ltsf_analysis}    & X5675             \\
+        Number of LTSF Queues & Event Rate and Efficiency   & Figure \ref{ltsf_analysis}    & X5675             \\
         \hline
         LTSF Queue Partitioning & Time and Efficiency    & Figures \ref{ltsf_partitioning_bc},
             \ref{ltsf_partitioning_beowulf}    & X5675, E5410 \\
         \hline
-        State Saving Period & Speedup, ...  & Figure \ref{ssp_analysis_smp_performance} & X5675 \\
+        State Saving Period & Event Rate, ...  & Figure \ref{ssp_analysis_smp_performance} & X5675 \\
         \hline
         Spinlocks & Speedup  & Figure \ref{spinlock_speedup} & X5675 \\
         \hline
@@ -1122,7 +1124,7 @@ in table \ref{smp_experiments} and for a cluster in table \ref{cluster_experimen
         \hline
         Scaling LPs & Efficiency, \% Remote Events, Event Rate & Figure \ref{scaling}    & E5410 \\
         \hline
-        State Saving Period & Speedup, ...   & Figure \ref{ssp_analysis_cluster} & E5410 \\
+        State Saving Period & Event Rate, ...   & Figure \ref{ssp_analysis_cluster} & E5410 \\
         \hline
         State Saving Period & \% Memory Decrease & Figure \ref{ssp_analysis_smp_memory}  & E5410 \\
         \hline
@@ -1350,8 +1352,7 @@ and thus increase rollbacks. As remote communication increases, however, the syn
 of worker threads increases and funnelling all communication to the manager thread can help to
 reduce synchronization and increase performance but the queueing delay and rollbacks will both
 increase. Aggregating messages with funnelled communication can decrease the rollbacks even
-though the queueing delay is still increased. However, this might be a result of a smaller network
-latency due to larger network bandwidth utilization.
+though the queueing delay is still increased. Not sure why this is.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -1384,8 +1385,8 @@ To effectively scale simulations to larger number of nodes in a cluster, the int
 should be minimized as much as possible to avoid synchronization and communication costs
 and rollbacks. To allow different types of models to run on larger scale cluster, \textsc{warped2}
 allows the user to choose how to partition LPs among the MPI processes and how many messages
-to aggregate for each receiver process. The following two sections will provide any overview
-of supported partitioning schemes and message aggregation, respectively.
+to aggregate for each receiver process. The next two sections will provide any overview
+of supported partitioning schemes and message aggregation in \textsc{warped2}.
 
 \subsection{Interprocess Partitioning}
 
@@ -1633,7 +1634,7 @@ instead of processing events.
 The pending event set is the set of events that are ready to be processed at any given time.
 Every process contains a logically seperate pending event set for a dedicated set of LPs. Events
 that are being sent to an LP that is local to the process are directly inserted into the pending
-event set. Events that must be sent to a remote process are inserted into a remote event
+event set. Events that must be sent to a remote process are inserted into a remote event send
 queue where the manager thread will remove it, form an event message and send the message to
 the recieving process. The manager thread at the receiving process will then unpack the message
 and insert it into the pending event set. The pending event set is made up of a queue for each
@@ -1661,11 +1662,10 @@ provides a way to determine if a smaller event has already been scheduled for th
 event can then be scheduled in place of the already scheduled event. Second, it serves to
 prevent multiple worker threads from processing events from the same LP which could cause
 out of order committing of events without rolling back as would be necessary.
-
 Figure \ref{pending_event_set} illustrates the pending event set data structures in
 \textsc{warped2}.
 
-\begin{figure}[H]
+\begin{figure}
     \centering
     \includegraphics[width=0.75\textwidth,quiet]{figs/graphviz/pending_event_set.pdf}
     \caption{\textsc{warped2} Pending Event Set Data Structures}\label{pending_event_set}
@@ -1678,14 +1678,15 @@ and they all follow the exact same procedure. First, an event is removed from an
 queue to be processed but remains in the unprocessed queue until it is completely processed or
 cancelled out. The event is first checked against the last processed event of the receiving LP
 to see if it is a straggler, and rolled back if necessary. An anti-message is also considered to
-be a straggler if its positive counterpart was the last processed event for the LP since
-\textsc{warped2} makes the assumption that message order will always be preserved.
-So if the event is an anti-message, the positive counterpart is assumed to be in the LPs
-unprocessed queue after rolling back and is cancelled out and a new event is scheduled into the
-LTSF queue if available. If the event is positive then it is processed normally, the state of
-the LP is saved, and new events are sent to other LPs. The event is then moved into the processed
-queue and a new event is scheduled into the LTSF queue. To summarize, the worker thread processing
-loop is shown in psuedocode in algorithm \ref{warped2_processing}.
+be a straggler if its positive counterpart was the last processed event for the LP.
+If the event is an anti-message, the positive counterpart cannot be assumed to be in the LPs
+unprocessed queue. If the positive event is present then it is cancelled out but if it is not
+present then the anti-message remains in the unprocessed queue. In both cases, an attempt to
+reschedule a new event to the LTSF queue occurs and the worker thread continues to the next
+event. If the next event to be processed is positive then it is processed normally, the state
+of the LP is saved, and new events are sent to other LPs. The event is then moved into the
+processed queue and a new event is scheduled into the LTSF queue. To summarize, the worker
+thread processing loop is shown in psuedocode in algorithm \ref{warped2_processing}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -1701,7 +1702,7 @@ loop is shown in psuedocode in algorithm \ref{warped2_processing}.
         }
         \;
         \If{$e$ is an anti-message}{
-            cancel event with $e$\;
+            cancel event with $e$ if possible\;
             \nlset{3} schedule new event for $lp$\;
             \Continue\;
         }
@@ -1709,6 +1710,7 @@ loop is shown in psuedocode in algorithm \ref{warped2_processing}.
         process event $e$\;
         save state of $lp$\;
         \nlset{2} send new events\;
+        move $e$ to processed queue\;
         \nlset{3} replace scheduled event for $lp$\;
     }
 
@@ -1773,21 +1775,13 @@ depending on the characteristics of the simulation model. Furthermore, they may 
 the data structures and algorithms in \textsc{warped2} evolve to minimize contention.
 
 The plots shown in figure \ref{ltsf_analysis} illustrate the effects of increasing the number
-of LTSF queues with 10 worker threads. For the analysis of LTSF queues, speedup will be defined
-as:
-
-$$ Speedup_{LTSF} = runtime_{1}/runtime_{n} $$
-
-\noindent
-where $runtime_{1}$ is the run time for a single LTSF queue and $runtime_{n}$ is the runtime
-for $n$ LTSF queues. The speedup is a better measure over runtime because it is shows relative
-performances and multiple simulation models can be compared.
+of LTSF queues with 10 worker threads.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/pending_event_set/ltsf_speedup.pdf} \\
-      $Speedup_{LTSF}$ \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/pending_event_set/ltsf_event_rate.pdf} \\
+      Event Rate \\
     \end{center}
   \end{minipage}%
   \hfill
@@ -1807,10 +1801,10 @@ the critical points where worker threads can access the LTSF queues. The lines w
 the margin indicate possible access to the LTSF queue. For every event the LTSF queue is accessed
 at least 3 times: \begin{inparaenum}[(1)] \item obtaining the next event, \item sending new
 events, and \item rescheduling new events \end{inparaenum}. However, access to the LTSF cannot
-be minimized further. Access to the LTSF queue will always be necessary to obtain the next event
-and reschedule events and since the LTSF queue is only accessed while sending an event if the
-event is a straggler, it will save a future access to the LTSF queue when the straggler is
-scheduled while also preventing a rollback.
+be minimized further by refactoring. Access to the LTSF queue will always be necessary to obtain
+the next event and reschedule events and since the LTSF queue is only accessed while sending an
+event if the event is a straggler, it will save a future access to the LTSF queue when the straggler
+is scheduled and also prevent a rollback.
 
 It is also worth noting that these simulation models are configured for only 10,000 LPs and with
 larger models, the efficiency would be expected to be better. Therefore, scaling up the number
@@ -1897,24 +1891,18 @@ get to the necessary state in a process known as \emph{coast forwarding}. The to
 rolling back, however, is small compared to the time taken for forward computation for moderate
 values of $N$.
 
-Figure \ref{ssp_analysis_smp_performance} shows the speedup over copy state saving
-and average number of coast forwarded events per rollback as the state saving period is increased
-for all models on a single SMP machine. $Speedup_{CSS}$ is defined as:
-
-$$ Speedup_{CSS} = runtime_{1}/runtime_{N} $$
-
-\noindent
-where $runtime_{1}$ is the runtime with a state saving period of 1 and $runtime_{N}$ is runtime
-with the state saving period of $N$. The coast forward rate and rollback rate are also used to
-analyze state saving and are related by:
+Figure \ref{ssp_analysis_smp_performance} shows the event rates and average number of coast
+forwarded events per rollback as the state saving period is increased for all models on a single
+SMP machine. The coast forward rate and rollback rate are also used to analyze state saving and
+are related by:
 
 $$ {Coast Forward Rate} = {Coast Forward Events \over Rollbacks} * {Rollback Rate}$$
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/speedup.pdf} \\
-      $Speedup_{CSS}$ \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/bc/eventrate.pdf} \\
+      Event Rate \\
     \end{center}
   \end{minipage}%
   \hfill
@@ -1943,9 +1931,9 @@ $$ {Coast Forward Rate} = {Coast Forward Events \over Rollbacks} * {Rollback Rat
 For a single SMP machine, the speedup increases significantly for low state saving periods and
 flattens out pretty quickly. The initial speedup is a result of decreasing forward computation
 time by removing extra copying. As the state saving period increases though, the coast forward 
-increases to the point where it will cancel out the reduced time from reduced copying. An interesting
+increases to the point where it will cancel out the gains time from reduced copying. An interesting
 result is that even though the rollback rate increases for lower state saving periods, a speedup
-is still observed. The coast forwarded rate depends on both the total rollback rate and the
+is still observed. The coast forwarded rate depends on both the rollback rate and the
 average number of events coast forwarded per rollback. The rollback rate decays exponentially
 but the average number of coast forward events per rollback increases linearly. Therefore the
 coast forward rate still increases logarithmically as the state saving period increases since
@@ -1955,8 +1943,8 @@ rate decreases. Similar results can be seen in figure \ref{ssp_analysis_cluster}
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/speedup.pdf} \\
-      $Speedup_{CSS}$ \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/eventrate.pdf} \\
+      Event Rate \\
     \end{center}
   \end{minipage}%
   \hfill
@@ -1996,9 +1984,10 @@ race conditions. To deal with this, \textsc{warped2} uses mutexes to serialize w
 access to any section of code that accesses the LTSF queue. This method, however can significantly
 slows down access to the LTSF queues. In the default configuration, blocking mutexes are used
 which means that if a thread cannot aqcuire a the lock, it will be put to sleep and rescheduled
-for execution at a later time. However, this method can waiste a lot of exta time if access to the
-critical section is quick. All of the accesses to the LTSF queues are quick in \textsc{warped2}
-so the locks should only held for a short period of time.
+for execution at a later time. Blocking mutexes method can waiste a lot of exta time if access to the
+critical section is quicker than putting the thread to sleep and waking it up again. All of the
+accesses to the LTSF queues are quick in \textsc{warped2} so the locks should only held for a short
+period of time.
 
 A \emph{spinlock} is a type of mutex that does not force threads to be rescheduled but
 instead continue to attempt to aqcuire the lock over and over until it successfully acquires
@@ -2216,12 +2205,11 @@ general snapshot algorithm that was described above. The white message counts ar
 determine whether transient messages are still in the sytem. They also serve as the basis
 for determining when the snapshot is complete which occurs when the accumulated white message
 count of all processes is zero. To ensure that the simultaneous reporting problem does not
-occur, red messages received at a white process are recorded and used in the local minimum
-value. The algorithm is initiated by sending a control token to all processes in some defined
-order. The token accumulates the white message counters, local minimum clocks, and minimum
-red message timestamps. When the accumulated count reaches zero and the token is back at
-the initiator process, the GVT is approximated using the minimum of the accumulated clocks
-and timestamps.
+occur, red messages sent are recorded and used in the local minimum value of the sending process.
+The algorithm is initiated by sending a control token to all processes in some defined order.
+The token accumulates the white message counters, local minimum clocks, and minimum red message
+timestamps. When the accumulated count reaches zero and the token is back at the initiator process,
+the GVT is approximated using the minimum of the accumulated clocks and red message timestamps.
 
 \paragraph{Other GVT Algorithms} that are based on message passing model are usually based
 on the same ideas from Samadi's algorithm or Mattern's algorithm. Many algorithms are just
@@ -2243,9 +2231,9 @@ temporary local variable before obtaining a new event to process.
 
 \paragraph{Seven O'Clock Algorithm}\cite{bauer-05} is an extension of Fujimoto's algorithm
 for distributed memory systems. Although the algorithm can be used in message passing systems,
-the algorithm does not use any messages and is still uses shared memory ideas. The key idea
+the algorithm does not require any messages and is still uses shared memory ideas. The key idea
 in the algorithm is that all processors in a distributed system all have a consistent view
-of wall clock. Hence, the processors can carry out an operation atomically, without having
+of wall clock. Hence, the processors can carry out an operation in an atomic manner without having
 to explicitly interact. The atomicity can be achieved by using cycle level counters which
 are available on most modern architectures. Unlike Fujimoto's algorithm though, transient
 messages can still be missed in the calculation. To solve that problem, each processor must
@@ -2259,12 +2247,11 @@ which and is a common way to implement a synchronous GVT algorithm. ROSS impleme
 synchronous GVT algorithm which uses global reductions to implement a variant of Mattern's
 algorithm\cite{holder-08}. First, to prevent the transient message problem, a global reduction
 on message counts of each process is performed until the total reaches zero. Any events received
-after the start of the algorithm are considered to be "red" messages and are recorded.
-When the messages count reaches zero a global reduction is performed on the local minimum
-timestamp of all processes while also taking into account the red messages timestamps. The reduction
-yields a GVT value for all processes. This algorithm is efficient when time warp simulation are
-run on large supercomputing platforms like the blue gene machine which perform collective operations
-very quickly.
+after the start of the algorithm are recorded and included with the local minimum of the receiving
+process. When the messages count reaches zero a global reduction is performed on the local minimum
+timestamp of all processes which yields a GVT value for all processes. This algorithm is efficient
+when time warp simulation are run on large supercomputing platforms like the blue gene machine
+which perform collective operations very quickly.
 
 \subsection{GVT in \textsc{Warped2}}
 
@@ -2381,33 +2368,33 @@ runs of the algorithm. The roles of the colors must also be switched between suc
 
 Another major different between the classic Mattern algorithm and the variant in \textsc{warped2}
 is that the classic algorithm assumes that the timestamps of the white messages that are received
-will always be counted in the minimum clock value before another token is sent. Since this cannot
-be gaurenteed in \textsc{warped2}, a running minimum of the white message timestamps received is
-recorded to ensure that all white messages are included in the final GVT value.
+will be processed right away and counted in the minimum clock value when a token is received.
+Since this is not the general case in \textsc{warped2}, a running minimum of the white message
+timestamps received is recorded and included in the minimum clock value when a token is sent to
+ensure that all white messages are included in the final GVT value.
 
-A GVT token will be sent by the manager thread when a local minimum has been reported by all
-worker threads and the local GVT calculation will begin either when a token is received or
-when the initiator process determines that is should start. The initiator process is the process
-with PID of 0. Due to the asynchrony of this algorithm, there are two phases of the algorithm,
-one phase to check the state of the algorithm and progress it further and the other phase is
-to receive the token and update the state. The two phases are put into psuedocode in algorithm
-\ref{gvt_manager_asynchronous}.
+A GVT token will be sent by the manager thread when a the local GVT calculation based on
+Fujimoto's shared memory algorithm is completed. The local GVT calculation will begin either
+when a token is received or when the initiator process determines that is should start. The
+initiator process is the process with PID of 0 and the start of a new calculation is some fixed
+time interval from the start of the previous calculation. 
 
 The asynchronous algorithm desribed above works well in cases where the remote communication is
-relatively low but has been shown to be problematic under heavy remote communication. The root
-of the problem is that the GVT token must compete with remote events that must be sent and and
-received by all worker threads. During the course of the GVT calculation the manager thread cannot
-stop sending and receiving these events and the token is slowed down significantly. To get around
-this constraint, users can either increase the number LPs or decrease the number of worker threads
-to reduce the network load.
+relatively low but has been shown to be problematic under heavy remote communication.
+The root of the problem is that the GVT token must compete with remote events that must be
+sent and received. Based on some observations that show large message counts, the bigger problem
+with being able to complete receives quickly. To get around this constraint, users can either
+increase the number LPs or decrease the number of worker threads to reduce the network load.
 
 \subsubsection{Synchronous}
 
-The synchronous GVT algorithm is a simple extension of the allreduce algorithm implemented
+The synchronous GVT algorithm is a simple extension of the reduction algorithm implemented
 in the ROSS simulation kernel. The biggest difference is that the manager thread must block
-the worker threads from processing any more events. Also, Unlike the algorithm used in ROSS,
-the processes are not considered to be colored and any event sent by the worker threads before
-reporting a local minimum are recorded on the send side rather than the receive side.
+the worker threads from processing any more events. Also, unlike the algorithm used in ROSS,
+the processes are explicitly colored so that any events that are inserted into the remote send
+queue after the GVT calculation is started are known to be included with the sending process's
+local minimum value. The algorithm executed by the manager thread is summarized in the psuedocode
+in algorithm \ref{gvt_manager_synchronous}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -2488,19 +2475,22 @@ on the algorithms that are implemented in \textsc{warped2}.
 \subsection{Termination in \textsc{warped2}}
 
 The termination detection algorithm in \textsc{warped2} is actually two independant algorithms,
-a message passing algorithm and a shared memory algorithm. In the opposite manner as the
-GVT algorithm, the shared memory algorithm is actually used to initiate the message passing
-algorithm.
+a message passing algorithm and a shared memory algorithm, merged into a single algorithm. In
+the opposite manner as the GVT algorithm, the shared memory algorithm is actually used to initiate
+the message passing algorithm.
 
 \subsubsection{Shared Memory algorithm}
 
 The purpose of the shared memory algorithm is to determine when all of the worker threads
 in a process become passive (inactive). The algorithm is fairly straightforward and uses
 just a shared counter variable to keep track of the number of active worker threads and a
-boolean array to keep track of which worker threads are active. Worker threads update their own
+array to keep track of the state of each worker thread. Each worker thread updates their own
 state when they change and atomically update the counter. The manager thread periodically
 checks to see if the counter has reached zero. If the count has reached zero and the process
-is the master, then the interprocess message passing alorithm is initiated.
+is the master, then the interprocess message passing alorithm is initiated. The integration
+of the shared memory algorithm is illustrated in algorithm \ref{termination_workers}. To allow
+the GVT calculation to continue, worker threads in a passive state must still report an
+infinite local minimum value.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -2515,10 +2505,12 @@ is the master, then the interprocess message passing alorithm is initiated.
 
     \Process{
         \While{termination not detected} {
+            $localGVTFlag_i \gets localGVTFlag$\;
             $e \gets \GetNextEvent{}$\;
             \If{$e \neq nullEvent$} {
                 \If{$state_i = PASSIVE$}{
                     $state_i = ACTIVE$\;
+                    $activeCount \gets activeCount + 1$\;
                 }
                 \;
                 $lp \gets$ receiver of $e$\;
@@ -2532,32 +2524,38 @@ is the master, then the interprocess message passing alorithm is initiated.
             } \Else {
                 \If{$state_i = ACTIVE$}{
                     $state_i = PASSIVE$\;
+                    $activeCount \gets activeCount - 1$\;
                 }
-                \Report{$\infty$}\;
+                \If{$localGVTFlag_i$ and ($workerThread_i$ hasn't reported local min)}{
+                    \Report{$\infty$}\;
+                }
             }
         }
     }
-    \caption{Termination: Worker Threads}
+    \caption{Termination: Worker Threads}\label{termination_workers}
 \end{algorithm}
 
-The safety property is not necessarily achieved because it is possible that the last active
-thread sends an event to another LP which will be processed by another thread. Then if the sending
-thread becomes inactive, all threads can be temporarily inactive and the manager thread can
-falsely detect termination. However, it is very unlikely that the sending thread will report
-itself as passive before the receiving thread gets the event and reports itself as active.
-Furthermore, the manager thread is forced to check the active thread counter at least twice with
-no changes in any worker thread state. The liveness property is achieved because the manager
-thread periodically checks the active worker thread count so the inactivity of all worker threads
-will eventually be discovered.
+The safety property is not necessarily achieved with this algorithm because it is possible that
+the last active thread sends an event to another LP which will be processed by another thread.
+Then if the sending thread becomes inactive, all threads can be temporarily inactive and the
+manager thread can falsely detect termination. However, it is very unlikely that the sending
+thread will report itself as passive before the receiving thread gets the event and reports itself
+as active. Furthermore, the manager thread is forced to check the active thread counter at least
+twice with no changes in any worker thread state. The challenge with completely solving this
+problem is that it is not known which thread will process the event since LPs are mapped to LTSF
+queue and not directly to worker threads.
+
+The liveness property is achieved because the manager thread periodically checks the active
+worker thread count so the inactivity of all worker threads will eventually be discovered.
 
 \subsubsection{Message Passing Algorithm}
 
 The algorithm that is carried out among processes is an asynchronous message passing
 algorithm based on Mattern's "sticky flags" algorithm\cite{mattern-93}. Just like the GVT
-algorithm, the token is passed in a logical ring to increasing process ids. However, the
+algorithm, the token is passed in a logical ring to increasing PIDs. However, the
 initiator process of the algorithm can change with each execution of the algorithm. The initiator
-of each successive execution is the first active process that the token reaches during circulation.
-For the first circulation, the initator is process 0.
+of each successive execution is the first active process that the token reaches during the previous
+circulation. For the first circulation, the initator is the process with the PID of 0.
 
 Each process has two state indicators, one for the actual state and one for the \emph{sticky state}.
 When the sticky state of all processes are simultaneously passive, then the simulation can terminate
@@ -2566,7 +2564,7 @@ when the actual state becomes passive. It can only change to passive on the arri
 forces the token to circulate two times with no process becoming active and ensures the safety
 property. Without this scheme, a process that has already forwarded the token because it was
 passive could receive an activation message and then the sender of the activation message could 
-ecome passive before receiving the token and false termination could then be detected.
+become passive before receiving the token and false termination could then be detected.
 
 The algorithm is started when the initiator process becomes passive which is determined by
 the shared memory algorithm. When a process receives the token it becomes the initiator
@@ -2605,8 +2603,8 @@ the counters from each process just like with the Mattern GVT algorithm.
 
 This chapter will focus on main topics related to memory management in a time warp system
 and their implementations in \textsc{warped2}. The topics will include state saving, fossil
-collection and memory allocation. Different methods for each of these topics have different
-time and memory requirements and vary greatly in complexity.
+collection and memory allocation. The memory requirements and performance for different state
+saving, fossil collection, and memory allocation techniques can vary greatly.
 
 \section{State Saving}
 
@@ -2709,9 +2707,9 @@ Figure \ref{fc_times} shows how the event rates compare in a single SMP machine 
 
 The results show that on average, having the manager thread do fossil collection will yields a
 slightly better event rate, but not significant. It is uncertain what will happen when the
-manager thread has more LPs to fossil collect or if it had remote messages to send. The time
-taken to fossil collect with more LPs could interfere with sending and receiving remote messages
-or with calculating the GVT.
+manager thread has more LPs to fossil collect or if it had remote messages to send and receive.
+The time taken to fossil collect with more LPs could interfere with sending and receiving remote
+messages or with calculating the GVT.
 
 One observation is that unstable behavior will occur with manager thread fossil collection
 if the state saving period is set very low with model that have a large state size such as with
@@ -2792,8 +2790,8 @@ Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} X56
 table \ref{x86_platform} in appendix \ref{x86_nodes_and_clusters}, it supports up to 12 simultaneous
 threads on 6 cores. By adding a sixth worker thread which is the seventh thread counting the
 manager thread, we may start seeing some bad cache effects such as false sharing, or inconsistent
-task scheduling. An imbalance can also be observed in the number of rollbacks as shown in
-figure \ref{allocator_analysis_efficiency} which shows the efficiency with ptmalloc2 and tcmalloc.
+task scheduling. An imbalance can also be observed as a result of these cache effects by looking at
+the efficiency as shown in figure \ref{allocator_analysis_efficiency}.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -2821,10 +2819,9 @@ figure \ref{allocator_analysis_efficiency} which shows the efficiency with ptmal
 
 Figure \ref{allocator_analysis_efficiency} also illustrates how ptmalloc2 can lead to unstable
 behavior with a smaller number of threads. The reason for this may come from the data structures
-that are used by the allocators. With both ptmalloc2 and tcmalloc, a thread-local cache is used
-to allocate memory from but with ptmalloc2, freed memory cannot move from one local cache to
-another and must be obtained from the OS. This alone, can create an imbalance in processing
-speed among threads and trigger lots of rollbacks.
+that are used by the allocators and how often that the OS is called to allocate more memory
+from the system. Ptmalloc2 has memory blowup problems that stems from the separation of the thread
+local free memory pools that cannot ever merge back with a central heap.
 
 \section{Memory Tuning Parameters in \textsc{warped2}}
 
@@ -2846,7 +2843,7 @@ Increasing the number of LTSF Queues can speed up the simulation significantly b
 the necessity to be shared among worker threads. However, by increasng the number of LTSF queues,
 more memory is required. The plot in figure \ref{ltsf_memory} illustrates this by showing the
 percent increase in average peak memory. For all data points, the LTSF queues were shared among
-10 worker threads. Also the memory measurements are taken from the actual memory used by a
+10 worker threads. The memory measurements are taken from the actual memory used by a
 \textsc{warped2} process, and not the memory allocated by the OS for the process.
 
 \begin{figure}
@@ -2937,63 +2934,61 @@ with an extremely small period, the performance is only worsened by a very small
 To better allow the system to scale to a larger number of nodes, a seperate manager thread which all
 remote communication is funnelled to has been shown to be the best communication model. The
 reason is that the high contention for resources within the MPI library seem to be much more
-of a problem than a small delay in communication latency. In general, though, avoiding remote
-communication at all costs by partitioning and aggregating messages further decreases these
-communication latency overheads and rollbacks, and thus increases performance.
+of a problem than a small queueing delay. In general, though, avoiding remote communication at
+all costs by partitioning effectively and aggregating messages reduces rollbacks and increases
+performance. 
 
 For a single SMP node, increasing the number of LTSF queues to the same as the number of worker
 threads so that there is no sharing between the LTSF queues shows the best performance. Furthermore,
 partitioning the LPs to the LTSF queues using a block partitioning scheme seems to work the best
 for all models that were tested. Other compile time optimizations to further increase performance
-such as replacing the default ptmalloc2 allocator with tcmalloc and jemalloc and replacing blocking
+such as replacing the default ptmalloc2 allocator with tcmalloc or jemalloc and replacing blocking
 mutexes with spinlocks has also been proven to effective.
 
 \section{Detailed Conclusions}
 
-\subsection{Synchronization and Communication}
-
 The limitations of \textsc{warped2} all seem to be centered around the necessity of synchronization
 and communication. For message passing between nodes in a cluster, any optimization
 that reduces remote communication will usually give optimistic results and for a shared memory
-communication between worker threads, any optimization that reduces synchronization to shared
-data structures is usually better. The two coincide, however, when figuring out how worker threads
-should use the message passing interface in a thread safe manner, which makes interprocess
-communication especially difficult for hybrid communication applications.
+communication between worker threads, any optimization that reduces synchronization of shared
+data structures is usually better. The two are connected, however, when it comes to synchronizing
+access to the message passing library. We found that thread synchronization is more costly than
+a small increase in remote communication caused by extra rollbacks.
 
-For a single SMP node, increasing the numbe of LTSF queues, LTSF queue partitioning,
+For a single SMP node, increasing the number of LTSF queues, LTSF queue partitioning,
 replacing blocking mutexes with spinlocks, and replacing the default allocator all work to
 minimize the costs associated with thread synchronization and all have been shown to increase
-performance to some extent.
+performance to some extent. For a cluster, reducing communication overheads is achieved by
+partitioning and aggregating messages by decreasing remote remote communication. For models that
+partition very well, message aggregation has no significant impact on performance.
 
-For reducing communication overheads, partitioning and 
-
-%% More about manager thread and communication
-
-\subsection{Scalability versus Scalability}
-
-There is also a fundamental tradeoff between scalability and performance. Message passing between
-multiple processes will be a bottleneck but is necessary for scaling up. Also, for better scalability,
-a fossil collection method which is carried out by the worker threads is more suitable so that
-remote communication can be completed with minimal latency on the manager thread. Although this
-method may slow down the maximum event rate for a single node, it will actually allow a larger
-event rate to be achieved by scaling up.
-
-The tradeoff between performance and memory consumption is also apparent
+There is also a tradeoff between scalability and performance when it comes to fossil collection.
+For better scalability, a fossil collection method which is carried out by the worker threads is
+more suitable so that remote communication can be completed with minimal queueing delay by the
+manager thread. Although this method slows down the maximum event rate for a single node, it will
+actually allow a larger event rate to be achieved by scaling up.
 
 \section{Suggestions for Future Work}
 
-\subsection{Scaling Simulations}
-
-It is still largely unknown on what will happen as the simulations are scaled up to larger
+It is still unknown what will be observed as the simulations are scaled up to larger
 multi-core processors and/or larger clusters and whether a strong scaling or a weak scaling
-approach should be taken. Scaling will be particularly tricky with multi-core clusters that
-have a large number of cores per processor. 
+approach should be taken. A strong scaling approach will increase remote communication but
+it will decrease the amount of time taken to fossil collect essentially pushing more work to
+the manager thread. On the other hand, a weak scaling approach may end up pushing the bounds
+on memory requirements due to a diminishing GVT granularity and could possibly lead to imbalances
+which will force us to rely more on better partitioning and load balancing.
 
-\subsection{Memory Management}
+As the number of threads increases, memory allocations and deallocation occur more frequently
+and it becomes harder to manage memory which tends to lead to increased memory fragmentation
+and contention. The increased memory fragmentation leads to more frequent memory allocation
+from the OS which could also lead to more imbalance. 
 
-%% Custom in-kernel allocator
-%% Optimistic Fossil Collection
-%% Reverse Computation
+As the number of nodes is increased, the harder it becomes to calculate a good GVT estimate
+efficiently. With an asynchronous GVT algorithm, the time taken to calculate a GVT estimate
+increases and becomes increasingly less accurate but with a synchronous GVT algorithm, the
+necessity to stop all event processing kills performance. An alternative fossil collection
+scheme that does not rely on GVT such as optimistic fossil collection could be worth pursuing
+in the future.
 
 \appendix
 \chapter{x86 SMP Nodes and Cluster}\label{x86_nodes_and_clusters}

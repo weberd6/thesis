@@ -108,7 +108,7 @@ def main():
     addPlotXY(plots, "", "State Saving Period", "Total Rollbacks", rollback_lines)
     addPlotXY(plots, "", "State Saving Period", "Coast Forward Rate", cf_rate_lines)
     addPlotXY(plots, "", "State Saving Period", "Rollback Rate", rb_rate_lines)
-#    addPlotXY(plots, "Performance", "State Saving Period", "Event Rate", event_rate_lines)
+    addPlotXY(plots, "Performance", "State Saving Period", "Event Rate", event_rate_lines)
 
     for i, p in enumerate(plots):
         fig = plt.figure(i)
