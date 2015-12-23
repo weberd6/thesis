@@ -210,6 +210,7 @@ def main():
     plt.ylabel('Speedup')
     plt.xticks(index+6*bar_width, models)
     plt.legend()
+    plt.grid()
     plt.show()
 
     one_mem_by_model_tcm = list()
@@ -334,6 +335,7 @@ def main():
     plt.ylabel('% decrease')
     plt.xticks(index+6*bar_width, models)
     plt.legend()
+    plt.grid()
     plt.show()
 
     for i, p in enumerate(plots):
@@ -350,10 +352,10 @@ def main():
                 plt.errorbar(l["xvals"], l["yvals"], l["std"], marker='o')
             legend_entries.append(l["legend_title"])
 
-        plt.legend(legend_entries) 
+        plt.legend(legend_entries, loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=4, fancybox=True, shadow=True)
+        plt.grid()
 
     plt.show()
-
 
 
 if __name__ == '__main__':

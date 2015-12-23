@@ -44,6 +44,7 @@ def main():
         remote_rate_lines = list()
         rollback_lines = list()
         rb_rate_lines = list()
+        cf_per_rb_lines = list()
 
         time_single = 0
 
@@ -53,6 +54,7 @@ def main():
                 continue
 
             agg_x = list()
+            ssp_x = list()
 
             time_y = list()
             speedup_y = list()
@@ -67,6 +69,7 @@ def main():
             remotep_y = list()
             localn_y = list()
             remoten_y = list()
+            coast_y = list()
 
             f = filenames(sspl)
             for filename in f:
@@ -97,6 +100,7 @@ def main():
                 remotep_y.append(np.mean(ydata['remotep']))
                 localn_y.append(np.mean(ydata['localn']))
                 remoten_y.append(np.mean(ydata['remoten']))
+                coast_y.append(np.mean(ydata['coasted']))
 
             speedup_y = [time_single / y for y in time_y]
             efficiency = [a / b for a, b in zip(comm_y, proc_y)]
@@ -105,26 +109,29 @@ def main():
             remote = [a + b for a, b in zip(remotep_y, remoten_y)]
             rb_rate = [a / b for a, b in zip(rb_y, time_y)]
             remote_rate = [(a + b) / c for a, b, c in zip(remotep_y, remoten_y, time_y)]
+            cf_per_rb = [a / b for a, b in zip(coast_y, rb_y)]
 
 #            addLineXY(speedup_lines, agg_x, speedup_y, "{}-{}".format(m, sspl))
-#            addLineXY(time_lines, agg_x, time_y, "{}-{}".format(m, sspl))
+            addLineXY(time_lines, agg_x, time_y, "{}".format(sspl))
 #            addLineXY(memory_lines, agg_x, mem_y, "{}-{}".format(m, sspl))
 #            addLineXY(efficiency_lines, agg_x, efficiency, "{}-{}".format(m, sspl))
 #            addLineXY(premote_lines, agg_x, premote, "{}-{}".format(m, sspl))
-#            addLineXY(remote_lines, agg_x, remote, "{}-{}".format(m, sspl))
-#            addLineXY(rollback_lines, agg_x, rb_y, "{}-{}".format(m, sspl))
-            addLineXY(rb_rate_lines, agg_x, rb_rate, "{}-{}".format(m, sspl))
-            addLineXY(remote_rate_lines, agg_x, remote_rate, "{}-{}".format(m, sspl))
+            addLineXY(remote_lines, agg_x, remote, "{}".format(sspl))
+            addLineXY(rollback_lines, agg_x, rb_y, "{}".format(sspl))
+#            addLineXY(rb_rate_lines, agg_x, rb_rate, "{}-{}".format(m, sspl))
+#            addLineXY(cf_per_rb_lines, agg_x, cf_per_rb, "{}-{}".format(m, sspl))
+#            addLineXY(remote_rate_lines, agg_x, remote_rate, "{}-{}".format(m, sspl))
 
 #        addPlotXY(plots, "", "Aggregated Messages", "Speedup", speedup_lines)
-#        addPlotXY(plots, "", "Aggregated Messages", "Simulation Time (s)", time_lines)
+        addPlotXY(plots, "", "Aggregated Messages", "Simulation Time (s)", time_lines)
 #        addPlotXY(plots, "", "Aggregated Messages", "Memory", memory_lines)
 #        addPlotXY(plots, "", "Aggregated Messages", "Efficiency", efficiency_lines)
 #        addPlotXY(plots, "", "Aggregated Messages", "% Remote", premote_lines)
-#        addPlotXY(plots, "", "Aggregated Messages", "Remote Events", remote_lines)
-#        addPlotXY(plots, "", "Aggregated Messages", "Total Rollbacks", rollback_lines)
-        addPlotXY(plots, "", "Aggregated Messages", "Rollback Rate", rb_rate_lines)
-        addPlotXY(plots, "", "Aggregated Messages", "Remote Rate", remote_rate_lines)
+        addPlotXY(plots, "", "Aggregated Messages", "Remote Events", remote_lines)
+        addPlotXY(plots, "", "Aggregated Messages", "Total Rollbacks", rollback_lines)
+#        addPlotXY(plots, "", "Aggregated Messages", "Rollback Rate", rb_rate_lines)
+#        addPlotXY(plots, "", "Aggregated Messages", "Rollback Length", cf_per_rb_lines)
+#        addPlotXY(plots, "", "Aggregated Messages", "Remote Rate", remote_rate_lines)
 
     for i, p in enumerate(plots):
         fig = plt.figure(i)
@@ -137,7 +144,8 @@ def main():
             plt.plot(l["xvals"], l["yvals"], marker='o')
             legend_entries.append(l["legend_title"])
 
-        plt.legend(legend_entries) 
+        plt.grid()
+        plt.legend(legend_entries, loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=4, fancybox=True, shadow=True)
 
     plt.show()
 

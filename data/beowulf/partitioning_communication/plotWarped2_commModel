@@ -101,17 +101,17 @@ def main():
             addLineXY(speedup_lines, nodes_x, speedup, cm)
 #            addLineXY(efficiency_lines, nodes_x, efficiency, cm)
 #            addLineXY(memory_lines, nodes_x, memory_y, cm)
-            addLineXY(premote_lines, nodes_x, premote, cm)
+#            addLineXY(premote_lines, nodes_x, premote, cm)
 #            addLineXY(rollback_lines, nodes_x, rollbacks, cm)
-            addLineXY(event_rate_lines, nodes_x, event_rate, cm)
+#            addLineXY(event_rate_lines, nodes_x, event_rate, cm)
 
 #        addPlotXY(plots, "{}".format(m), "# Nodes", "Simulation Time (s)", time_lines)
         addPlotXY(plots, "{}".format(m), "# Nodes", "Speedup", speedup_lines)
 #        addPlotXY(plots, "{}".format(m), "# Nodes", "Efficiency (%)", efficiency_lines)
 #        addPlotXY(plots, "{}".format(m), "# Nodes", "Memory", memory_lines)
-        addPlotXY(plots, "{}".format(m), "# Nodes", "% Remote", premote_lines)
+#        addPlotXY(plots, "{}".format(m), "# Nodes", "% Remote", premote_lines)
 #        addPlotXY(plots, "{}".format(m), "# Nodes", "Total Rollbacks", rollback_lines)
-        addPlotXY(plots, "{}".format(m), "# Nodes", "Event Rate", event_rate_lines)
+#        addPlotXY(plots, "{}".format(m), "# Nodes", "Event Rate", event_rate_lines)
 
     for i, p in enumerate(plots):
         fig = plt.figure(i)
@@ -124,7 +124,8 @@ def main():
             plt.plot(l["xvals"], l["yvals"], marker='o')
             legend_entries.append(l["legend_title"])
 
-        plt.legend(legend_entries) 
+        plt.grid()
+        plt.legend(legend_entries, loc='upper center', bbox_to_anchor=(0.5, 1.15), ncol=3, fancybox=True, shadow=True)
 
     plt.show()
 

@@ -109,13 +109,14 @@ def main():
             color='b', label='Manager', alpha=0.7)
     rects2 = plt.bar(index+bar_width, fcw_commit_rate_by_model, bar_width,
             color='r', label = 'Worker', alpha=0.7)
-    autolabel(rects1)
-    autolabel(rects2)
+    #autolabel(rects1)
+    #autolabel(rects2)
     plt.xlim(-bar_width, len(index)+bar_width)
     plt.xlabel('Model')
     plt.ylabel('Event Rate')
     plt.xticks(index + bar_width, models)
-    plt.legend()
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=4, fancybox=True, shadow=True)
+    plt.grid()
     plt.show()
 
     for i, p in enumerate(plots):
@@ -129,7 +130,8 @@ def main():
             plt.plot(l["xvals"], l["yvals"], marker='o')
             legend_entries.append(l["legend_title"])
 
-        plt.legend(legend_entries) 
+        plt.legend(legend_entries, loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=4, fancybox=True, shadow=True)
+        plt.grid()
 
     plt.show()
 

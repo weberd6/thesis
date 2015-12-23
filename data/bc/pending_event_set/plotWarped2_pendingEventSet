@@ -135,7 +135,7 @@ def main():
         for lt in locktypes:
             f = filenames()
             for filename in f:
-                # obtain confhttps://www.google.com/?gws_rd=ssligs from filename
+                # obtain configs from filename
                 nodes, wt, sq, ssp, gvtp = re.findall(r'\d+', filename)
 
                 if "rr" in filename or "block" in filename:
@@ -189,11 +189,12 @@ def main():
     autolabel(rects3)
     autolabel(rects4)
     plt.xlim(-bar_width, len(index)+10*bar_width)
-    plt.ylim(0.0, 3.0)
     plt.xlabel('Model')
     plt.ylabel('Speedup')
+    plt.ylim(0, 2.0)
     plt.xticks(index+2*bar_width, ('PCS', 'Traffic', 'Epidemic', 'Airport'))
-    plt.legend()
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=4, fancybox=True, shadow=True)
+    plt.grid()
     plt.show()
 
 
@@ -285,41 +286,11 @@ def main():
     autolabel(rects3)
     autolabel(rects4)
     plt.xlim(-bar_width, len(index)+10*bar_width)
-    plt.ylim(0.0, 3.0)
     plt.xlabel('Model')
     plt.ylabel('Speedup')
     plt.xticks(index+2*bar_width, ('PCS', 'Traffic', 'Epidemic', 'Airport'))
-    plt.legend()
-    plt.show()
-
-
-    one_rbdecrease_by_model    = [a if a == 0 else (a - b) / a for a, b in
-            zip(one_rbs_by_model_rr, one_rbs_by_model_pg)]
-    two_rbdecrease_by_model    = [a if a == 0 else (a - b) / a for a, b in
-            zip(two_rbs_by_model_rr, two_rbs_by_model_pg)]
-    five_rbdecrease_by_model   = [a if a == 0 else (a - b) / a for a, b in
-            zip(five_rbs_by_model_rr, five_rbs_by_model_pg)]
-    ten_rbdecrease_by_model    = [a if a == 0 else (a - b) / a for a, b in
-            zip(ten_rbs_by_model_rr, ten_rbs_by_model_pg)]
-
-    rects1 = plt.bar(index, one_rbdecrease_by_model, bar_width,
-            color='g', label='1 LTSF Queue', alpha=0.7)
-    rects2 = plt.bar(index+bar_width, two_rbdecrease_by_model, bar_width,
-            color='b', label = '2 LTSF Queues', alpha=0.7)
-    rects3 = plt.bar(index+2*bar_width, five_rbdecrease_by_model, bar_width,
-            color='r', label = '5 LTSF Queues', alpha=0.7)
-    rects4 = plt.bar(index+3*bar_width, ten_rbdecrease_by_model, bar_width,
-            color='c', label = '10 LTSF Queues', alpha=0.7)
-
-    autolabel(rects1)
-    autolabel(rects2)
-    autolabel(rects3)
-    autolabel(rects4)
-    plt.xlim(-bar_width, len(index)+10*bar_width)
-    plt.xlabel('Model')
-    plt.ylabel('% Decrease')
-    plt.xticks(index+2*bar_width, ('PCS', 'Traffic', 'Epidemic', 'Airport'))
-    plt.legend()
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=4, fancybox=True, shadow=True)
+    plt.grid()
     plt.show()
 
 
@@ -393,7 +364,8 @@ def main():
     plt.xlabel('Model')
     plt.ylabel('Simulation Time (s)')
     plt.xticks(index+0.5*bar_width, ('PCS', 'Traffic', 'Epidemic', 'Airport'))
-    plt.legend()
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=4, fancybox=True, shadow=True)
+    plt.grid()
     plt.show()
 
     rects1 = plt.bar(index-bar_width, rbs_by_model_rr, bar_width,
@@ -410,7 +382,8 @@ def main():
     plt.xlabel('Model')
     plt.ylabel('Rollbacks')
     plt.xticks(index+0.5*bar_width, ('PCS', 'Traffic', 'Epidemic', 'Airport'))
-    plt.legend()
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=4, fancybox=True, shadow=True)
+    plt.grid()
     plt.show()
 
 
@@ -430,10 +403,11 @@ def main():
     autolabel(rects3)
     plt.xlim(-2*bar_width, len(index)+7*bar_width)
     plt.xlabel('Model')
-    plt.ylim(0, 140)
+    plt.ylim(0, 110)
     plt.ylabel('Efficiency (%)')
     plt.xticks(index+0.5*bar_width, ('PCS', 'Traffic', 'Epidemic', 'Airport'))
-    plt.legend()
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=4, fancybox=True, shadow=True)
+    plt.grid()
     plt.show()
 
 
@@ -448,7 +422,8 @@ def main():
             plt.plot(l["xvals"], l["yvals"], marker='o')
             legend_entries.append(l["legend_title"])
 
-        plt.legend(legend_entries) 
+        plt.grid()
+        plt.legend(legend_entries, loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=4, fancybox=True, shadow=True)
 
     plt.show()
 

@@ -113,7 +113,8 @@ def main():
             plt.plot(l["xvals"], l["yvals"], marker='o')
             legend_entries.append(l["legend_title"])
 
-        plt.legend(legend_entries) 
+        plt.grid()
+        plt.legend(legend_entries, loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=4, fancybox=True, shadow=True)
 
     plt.show()
 

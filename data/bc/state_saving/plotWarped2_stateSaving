@@ -108,7 +108,7 @@ def main():
     addPlotXY(plots, "", "State Saving Period", "Total Rollbacks", rollback_lines)
     addPlotXY(plots, "", "State Saving Period", "Coast Forward Rate", cf_rate_lines)
     addPlotXY(plots, "", "State Saving Period", "Rollback Rate", rb_rate_lines)
-#    addPlotXY(plots, "Performance", "State Saving Period", "Event Rate", event_rate_lines)
+    addPlotXY(plots, "Performance", "State Saving Period", "Event Rate", event_rate_lines)
 
     for i, p in enumerate(plots):
         fig = plt.figure(i)
@@ -121,7 +121,8 @@ def main():
             plt.plot(l["xvals"], l["yvals"], marker='o')
             legend_entries.append(l["legend_title"])
 
-        plt.legend(legend_entries) 
+        plt.legend(legend_entries, loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=4, fancybox=True, shadow=True)
+        plt.grid()
 
     plt.show()
 
