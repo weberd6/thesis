@@ -186,7 +186,7 @@ University of Cincinnati.
 %% Background
 Many physical systems can be described by events that occur in discrete time intervals
 such as communication networks, digital logic circuits, transportation systems, or disease
-outbreaks \cite{law-XX}.  To gain a better understanding of these systems, researchers
+outbreaks \cite{law-00}.  To gain a better understanding of these systems, researchers
 develop models of the systems and perform simulations on computing platforms.  These
 \emph{Discrete Event Simulation} (DES) models can take a long time to simulate large,
 complex systems by sequentially processing events which has ultimately led researchers to
@@ -196,9 +196,9 @@ known as Parallel Discrete Event Simulation (PDES) \cite{fujimoto-90,fujimoto-00
 
 Parallel algorithms can be written to target many different architectures that support
 parallelism such as shared-memory multiprocessors, clusters, or any other type of system
-that support parallel execution \cite{culler-XX}.  Furthermore, communication between
-concurrent workers in the system can be achieved by using shared data structures or by
-passing explicit messages between threads.
+that support parallel execution \cite{culler-97,patterson-11}.  Furthermore, communication
+between concurrent workers in the system can be achieved by using shared data structures
+or by passing explicit messages between threads.
 
 The Time Warp Mechanism \cite{jefferson-85}, which is the focus of this text, is one approach
 to synchronize PDES where causal dependencies of events are not enforced before processing
@@ -215,16 +215,20 @@ be scaled to any number of machines using interconnection networks as a means of
 exhchanging messages.  However, this approach introduces high communication latencies.
 
 %% Solution
-This thesis explores the design and implementation of the \textsc{warped2} simulation
-kernel.  \textsc{warped2} is a refinement of the original \textsc{warped} simulation
-kernel \cite{martin-96,ramanan-98-iscope} that uses a hybrid approach to communicate
-events.  More specifically, \textsc{warped2} uses shared memory to communicate event
-information between a set of \emph{worker threads} on a single node to eliminate
+This thesis explores the \emph{design and implementation of the \textsc{warped2}
+  simulation kernel}.  \textsc{warped2} is a refinement of the original \textsc{warped}
+simulation kernel \cite{martin-96,ramanan-98-iscope} that uses a hybrid approach to
+communicate events.  More specifically, \textsc{warped2} uses shared memory to communicate
+event information between a set of \emph{worker threads} on a single node to eliminate
 communication overheads and message passing between the processes on each processing node
 to allow the system to scale to larger sizes.  A dedicated \emph{manager thread} on each
 node handles all global operations between such as GVT and termination detection.  Figure
 \ref{warped2_communication} illustrates the communication model that is used in
-\textsc{warped2}.
+\textsc{warped2}.  This thesis explores the principle design structure of \textsc{warped2}
+for efficient execution on a cluster with x86-based multi-core processing nodes.  Various
+configuration and implementation options are examined and evaluated against one another.
+The a brief summary of the principle design options explored is summarized in the
+remainder of this section.
 
 \begin{figure}[H]
     \centering
@@ -321,98 +325,103 @@ future research.
 
 This chapter first describes some of the basics of Parallel Discrete Event Simulation (PDES)
 with a focus on the Time Warp mechanism.  Then a brief overview of parallel architectures and
-parallel communication models and their strengths and weaknesses are compared.
+parallel communication models and their strengths and weaknesses are compared.  More
+detailed discussions are available in the literature \cite{fujimoto-90,fujimoto-00}.
 
 \section{Discrete Event Simulation}
 
 Discrete Event Simulation (DES) is a method of modeling the execution of a physical system
-with a sequence of events that occur at discrete time intervals.  A Discrete Event Simulation
-typically contains three main data structures
+with a sequence of events that occur at discrete time intervals \cite{law-00}.  A Discrete
+Event Simulation typically contains three main data structures, namely:
 
 \begin{description}
-    \item[State variables: ] A set of variables that describe the current state of the system.
-    \item[Simulation Clock: ] A clock to measure the progress of the simulation and determine
-        the order of event processing.
+    \item[State variables: ] A set of variables that describe the current state of the
+      system.
+    \item[Simulation Clock: ] A clock to measure the progress of the simulation and
+      determine the order of event processing.
     \item[Pending Event Set: ] A set of future events that are waiting to be procesed.
 \end{description}
 
 \noindent
 A \emph{Simulation Model} describes a physical system by a set of \emph{Logical Processes}
-(LPs).  Each LP corresponds to a physical process that is part of the physical system.  The
-LPs interact with timestamped events that dictate the simulation time that the event should
-be processed.  With each event that occurs, and only when an event occurs, the state of the
-system is updated.
+(LPs).  Each LP corresponds to a physical process that is part of the physical system.
+The LPs interact with timestamped events that dictate the simulation time that the event
+should be processed.  With each event that occurs, and only when an event occurs, the
+state of the system is updated.
 
 In a \emph{Sequential} Discrete Event Simulation only one event is processed at a time.
-All pending events are kept in a single list which is sorted by timestamp.  The next event
-to be processed is always the one with lowest timestamp.  Each successive event updates the
-state of the system, advances the simulation clock, and possibly produces new future events.
-This is clearly not very efficient for large simulations.  This method can be improved by
-realizing that events for different LP's are independant and will only affect the state for
-a single LP.
+All pending events are kept in a list that is sorted by the timestamp that the event is to
+be processed.  The next event to be processed is always the one with lowest timestamp.
+Each successive event updates the state of the system, advances the simulation clock, and
+possibly produces new future events.  This is clearly not very efficient for large
+simulations.  This method can be improved by realizing that events for different LP's are
+independent and will only affect the state for a single LP.
 
 \section{Parallel Discrete Event Simulation}
 
 \emph{Parallel} Discrete Event Simulation (PDES) is a method running a discrete event
-simulation on a parallel computer which could be a shared-memory multiprocessor or a
-cluster, or a combination of both.  In a parallel discrete event simulation the state of
-the system is usually split among the logical processes so that each one contains a portion
-of system's state without any sharing of state variables\cite{fujimoto-90}.  In addition to
-each logical process having it's own separate state, the logical processes also have seperate
-simulation clocks and pending event sets.  Event's from different LP's can then be processed
-concurrently without the need to worry about sharing state variables and the model can be
-viewed as concurrent processes operating independantly which contribute to the overall
-progression of the simulation.  This has the potential to increase performance significantly;
-However, it is possible that events at a receiving LP can be received and processed out of
-order, violating causality.  These \emph{causality errors} can occur because of the independant
-nature of the LPs and because the LP's can be processing events at different rates.
-Causality errors can produce incorrect changes in state variables and incorrect events to
-be sent to other LP's.  Parallel Discrete Event Simulation techniques can be categorized in
-terms of how causality errors are handled.  \emph{Conservative} approaches use methods to
-detect when possible causality errors might occur and prevent them from ever occuring.
-\emph{Optimistic} approaches, on the other hand, allow causality errors to occur but use
-methods to detect and recover from the errors.  Generally, the simulation models can be
-developed without the knowledge of the underlying simulation mechanism.  The simulation
-mechanism is usually implemented in a self-contained module which provides an API for the
-models and is commonly referred to as the \emph{kernel} or \emph{executive}.  For the remainder
-of this text, only optimistic methods will be discussed, specifically the Time Warp mechanism
-which is the most widely used optimistic mechanism used in practice.
+simulation on a parallel computing platform.  The parallel computing platform can be a
+shared memory multiprocssor, a distributed memory cluster, or a combination of both.  An
+important issue in the design and implementation of a PDES is the \emph{synchronization
+mechanism} that is used to coordinate the processing of events by the concurrently
+executing LPs so that they satisfy their causal order \cite{lamport-78}.  While there are
+numerous synchronization mechanisms for implementing a PDES, the technique of importance
+in this thesis is the Time Warp Mechanism \cite{jefferson-85,fujimoto-90,fujimoto-00}.
+The Time Warp Mechanism is an \emph{optimistic synchronization mechanism} where the causal
+ordering of events is not strictly enforced and is sometimes (temporarily) violated by the
+simulation executive.  A brief overview of the Time Warp mechanism is provided in the next
+subsection. 
 
 \subsection{Time Warp}
 
 The Time Warp mechanism is an optimistic method of simulation which is based on the virtual
-time paradigm\cite{jefferson-85}.  \emph{Virtual Time} provides a method of ordering events
+time paradigm \cite{jefferson-85}.  \emph{Virtual Time} provides a method of ordering events
 in distributed systems which are not described by real time such as a simulation.  When used
 for parallel discrete event simulation, Virtual Time is synonymous with simulation time.
 The current time of an LP's simulation clock in Time Warp is called the \emph{Local Virtual
 Time} (LVT).
 
-When a causality error is detected at an LP (next event to be processed is less than the
-LVT) the effects of the incorrectly processed event(s) must be undone.  The process
-of undoing the effects is called a \emph{rollback} and the event that triggers a rollback
-is called a \emph{straggler event}.  When a straggler event is detected at an LP, the first
-step taken during the rollback is to restore the LP's state back to a previous state before
-the incorrect event(s) were processed.  Then the LP must "unsend" the events that were
-incorrectly sent by sending \emph{negative events} or \emph{anti-messages}.  The negative
-events, when received by the receiving LP will stop the corresponding positive event from
-being processed or if the corresponding positive message has already been processed at
-the receiving LP then that LP must also rollback.  This processes recursively occurs until
-all causality errors are corrected.  The negative messages are never processed as normal
-events but serve only to annhilate an generated event produced by an incorrectly processed
-event.
+%% DOUG: it makes no sense to the reader to jump into the next paragraph.  you must first
+%% describe the parallel execution of events in a time warp simulation (basically a brief
+%% description of the unsynchronizated/uncoordinated/greedy execution of events by each of
+%% the concurrently executing LPs.   
 
-Jefferson\cite{jefferson-85} describes how to support rollbacks with three main data structures:
+When a causality error is detected at an LP (next event to be processed is less than the
+LVT) the effects of the incorrectly processed event(s) must be undone.  The process of
+undoing the effects is called a \emph{rollback} and the event that triggers a rollback is
+called a \emph{straggler event}.  When a straggler event is detected at an LP, the first
+step taken during the rollback is to restore the LP's state back to a previous state
+before the incorrect event(s) were processed.  Then the LP must ``unsend'' the events that
+were incorrectly sent by sending \emph{negative events} or \emph{anti-messages}.  The
+negative events, when received by the receiving LP will stop the corresponding positive
+event from being processed or if the corresponding positive message has already been
+processed at the receiving LP then that LP must also rollback.  This processes recursively
+occurs until all causality errors are corrected.  The negative messages are never
+processed as normal events but serve only to annhilate an generated event produced by an
+incorrectly processed event.
+
+%% DOUG: this entire discussion is very confusing and the uninformed reader would not be
+%% able to make sense of this.  in the paragraph following this enumeration, the first
+%% setntence should specifically describe each element as simply and concisely as
+%% possible.  do not confuse the reader with processed/unprocessed events, or LVT updates
+%% when you introduce these terms.  i would probably drop this enumeration entirely;
+%% instead, i recommend that you use a figure and describe the entire processing mechanism
+%% of Time Warp using that figure.  i am going to skip the remainder of this subsection
+%% and let you try again.
+
+Jefferson\cite{jefferson-85} describes how to support rollbacks with three main data
+structures, specifically the:
 
 \begin{enumerate}
-    \item Input Queue
-    \item Output Queue
-    \item State Queue
+    \item Input Queue,
+    \item Output Queue, and
+    \item State Queue.
 \end{enumerate}
 
 \noindent
-Every LP will have a seperate input queue, output queue, and state queues.  The input
-queue contains the unprocessed and processed events for the LP that it belongs to.  The
-input queue must be sorted in timestamp order and the LP's must always process from the
+Each LP will maintain a seperate input, output, and state queue.  The input
+queue contains events destined to be executed by that LP.  The
+input queue must be sorted in timestamp order and the LPs will always process from the
 lowest unprocessed event.  The LVT is always the largest timestamped processed event and
 is used to detect a straggler event.  The output queue contains the events that have been
 sent by the LP that it belongs to which will allow the LP to send anti-messages during a
@@ -441,22 +450,23 @@ will also be discussed more in chapter \ref{memory_management}.
 
 \section{Parallel Systems Architectures}
 
-Systems that support parallel processing come in many forms.  They can generally be characterized
-by how processors and memories are grouped together.  A shared memory system is a single machine
-which shares a common address space for all processes and can have a either a single physical
-memory unit or multiple memory units.  A cluster is a system comprised of multiple machines with
-seperate process address spaces connected over an interconnection network.
+Systems that support parallel processing come in many forms \cite{culler-97,patterson-11}.
+They can generally be characterized by how processors and memories are grouped together.
+A shared memory system is a single machine which shares a common address space for all
+processes and can have a either a single physical memory unit or multiple memory units.  A
+cluster is a system comprised of multiple machines with seperate process address spaces
+connected over an interconnection network.
 
 \subsection{Shared Memory Multiprocessor Systems}
 
 \paragraph{A Symmetric Multiprocessor (SMP)} is a type of shared memory multiprocessor
 system where each processor has uniform access to a single shared memory through a common
-bus.  SMP systems cannot scale very large due to increasing memory contention as the number of
-processors increasing and for this reason, they usually have 8 or fewer processors.
-To increase available bandwidth in the system, each processor usually has one or two
-levels of private caches as well as a shared cache which act as a way limit the number of
-memory accesses.  Figure \ref{smp} illustrates what a typical SMP system looks might look
-like.
+bus.  SMP systems cannot scale very large due to increasing memory contention as the
+number of processors increasing and for this reason, they usually have 8 or fewer
+processors.  To increase available bandwidth in the system, each processor usually has one
+or two levels of private caches as well as a shared cache which act as a way limit the
+number of memory accesses.  Figure \ref{smp} illustrates what a typical SMP system might
+look like.
 
 \begin{figure}[H]
     \centering
@@ -465,14 +475,15 @@ like.
 \end{figure}
 
 \paragraph{A Distributed Shared Memory} sytem, also known as a Non-Uniform Memory Access
-(NUMA) system has mulitple memories that are distributed.  In these systems, the memories are
-still shared between processors, but access to different memories may have different access
-times.  An interconnection network connects processors and memories together with one or
-more processors per memory.  Because memory access times can vary, software on NUMA systems
-usually try to keep memory accesses local to a processor.  However, NUMA systems can scale
-much larger than SMP systems because contention to single memory does not necessarily increase
-with an increasing number of processors.  Figure \ref{distributed} illustrates what a typical
-NUMA system might look like.
+(NUMA) system has mulitple memories that are distributed.  In these systems, the
+programming model is as a shared memory (SMP) platform, but access to different memories
+may have different access times.  In general, an interconnection network connects
+processors and memories together with one or more processors per memory unit.  Because
+memory access times can vary, software on NUMA systems usually try to keep memory accesses
+local to a processor.  However, NUMA systems can scale much larger than SMP systems
+because contention to single memory does not necessarily increase with an increasing
+number of processors.  Figure \ref{distributed} illustrates what a typical NUMA system
+might look like.
 
 \begin{figure}[H]
     \centering
@@ -485,10 +496,10 @@ NUMA system might look like.
 \paragraph{A Beowulf Cluster} is a type of cluster which appears to the user as a single
 machine but is actually a loosely coupled set of machines connected together over a local
 network.  A single program is executed by all machines concurrently by launching multiple
-processes on each machine.  A program written for a beowulf cluster typically use some type
-of message passing to communicate among processes and typically uses parallel communication
-software such as MPI or PVM.  Figure \ref{beowulf} illustrates a common realization of a beowulf
-cluster.
+processes on each machine.  A program written for a beowulf cluster typically use some
+type of message passing to communicate among processes and typically uses parallel
+communication software such as MPI or PVM.  Figure \ref{beowulf} illustrates a common
+realization of a beowulf cluster.
 
 \begin{figure}[H]
     \centering
@@ -498,46 +509,52 @@ cluster.
 
 \section{Parallel Systems Communication}
 
-Parallel applications are composed of multiple workers that operate independantly in parallel
-and may have to exchange information.  The workers in a parallel application can be a process,
-thread, or any other type of execution context and can be within a shared memory system or a
-cluster or any type of parallel system.  Workers can communicate by either sending explicitly
-passing messages to each other by means of well defined message formats or by using shared
-data structures that all workers can access.  The former method of communication is known as
-\emph{message passing} and the latter method of communication is known as \emph{shared memory}
-communication.  Both communication methods are fundamentally different and both have strengths
-and weaknesses.
+%% DOUG: worker?  what's that.  you should stick to standard terms like
+%% threads/processors/cores/nodes while discussing these general background topics.  you
+%% should limit your use of the term worker (or ``worker thread'') to your discussion of
+%% warped2 (and only then after you introduce and define the term.  please fix.
+
+Parallel applications are composed of multiple workers that operate independently in
+parallel and may have to exchange information.  The workers in a parallel application can
+be a process, thread, or any other type of execution context and can be within a shared
+memory system or a cluster or any type of parallel system.  Workers can communicate by
+either sending explicitly passing messages to each other by means of well defined message
+formats or by using shared data structures that all workers can access.  The former method
+of communication is known as \emph{message passing} and the latter method of communication
+is known as \emph{shared memory} communication.  Both communication methods are
+fundamentally different and both have strengths and weaknesses.
 
 \subsection{Message Passing}
 
 In a message passing system, workers are completely isolated in different address spaces
 and communicate only through serialized messages.  The formats of the messages must be
-defined so that the message can be serialized and deserialized by the sender and the reciever,
-respectively.  Message passing can either be synchronous or asynchronous.  With synchronous
-message passing, the send/receive operations must be done in a specific order so that the
-sender/receiver workers operate together in a synchronized fashion.  The send operation at
-the sender will block until the message is received at the reciever and the receive operation
-at the receiver will block until the message is fully received.  That means the every worker
-must follow a predictable communication pattern.  Workers cannot continue other operations
-during communication operations and may slow down the whole system.  On the other hand,
-asynchronous communication allows workers to start a send and recieve operations and immediately
-continue without blocking.  To allow this, temporary queues must be used to hold pending
-operations.  The workers do not have to follow a predictable communication pattern in this
-case because the messages will be queued and can be processed at any time and in any order.
-The main advantage of message passing, in general, is that the number of workers can be scaled
-to any size as long as the work is partitioned in the right way.  Also, the workers can execute
-in address spaces on different machines and communicate over a local network connection.  The biggest
-disadvantage, however, is an increased communication latency which can be vary large compared
-to the speed of computation.  This makes message passing especially hard for fine-grained
-parallel applications.  An illustration of simple message passing is shown in figure
-\ref{communication} (a).
+defined so that the message can be serialized and deserialized by the sender and the
+reciever, respectively.  Message passing can either be synchronous or asynchronous.  With
+synchronous message passing, the send/receive operations must be done in a specific order
+so that the sender/receiver workers operate together in a synchronized fashion.  The send
+operation at the sender will block until the message is received at the reciever and the
+receive operation at the receiver will block until the message is fully received.  That
+means the every worker must follow a predictable communication pattern.  Workers cannot
+continue other operations during communication operations and may slow down the whole
+system.  On the other hand, asynchronous communication allows workers to start a send and
+recieve operations and immediately continue without blocking.  To allow this, temporary
+queues must be used to hold pending operations.  The workers do not have to follow a
+predictable communication pattern in this case because the messages will be queued and can
+be processed at any time and in any order.  The main advantage of message passing, in
+general, is that the number of workers can be scaled to any size as long as the work is
+partitioned in the right way.  Also, the workers can execute in address spaces on
+different machines and communicate over a local network connection.  The biggest
+disadvantage, however, is an increased communication latency which can be vary large
+compared to the speed of computation.  This makes message passing especially hard for
+fine-grained parallel applications.  An illustration of simple message passing is shown in
+Figure \ref{communication} (a).
 
 \subsubsection{Message Passing Interface (MPI)}
 
-MPI\cite{Forum:1994:MMI:898758} is an extensive message passing API specification for parallel
+MPI \cite{gropp-94} is an extensive message passing API specification for parallel
 applications and supports both synchronous and asychronous forms of communication.  It is
-a standard specification for developers and MPI users and many current implementations exist.
-The most widely used implementations used in practice include MPICH and OpenMPI.
+a standard specification for developers and MPI users and many current implementations
+exist.  Two widely used implementations of MPI are MPICH and OpenMPI.
 
 \subsection{Shared Memory}
 
@@ -552,7 +569,7 @@ that protect entire sections of code that are executed by different workers and 
 the same data structures such as mutexes or semaphores.  Shared memory data structures may suffer
 from performance if lots of workers contend for the lock at the same time.  For this reason, it
 is very hard to scale systems that use only shared memory as a means of communication.
-An illustration of a simple shared memory system is show in figure \ref{communication} (b).
+An illustration of a simple shared memory system is show in Figure \ref{communication} (b).
 
 \begin{figure}[H]
   \begin{minipage}{.5\textwidth}
@@ -2511,7 +2528,7 @@ on the algorithms that are implemented in \textsc{warped2}.
 
 \subsection{Termination in \textsc{warped2}}
 
-The termination detection algorithm in \textsc{warped2} is actually two independant algorithms,
+The termination detection algorithm in \textsc{warped2} is actually two independent algorithms,
 a message passing algorithm and a shared memory algorithm, merged into a single algorithm.  In
 the opposite manner as the GVT algorithm, the shared memory algorithm is actually used to initiate
 the message passing algorithm.
