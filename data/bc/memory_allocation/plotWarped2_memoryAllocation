@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import re
 
 models = ["epidemic", "pcs", "traffic", "airport"];
-mallocs = ["tcm", "ptm", "jem"];
+mallocs = ["tcm", "ptm", "jem", "supermalloc", "supermalloc_pthread", "hoard", "ltalloc"];
 
 warped_data_path = "."
 
@@ -40,14 +40,17 @@ def main():
 
     plots = list()
 
-    for malloc in mallocs:
+    for m in models:
 
         memory_lines = list()
         time_lines = list()
         efficiency_lines = list()
         event_rate_lines = list()
+        speedup_lines = list()
 
-        for m in models:
+        singlewt_time = 0
+
+        for malloc in mallocs:
             wt_x = list()
             mem_y = list()
             mem_std = list()
@@ -67,6 +70,9 @@ def main():
                                'prollbacks', 'srollbacks', 'coasted','cancelled', 'processed',
                                'committed', 'memory'])
 
+                if (wt == '1'):
+                    singlewt_time = np.mean(ydata['time'])
+
                 wt_x.append(wt)
                 proc_y.append(np.mean(ydata['processed']))
                 comm_y.append(np.mean(ydata['committed']))
@@ -77,16 +83,19 @@ def main():
 
             efficiency_y = [a / b for a, b in zip(comm_y, proc_y)]
             event_rate = [a / b for a, b in zip(comm_y, time_y)]
+            speedup = [singlewt_time / a for a in time_y]
 
-            addLineXY(memory_lines, wt_x, mem_y, mem_std, m)
-            addLineXY(time_lines, wt_x, time_y, mem_std, m)
-            addLineXY(efficiency_lines, wt_x, efficiency_y, None, m)
-            addLineXY(event_rate_lines, wt_x, event_rate, None, m)
+#            addLineXY(memory_lines, wt_x, mem_y, mem_std, malloc)
+#            addLineXY(time_lines, wt_x, time_y, mem_std, malloc)
+            addLineXY(efficiency_lines, wt_x, efficiency_y, None, malloc)
+            addLineXY(event_rate_lines, wt_x, event_rate, None, malloc)
+#            addLineXY(speedup_lines, wt_x, speedup, None, malloc)
 
-        addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Efficiency", efficiency_lines)
-        addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Average Peak Memory", memory_lines)
-        addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Simulation Time (s)", time_lines)
-        addPlotXY(plots, "({})".format(malloc), "Worker Threads", "Event Rate", event_rate_lines)
+        addPlotXY(plots, "({})".format(m), "Worker Threads", "Efficiency", efficiency_lines)
+#        addPlotXY(plots, "({})".format(m), "Worker Threads", "Average Peak Memory", memory_lines)
+#        addPlotXY(plots, "({})".format(m), "Worker Threads", "Simulation Time (s)", time_lines)
+        addPlotXY(plots, "({})".format(m), "Worker Threads", "Event Rate", event_rate_lines)
+#        addPlotXY(plots, "({})".format(m), "Worker Threads", "Speedup", speedup_lines)
 
     one_times_by_model_tcm = list()
     two_times_by_model_tcm = list()
@@ -352,7 +361,10 @@ def main():
                 plt.errorbar(l["xvals"], l["yvals"], l["std"], marker='o')
             legend_entries.append(l["legend_title"])
 
-        plt.legend(legend_entries, loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=4, fancybox=True, shadow=True)
+        ax = plt.subplot(111)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        plt.legend(legend_entries, loc='center left', bbox_to_anchor=(1, 0.5), fancybox=True, shadow=True)
         plt.grid()
 
     plt.show()

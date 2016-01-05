@@ -349,6 +349,7 @@ should be processed.  With each event that occurs, and only when an event occurs
 state of the system is updated.
 
 In a \emph{Sequential} Discrete Event Simulation only one event is processed at a time.
+
 All pending events are kept in a list that is sorted by the timestamp that the event is to
 be processed.  The next event to be processed is always the one with lowest timestamp.
 Each successive event updates the state of the system, advances the simulation clock, and
@@ -377,7 +378,7 @@ The Time Warp mechanism is an optimistic method of simulation which is based on 
 time paradigm \cite{jefferson-85}.  \emph{Virtual Time} provides a method of ordering events
 in distributed systems which are not described by real time such as a simulation.  When used
 for parallel discrete event simulation, Virtual Time is synonymous with simulation time.
-The current time of an LP's simulation clock in Time Warp is called the \emph{Local Virtual
+The current time of an LPs simulation clock in Time Warp is called the \emph{Local Virtual
 Time} (LVT).
 
 %% DOUG: it makes no sense to the reader to jump into the next paragraph.  you must first
@@ -430,9 +431,9 @@ to be restored during a rollback.
 The \emph{Global Virtual Time} (GVT) of the simulation at a given point during the simulation
 is the minimum timestamp of all unprocessed events including the events that have been
 sent but not received\cite{jefferson-85}.  There are numerous algorithms for determining
-the GVT which will be discussed further in chapter\ref{gvt_termination}.  LP's cannot send
+the GVT which will be discussed further in chapter\ref{gvt_termination}.  LPs cannot send
 events that are less than their LVT value and so the GVT acts as a lower bound on how far
-a rollback can occur.  Because no LP's will ever rollback past the GVT value, it is often
+a rollback can occur.  Because no LPs will ever rollback past the GVT value, it is often
 used to free memory that is no longer needed for the events in the input and output queues
 and the states in the state queue that have timestamps less than the GVT as well as committing
 I/O operations that cannot be undone.  This process of freeing memory and committing I/O
@@ -440,8 +441,8 @@ operations is known as \emph{fossil collection}.  Fossil collection does not hav
 on the GVT and several other methods of fossil collection have been developed which will
 also be discussed more in chapter \ref{memory_management}.
 
-The need to save the state of the LP's is one of the fundamental overheads in the Time Warp
-mechanism in terms of both the amount of time it takes to copy the LP's states to save them
+The need to save the state of the LPs is one of the fundamental overheads in the Time Warp
+mechanism in terms of both the amount of time it takes to copy the LPs states to save them
 and the amount of memory that must be used to store them.  Because of this, a number of
 different approaches have been developed to reduce the overhead of state saving such as
 periodic state saving, incremental state saving, and reverse computation.  These methods
@@ -609,6 +610,7 @@ has influenced the design of other simulators that are still used widely in prac
 simulation models run in a single multi-threaded processes and use only shared data
 structures to communicate between threads that are bound to single processor.
 
+<<<<<<< HEAD
 All of the LPs in a simulation model are statically allocated to a single thread so that
 events for an LP are always processed by the same processing core.  The pending event set
 is distributed among threads with each having its own data structures for the set of LPs
@@ -1026,7 +1028,7 @@ public:
 The \textsc{warped2} kernel already provides a set of partitioners but the model developer can define
 their own partitioner that is customized for the model.  The user must derive from the Partitioner
 base class and implement just a single method which takes a vector of all LPs and the number of
-partitions desired and returns a vector of vectors of LP's.  In general, the partitioner should
+partitions desired and returns a vector of vectors of LPs.  In general, the partitioner should
 work for any number of partitions and not impose any constraints because the partition method
 is called back in a general way from the kernel.  A simple template of a partitioner is shown in
 listing \ref{partitioner_example}.
@@ -1052,7 +1054,7 @@ allow the kernel to save and restore the internal state of the random number gen
 random number generators in the C++11 standard libraries\cite{c++11-rng} all fit this requirement
 and can all be used so it is not necessary to always build a custom random number generator.  To
 register the random number generator, the \texttt{registerRNG} template function must be used which is
-a member of the \texttt{LogicalProcess} class.  All LP's must have separate random number generators and
+a member of the \texttt{LogicalProcess} class.  All LPs must have separate random number generators and
 must be registered in the initializeLP callback function as shown in listing \ref{lp_example}.
 
 \subsection{Command Line Arguments and the Kernel Entry Point}
@@ -2825,22 +2827,27 @@ and tcmalloc is shown in Figure \ref{allocator_analysis_eventrate}.
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/ptmalloc_eventrate.pdf} \\
-      PTMalloc2 \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/traffic_eventrate.pdf} \\
+      Traffic \\
     \end{center}
   \end{minipage}%
   \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/tcmalloc_eventrate.pdf} \\
-      TCMalloc \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/pcs_eventrate.pdf} \\
+      PCS \\
     \end{center}
   \end{minipage}
-  \centering
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/jemalloc_eventrate.pdf} \\
-      JEMalloc \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/epidemic_eventrate.pdf} \\
+      Epidemic \\
+    \end{center}
+  \end{minipage}%
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/airport_eventrate.pdf} \\
+      Airport \\
     \end{center}
   \end{minipage}
   \caption{Memory Allocator Event Rate Comparison}\label{allocator_analysis_eventrate}
@@ -2861,22 +2868,27 @@ the efficiency as shown in Figure \ref{allocator_analysis_efficiency}.
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/ptmalloc_efficiency.pdf} \\
-      PTMalloc2 \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/traffic_efficiency.pdf} \\
+      Traffic \\
     \end{center}
   \end{minipage}%
   \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/tcmalloc_efficiency.pdf} \\
-      TCMalloc \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/pcs_efficiency.pdf} \\
+      PCS \\
     \end{center}
   \end{minipage}
-  \centering
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/jemalloc_efficiency.pdf} \\
-      JEMalloc \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/epidemic_efficiency.pdf} \\
+      Epidemic \\
+    \end{center}
+  \end{minipage}%
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/memory_allocation/airport_efficiency.pdf} \\
+      Airport \\
     \end{center}
   \end{minipage}
   \caption{Memory Allocator Efficiency Comparison}\label{allocator_analysis_efficiency}
