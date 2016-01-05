@@ -348,7 +348,7 @@ All pending events are kept in a single list which is sorted by timestamp.  The 
 to be processed is always the one with lowest timestamp.  Each successive event updates the
 state of the system, advances the simulation clock, and possibly produces new future events.
 This is clearly not very efficient for large simulations.  This method can be improved by
-realizing that events for different LP's are independant and will only affect the state for
+realizing that events for different LPs are independant and will only affect the state for
 a single LP.
 
 \section{Parallel Discrete Event Simulation}
@@ -359,15 +359,15 @@ cluster, or a combination of both.  In a parallel discrete event simulation the 
 the system is usually split among the logical processes so that each one contains a portion
 of system's state without any sharing of state variables\cite{fujimoto-90}.  In addition to
 each logical process having it's own separate state, the logical processes also have seperate
-simulation clocks and pending event sets.  Event's from different LP's can then be processed
+simulation clocks and pending event sets.  Event's from different LPs can then be processed
 concurrently without the need to worry about sharing state variables and the model can be
 viewed as concurrent processes operating independantly which contribute to the overall
 progression of the simulation.  This has the potential to increase performance significantly;
 However, it is possible that events at a receiving LP can be received and processed out of
 order, violating causality.  These \emph{causality errors} can occur because of the independant
-nature of the LPs and because the LP's can be processing events at different rates.
+nature of the LPs and because the LPs can be processing events at different rates.
 Causality errors can produce incorrect changes in state variables and incorrect events to
-be sent to other LP's.  Parallel Discrete Event Simulation techniques can be categorized in
+be sent to other LPs.  Parallel Discrete Event Simulation techniques can be categorized in
 terms of how causality errors are handled.  \emph{Conservative} approaches use methods to
 detect when possible causality errors might occur and prevent them from ever occuring.
 \emph{Optimistic} approaches, on the other hand, allow causality errors to occur but use
@@ -384,14 +384,14 @@ The Time Warp mechanism is an optimistic method of simulation which is based on 
 time paradigm\cite{jefferson-85}.  \emph{Virtual Time} provides a method of ordering events
 in distributed systems which are not described by real time such as a simulation.  When used
 for parallel discrete event simulation, Virtual Time is synonymous with simulation time.
-The current time of an LP's simulation clock in Time Warp is called the \emph{Local Virtual
+The current time of an LPs simulation clock in Time Warp is called the \emph{Local Virtual
 Time} (LVT).
 
 When a causality error is detected at an LP (next event to be processed is less than the
 LVT) the effects of the incorrectly processed event(s) must be undone.  The process
 of undoing the effects is called a \emph{rollback} and the event that triggers a rollback
 is called a \emph{straggler event}.  When a straggler event is detected at an LP, the first
-step taken during the rollback is to restore the LP's state back to a previous state before
+step taken during the rollback is to restore the LPs state back to a previous state before
 the incorrect event(s) were processed.  Then the LP must "unsend" the events that were
 incorrectly sent by sending \emph{negative events} or \emph{anti-messages}.  The negative
 events, when received by the receiving LP will stop the corresponding positive event from
@@ -412,7 +412,7 @@ Jefferson\cite{jefferson-85} describes how to support rollbacks with three main 
 \noindent
 Every LP will have a seperate input queue, output queue, and state queues.  The input
 queue contains the unprocessed and processed events for the LP that it belongs to.  The
-input queue must be sorted in timestamp order and the LP's must always process from the
+input queue must be sorted in timestamp order and the LPs must always process from the
 lowest unprocessed event.  The LVT is always the largest timestamped processed event and
 is used to detect a straggler event.  The output queue contains the events that have been
 sent by the LP that it belongs to which will allow the LP to send anti-messages during a
@@ -422,9 +422,9 @@ to be restored during a rollback.
 The \emph{Global Virtual Time} (GVT) of the simulation at a given point during the simulation
 is the minimum timestamp of all unprocessed events including the events that have been
 sent but not received\cite{jefferson-85}.  There are numerous algorithms for determining
-the GVT which will be discussed further in chapter\ref{gvt_termination}.  LP's cannot send
+the GVT which will be discussed further in chapter\ref{gvt_termination}.  LPs cannot send
 events that are less than their LVT value and so the GVT acts as a lower bound on how far
-a rollback can occur.  Because no LP's will ever rollback past the GVT value, it is often
+a rollback can occur.  Because no LPs will ever rollback past the GVT value, it is often
 used to free memory that is no longer needed for the events in the input and output queues
 and the states in the state queue that have timestamps less than the GVT as well as committing
 I/O operations that cannot be undone.  This process of freeing memory and committing I/O
@@ -432,8 +432,8 @@ operations is known as \emph{fossil collection}.  Fossil collection does not hav
 on the GVT and several other methods of fossil collection have been developed which will
 also be discussed more in chapter \ref{memory_management}.
 
-The need to save the state of the LP's is one of the fundamental overheads in the Time Warp
-mechanism in terms of both the amount of time it takes to copy the LP's states to save them
+The need to save the state of the LPs is one of the fundamental overheads in the Time Warp
+mechanism in terms of both the amount of time it takes to copy the LPs states to save them
 and the amount of memory that must be used to store them.  Because of this, a number of
 different approaches have been developed to reduce the overhead of state saving such as
 periodic state saving, incremental state saving, and reverse computation.  These methods
@@ -589,8 +589,8 @@ Although GTW is not used any more, it's design has influenced the design of othe
 are still used widely in practice.  GTW simulation models run in a single multi-threaded processes
 and use only shared data structures to communicate between threads which are bound to single processor.
 
-The LP's for all models are statically allocated to a single thread so that events for the
-LP's are processed only on a single processor.  The pending event set is distributed among
+The LPs for all models are statically allocated to a single thread so that events for the
+LPs are processed only on a single processor.  The pending event set is distributed among
 threads with each having its own data structures for the set of LPs that belong to it.
 Since the threads can only run on a single processor, the data structures also belong to a
 single processor.  The pending event set for each processor consists of three main data structures
@@ -598,7 +598,7 @@ listed below\cite{das-94}:
 
 \begin{enumerate}
     \item The \emph{Message Queue} is a linked list that contains positive messages that
-        are destined for the LP's mapped to the owning processor.  Access to the message
+        are destined for the LPs mapped to the owning processor.  Access to the message
         queue must be synchronized because it can be accessed by tasks running on any processor.
     \item The \emph{Cancel Queue} is a linked list that serves exactly the same purpose as
         the message queue except that it contains only negative messages(anti-messages).
@@ -612,7 +612,7 @@ listed below\cite{das-94}:
 \end{enumerate}
 
 \noindent
-When messages are sent between LP's, they are inserted directly in the message queue or
+When messages are sent between LPs, they are inserted directly in the message queue or
 the cancel queue depending on whether they are positive or negative.  Each thread processes events
 by first moving events from the message queue to the event queue and processing rollbacks.  Then,
 the messages from the cancel queue are removed and cancellations are processed and any more
@@ -645,45 +645,45 @@ The downfall of GTW, however is that it was limited to only a single multiproces
 it was only designed and optimized for specific architectures.
 
 GTW also imposed some unnecessary requirements for the developer of particular simulation
-models.  The partitioning of the LP's among processors must be done in the simulation model
+models.  The partitioning of the LPs among processors must be done in the simulation model
 during initialization.  That means that the model developer must understand some the features of
 the underlying architecture such as the number of processors, to effectively partition the
-LP's.  Furthermore, the initial partitioning of the LP's is hard to dynamically balance during
+LPs.  Furthermore, the initial partitioning of the LPs is hard to dynamically balance during
 the simulation because there are no seperate input queues for each LP but rather a single
 message queue to hold all unprocessed events for each processor.
 
 \section{Clustered Time Warp (CTW)}
 
 Clustered Time Warp\cite{avril-95} (CTW) uses a hybrid sequential/time-warp approach by processing
-events within a \emph{cluster} of LP's sequentially and using the Time Warp mechanism between
+events within a \emph{cluster} of LPs sequentially and using the Time Warp mechanism between
 the clusters.  This design was chosen because it works well for digital logic simulation which tend
-to have localized computation within a group of LP's.  Furthermore, digital logic simulation tends
-to have low computational granularity and lot's of LP's which can lead to a lot of rollbacks
+to have localized computation within a group of LPs.  Furthermore, digital logic simulation tends
+to have low computational granularity and lot's of LPs which can lead to a lot of rollbacks
 and a large memory footprint in a traditional Time Warp simulator.  CTW is implemented for
 shared memory multiprocessors but only uses shared memory for use with a custom message passing
 system so that it can better support NUMA architectures.  It is not designed for use on a
 a beowulf cluster.
 
-Each cluster of LPs has a timezone table, an output queue, and a set of LP's which each have an
+Each cluster of LPs has a timezone table, an output queue, and a set of LPs which each have an
 input queue and a state queue.  The timezones in the timezone table are divided by timestamps
-of the events received from LP's on different clusters.  Whenever an event is received from
+of the events received from LPs on different clusters.  Whenever an event is received from
 a remote cluster, a new timezone is added.  Only a single output queue is needed per cluster
-because anti-messages can only be sent between clusters and not between LP's on the same
+because anti-messages can only be sent between clusters and not between LPs on the same
 cluster.
 
-When a straggler event arrives at a cluster, all of the LP's that have processed events that
+When a straggler event arrives at a cluster, all of the LPs that have processed events that
 are greater than the timestamp of the straggler will be rolled back.  This rollback scheme is
 called \emph{clustered rollback}.  The alternative to clustered rollback is \emph{local
 rollback}.  In a local rollback scheme the straggler event would be inserted into the receiver
-LP's input queue and the LP will roll back when it is detected.  Although clustered rollbacks
-may cause some LP's to be rolled back unnecessarily leading to slower compuation, the
+LPs input queue and the LP will roll back when it is detected.  Although clustered rollbacks
+may cause some LPs to be rolled back unnecessarily leading to slower compuation, the
 approach was chosen for CTW because processed events will not have to be saved which
 requires less memory.
 
 CTW uses a form of infrequent state savings with the timezone table used to determine the
 frequency.  When an event is about to processed for an LP, the timezone of the last processed
 event is looked up and if event that is about to be processed is in a different timezone then
-the state is saved.  This approach in which all LP's save their state every time an event is
+the state is saved.  This approach in which all LPs save their state every time an event is
 processed in a new timezone regardless of whether it receives an event from a remote cluster
 is called \emph{local checkpointing}.  This method reduces the state saving frequency more
 than a \emph{clustered checkpointing} approach in which only the LP that receives an event
@@ -711,11 +711,11 @@ used in GTW but have a different naming convention.  The main data structures in
 
 \begin{enumerate}
     \item The \emph{Event Queue} is analogous to the message queue in GTW.  It contains the
-        positive events for all LP's in the corresponding process.  In addition, an event
+        positive events for all LPs in the corresponding process.  In addition, an event
         queue is used to hold all remote events regardless of whether it is positive or
         negative.  The event queue is implemented as a linked list.
     \item The \emph{Cancel Queue} is a linked list which is used to hold negative events
-        for all LP's for the corresponding process.  The cancel queue is used in the exact
+        for all LPs for the corresponding process.  The cancel queue is used in the exact
         same way as GTW except that no locks are necessary.
     \item The \emph{Priority Queue} is analogous to the unprocessed event queue in GTW and
         contains events in timestamp order.  ROSS also allows the priority queue to be
@@ -998,7 +998,7 @@ public:
 The \textsc{warped2} kernel already provides a set of partitioners but the model developer can define
 their own partitioner that is customized for the model.  The user must derive from the Partitioner
 base class and implement just a single method which takes a vector of all LPs and the number of
-partitions desired and returns a vector of vectors of LP's.  In general, the partitioner should
+partitions desired and returns a vector of vectors of LPs.  In general, the partitioner should
 work for any number of partitions and not impose any constraints because the partition method
 is called back in a general way from the kernel.  A simple template of a partitioner is shown in
 listing \ref{partitioner_example}.
@@ -1024,7 +1024,7 @@ allow the kernel to save and restore the internal state of the random number gen
 random number generators in the C++11 standard libraries\cite{c++11-rng} all fit this requirement
 and can all be used so it is not necessary to always build a custom random number generator.  To
 register the random number generator, the \texttt{registerRNG} template function must be used which is
-a member of the \texttt{LogicalProcess} class.  All LP's must have separate random number generators and
+a member of the \texttt{LogicalProcess} class.  All LPs must have separate random number generators and
 must be registered in the initializeLP callback function as shown in listing \ref{lp_example}.
 
 \subsection{Command Line Arguments and the Kernel Entry Point}
