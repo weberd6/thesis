@@ -335,11 +335,10 @@ with a sequence of events that occur at discrete time intervals \cite{law-00}.  
 Event Simulation typically contains three main data structures, namely:
 
 \begin{description}
-    \item[State variables: ] A set of variables that describe the current state of the
-      system.
-    \item[Simulation Clock: ] A clock to measure the progress of the simulation and
-      determine the order of event processing.
-    \item[Pending Event Set: ] A set of future events that are waiting to be procesed.
+\item[State variables: ] A set of variables that describe the current state of the system.
+\item[Simulation Clock: ] A clock to measure the progress of the simulation and determine
+  the order of event processing.
+\item[Pending Event Set: ] A set of future events that are waiting to be procesed.
 \end{description}
 
 \noindent
@@ -413,9 +412,9 @@ Jefferson\cite{jefferson-85} describes how to support rollbacks with three main 
 structures, specifically the:
 
 \begin{enumerate}
-    \item Input Queue,
-    \item Output Queue, and
-    \item State Queue.
+\item Input Queue,
+\item Output Queue, and
+\item State Queue.
 \end{enumerate}
 
 \noindent
@@ -469,9 +468,9 @@ number of memory accesses.  Figure \ref{smp} illustrates what a typical SMP syst
 look like.
 
 \begin{figure}[H]
-    \centering
-    \includegraphics[width=0.75\textwidth,quiet]{figs/graphviz/smp.pdf}
-    \caption{SMP System}\label{smp}
+  \centering
+  \includegraphics[width=0.75\textwidth,quiet]{figs/graphviz/smp.pdf}
+  \caption{SMP System}\label{smp}
 \end{figure}
 
 \paragraph{A Distributed Shared Memory} sytem, also known as a Non-Uniform Memory Access
@@ -486,9 +485,9 @@ number of processors.  Figure \ref{distributed} illustrates what a typical NUMA 
 might look like.
 
 \begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth,quiet]{figs/graphviz/distributed.pdf}
-    \caption{NUMA System}\label{distributed}
+  \centering
+  \includegraphics[width=\textwidth,quiet]{figs/graphviz/distributed.pdf}
+  \caption{NUMA System}\label{distributed}
 \end{figure}
 
 \subsection{Clustered Systems}
@@ -502,9 +501,9 @@ communication software such as MPI or PVM.  Figure \ref{beowulf} illustrates a c
 realization of a beowulf cluster.
 
 \begin{figure}[H]
-    \centering
-    \includegraphics[width=0.6\textwidth,quiet]{figs/graphviz/beowulf.pdf}
-    \caption{Beowulf Cluster}\label{beowulf}
+  \centering
+  \includegraphics[width=0.6\textwidth,quiet]{figs/graphviz/beowulf.pdf}
+  \caption{Beowulf Cluster}\label{beowulf}
 \end{figure}
 
 \section{Parallel Systems Communication}
@@ -592,50 +591,55 @@ An illustration of a simple shared memory system is show in Figure \ref{communic
 
 \chapter{Related Work}\label{related_work}
 
-This chapter give an overview of some of the most popular Time Warp implementations.  For each
-impementation the design will be described at a high level with a focus on the target
+This chapter give an overview of some of the most popular Time Warp implementations.  For
+each impementation the design will be described at a high level with a focus on the target
 architecture.  The featured data structures and algorithms for each will also be described
 as well as the strengths and weaknesses.
 
 \section{Georgia Tech Time Warp (GTW)}
 
-Georgia Tech Time Warp was a general purpose Time Warp Simulator designed specifically for
-shared memory multiprocessors.  It is not used anymore, however, because it was only written
-to target architectures that are now obselete such as the SparcStation and SGI PowerChallenge.
-Although GTW is not used any more, it's design has influenced the design of other simulators that
-are still used widely in practice.  GTW simulation models run in a single multi-threaded processes
-and use only shared data structures to communicate between threads which are bound to single processor.
+%% DOUG: you should always provide a main citation for work when you first introduce the
+%% topic. 
 
-The LP's for all models are statically allocated to a single thread so that events for the
-LP's are processed only on a single processor.  The pending event set is distributed among
-threads with each having its own data structures for the set of LPs that belong to it.
-Since the threads can only run on a single processor, the data structures also belong to a
-single processor.  The pending event set for each processor consists of three main data structures
-listed below\cite{das-94}:
+Georgia Tech Time Warp \cite{das-94} (GTW) was a general purpose Time Warp Simulator designed
+specifically for shared memory multiprocessors.  It is not used anymore,
+however, because it was only written to target architectures that are now obselete such as
+the SparcStation and SGI PowerChallenge.  Although GTW is not used any more, its design
+has influenced the design of other simulators that are still used widely in practice.  GTW
+simulation models run in a single multi-threaded processes and use only shared data
+structures to communicate between threads that are bound to single processor.
+
+All of the LPs in a simulation model are statically allocated to a single thread so that
+events for an LP are always processed by the same processing core.  The pending event set
+is distributed among threads with each having its own data structures for the set of LPs
+that are assigned to it.  Since the threads can only run on a single processor, the data
+structures also belong to a single processor.  The pending event set for each processor
+consists of three main data structures listed below\cite{das-94}:
 
 \begin{enumerate}
-    \item The \emph{Message Queue} is a linked list that contains positive messages that
-        are destined for the LP's mapped to the owning processor.  Access to the message
-        queue must be synchronized because it can be accessed by tasks running on any processor.
-    \item The \emph{Cancel Queue} is a linked list that serves exactly the same purpose as
-        the message queue except that it contains only negative messages(anti-messages).
-        Access to this queue must also be synchronized.
-    \item The \emph{Event Queue} is used to hold unprocessed and processed events and is
-        directly used to schedule events to be processed.  The event queue is actually made
-        up of different data structures, one for processed events and one for unprocessed
-        events.  The processed events are contained within a doubly linked list and the
-        unprocessed events are contained within a priority queue which can be configured to
-        be either a calendar queue or a skew heap depending on a user configuration.
+\item The \emph{Message Queue} is a linked list that contains positive messages that are
+  destined for the LPs mapped to the owning processor.  Access to the message queue must
+  be synchronized because it can be accessed by tasks running on any processor.
+\item The \emph{Cancel Queue} is a linked list that serves exactly the same purpose as the
+  message queue except that it contains only negative messages(anti-messages).  Access to
+  this queue must also be synchronized.
+\item The \emph{Event Queue} is used to hold unprocessed and processed events and is
+  directly used to schedule events to be processed.  The event queue is actually made up
+  of different data structures, one for processed events and one for unprocessed events.
+  The processed events are contained within a doubly linked list and the unprocessed
+  events are contained within a priority queue which can be configured to be either a
+  calendar queue or a skew heap depending on a user configuration.
 \end{enumerate}
 
 \noindent
-When messages are sent between LP's, they are inserted directly in the message queue or
-the cancel queue depending on whether they are positive or negative.  Each thread processes events
-by first moving events from the message queue to the event queue and processing rollbacks.  Then,
-the messages from the cancel queue are removed and cancellations are processed and any more
-rollbacks are processed.  One or more of the smallest events from the event queue are then processed
-and added to the processed event list.  This procedure is repeated over and over again by all processors.
-Psuedocode for the main event processing loop in GTW is show in figure \ref{gtw_processing}.
+When messages are sent between LPs, they are inserted directly in the message queue or the
+cancel queue depending on whether they are positive or negative.  Each thread processes
+events by first moving events from the message queue to the event queue and processing
+rollbacks.  Then, the messages from the cancel queue are removed and cancellations are
+processed and any more rollbacks are processed.  One or more of the smallest events from
+the event queue are then processed and added to the processed event list.  This procedure
+is repeated over and over again by all processors.  Psuedocode for the main event
+processing loop in GTW is show in Figure \ref{gtw_processing}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -645,81 +649,84 @@ Psuedocode for the main event processing loop in GTW is show in figure \ref{gtw_
         remove N smallest timestamped events E from EvQ\;
         process the N events\;
     }
-\caption{GTW Main Event Processing Loop\cite{das-94}\cite{fujimoto-94}\label{gtw_processing}}
+\caption{GTW Main Event Processing Loop\cite{das-94,fujimoto-94}\label{gtw_processing}}
 \end{algorithm}
 
 \noindent
-To avoid accessing the message queues and cancel queues too often, which is a contention point,
-a larger value of N can be used.  GTW calls this batch processing and N is the batch interval.
-With batch processing, multiple events will be processed at a time without processing any
-rollbacks or cancellations.
+To avoid accessing the message queues and cancel queues too often, which is a contention
+point, a larger value of N can be used.  GTW calls this batch processing and N is the
+batch interval.  With batch processing, multiple events will be processed at a time
+without processing any rollbacks or cancellations.
 
-Since GTW is only uses shared memory communication, anti-messages do not need to be explicitly
-sent.  Only a pointer to the event that needs to be cancelled is necessary.  Fujimoto calls
-this method \emph{direct cancellation}.  Also by only using shared memory, GVT can be calculated
-very quickly using shared data structures instead of passing messages around to all processors.
-The downfall of GTW, however is that it was limited to only a single multiprocessor machine and
-it was only designed and optimized for specific architectures.
+Since GTW is only uses shared memory communication, anti-messages do not need to be
+explicitly sent.  Only a pointer to the event that needs to be cancelled is necessary.
+Fujimoto calls this method \emph{direct cancellation}.  Also by only using shared memory,
+GVT can be calculated very quickly using shared data structures instead of passing
+messages around to all processors.  The downfall of GTW, however is that it was limited to
+only a single multiprocessor machine and it was only designed and optimized for specific
+architectures.
 
 GTW also imposed some unnecessary requirements for the developer of particular simulation
-models.  The partitioning of the LP's among processors must be done in the simulation model
-during initialization.  That means that the model developer must understand some the features of
-the underlying architecture such as the number of processors, to effectively partition the
-LP's.  Furthermore, the initial partitioning of the LP's is hard to dynamically balance during
-the simulation because there are no seperate input queues for each LP but rather a single
-message queue to hold all unprocessed events for each processor.
+models.  The partitioning of the LPs among processors must be done in the simulation model
+during initialization.  That means that the model developer must understand some the
+features of the underlying architecture such as the number of processors, to effectively
+partition the LPs.  Furthermore, the initial partitioning of the LPs is hard to
+dynamically balance during the simulation because there are no seperate input queues for
+each LP but rather a single message queue to hold all unprocessed events for each
+processor.
 
 \section{Clustered Time Warp (CTW)}
 
-Clustered Time Warp\cite{avril-95} (CTW) uses a hybrid sequential/time-warp approach by processing
-events within a \emph{cluster} of LP's sequentially and using the Time Warp mechanism between
-the clusters.  This design was chosen because it works well for digital logic simulation which tend
-to have localized computation within a group of LP's.  Furthermore, digital logic simulation tends
-to have low computational granularity and lot's of LP's which can lead to a lot of rollbacks
-and a large memory footprint in a traditional Time Warp simulator.  CTW is implemented for
-shared memory multiprocessors but only uses shared memory for use with a custom message passing
-system so that it can better support NUMA architectures.  It is not designed for use on a
-a beowulf cluster.
+Clustered Time Warp \cite{avril-95} (CTW) uses a hybrid sequential/time-warp approach by
+processing events within a \emph{cluster} of LPs sequentially and using the Time Warp
+mechanism between the clusters.  This design was chosen because it works well for digital
+logic simulation which tend to have localized computation within a group of LPs.
+Furthermore, digital logic simulation tends to have low computational granularity and lots
+of LPs which can lead to a significant number of rollbacks and a large memory footprint in
+a traditional Time Warp simulator.  CTW is implemented for shared memory multiprocessors
+but only uses shared memory for use with a custom message passing system so that it can
+better support NUMA architectures.  It is not designed for use on a a Beowulf Cluster.
 
-Each cluster of LPs has a timezone table, an output queue, and a set of LP's which each have an
-input queue and a state queue.  The timezones in the timezone table are divided by timestamps
-of the events received from LP's on different clusters.  Whenever an event is received from
-a remote cluster, a new timezone is added.  Only a single output queue is needed per cluster
-because anti-messages can only be sent between clusters and not between LP's on the same
-cluster.
+Each cluster of LPs has a timezone table, an output queue, and a set of LPs that each have
+an input queue and a state queue.  The timezones in the timezone table are divided by
+timestamps of the events received from LPs on different clusters.  Whenever an event is
+received from a remote cluster, a new timezone is added.  Only a single output queue is
+needed per cluster because anti-messages can only be sent between clusters and not between
+LPs on the same cluster.
 
-When a straggler event arrives at a cluster, all of the LP's that have processed events that
-are greater than the timestamp of the straggler will be rolled back.  This rollback scheme is
-called \emph{clustered rollback}.  The alternative to clustered rollback is \emph{local
-rollback}.  In a local rollback scheme the straggler event would be inserted into the receiver
-LP's input queue and the LP will roll back when it is detected.  Although clustered rollbacks
-may cause some LP's to be rolled back unnecessarily leading to slower compuation, the
-approach was chosen for CTW because processed events will not have to be saved which
-requires less memory.
+When a straggler event arrives at a cluster, all of the LPs that have processed events
+with timestamps greater than the straggler event will be rolled back.  This rollback
+scheme is called \emph{clustered rollback}.  The alternative to clustered rollback is
+\emph{local rollback}.  In a local rollback scheme the straggler event would be inserted
+into the receiver LPs input queue and the LP will roll back when it is detected.  Although
+clustered rollbacks may cause some LPs to be rolled back unnecessarily leading to slower
+compuation, the approach was chosen for CTW because processed events will not have to be
+saved which requires less memory.
 
 CTW uses a form of infrequent state savings with the timezone table used to determine the
-frequency.  When an event is about to processed for an LP, the timezone of the last processed
-event is looked up and if event that is about to be processed is in a different timezone then
-the state is saved.  This approach in which all LP's save their state every time an event is
-processed in a new timezone regardless of whether it receives an event from a remote cluster
-is called \emph{local checkpointing}.  This method reduces the state saving frequency more
-than a \emph{clustered checkpointing} approach in which only the LP that receives an event
-from a remote cluster saves its state.  The local checkpointing approach was chosen for CTW
-because a larger state saving frequency can increase rollback computation and it can even
-lead to more memory consumption because more events must be saved for coast forwarding
-during state restoration.
+frequency.  When an event is about to processed for an LP, the timezone of the last
+processed event is looked up and if event that is about to be processed is in a different
+timezone then the state is saved.  This approach in which all LPs save their state every
+time an event is processed in a new timezone regardless of whether it receives an event
+from a remote cluster is called \emph{local checkpointing}.  This method reduces the state
+saving frequency more than a \emph{clustered checkpointing} approach in which only the LP
+that receives an event from a remote cluster saves its state.  The local checkpointing
+approach was chosen for CTW because a larger state saving frequency can increase rollback
+computation and it can even lead to more memory consumption because more events must be
+saved for coast forwarding during state restoration.
 
 \section{Rensselaer's Optimistic Simulation System (ROSS)}
 
-ROSS\cite{carothers-00} is a general purpose simulator that is capable of running both
-conservatively and optimistically synchronized parallel simulations as well as sequential
-simulations.  It is most often used for optimistic parallel simulations which is implemented
-with the Time Warp mechanism.  ROSS started as a reimplementation of GTW and is still
-modeled after it but has had many enhancements.  The same basic event scheduling mechanism is
-used but ROSS supports different priority queue implementations and different algorithms
-are used for fossil collection, state saving, and gvt calculation.  In addition, ROSS uses
-processes instead of threads and uses message passing explicitly with MPI instead of shared
-memory for communication among the processes.
+Rensselaer's Optimistic Simulation System \cite{carothers-00} (ROSS) is a general purpose
+simulator that is capable of running both conservatively and optimistically synchronized
+parallel simulations as well as sequential simulations.  It is most often used for
+optimistic parallel simulations which is implemented with the Time Warp mechanism.  ROSS
+started as a reimplementation of GTW and is still modeled after it but has had many
+enhancements.  The same basic event scheduling mechanism is used but ROSS supports
+different priority queue implementations and different algorithms are used for fossil
+collection, state saving, and GVT calculation.  In addition, ROSS uses processes instead
+of threads and uses message passing explicitly with MPI instead of shared memory for
+communication among the processes.
 
 Just as in GTW, ROSS maps every LP to a process and each process contains its own pending
 event set structures.  No locks are needed explicity within each process because there are
@@ -727,63 +734,67 @@ no shared data structures among processes.  The data structures are very similar
 used in GTW but have a different naming convention.  The main data structures in ROSS are:
 
 \begin{enumerate}
-    \item The \emph{Event Queue} is analogous to the message queue in GTW.  It contains the
-        positive events for all LP's in the corresponding process.  In addition, an event
-        queue is used to hold all remote events regardless of whether it is positive or
-        negative.  The event queue is implemented as a linked list.
-    \item The \emph{Cancel Queue} is a linked list which is used to hold negative events
-        for all LP's for the corresponding process.  The cancel queue is used in the exact
-        same way as GTW except that no locks are necessary.
-    \item The \emph{Priority Queue} is analogous to the unprocessed event queue in GTW and
-        contains events in timestamp order.  ROSS also allows the priority queue to be
-        implemented as a calendar queue, heap, splay tree, or avl tree depending on user
-        configuration.
+\item The \emph{Event Queue} is analogous to the message queue in GTW.  It contains the
+  positive events for all LPs in the corresponding process.  In addition, an event queue
+  is used to hold all remote events regardless of whether it is positive or negative.  The
+  event queue is implemented as a linked list.
+\item The \emph{Cancel Queue} is a linked list which is used to hold negative events for
+  all LPs for the corresponding process.  The cancel queue is used in the exact same way
+  as GTW except that no locks are necessary.
+\item The \emph{Priority Queue} is analogous to the unprocessed event queue in GTW and
+  contains events in timestamp order.  ROSS also allows the priority queue to be
+  implemented as a calendar queue, heap, splay tree, or AVL tree depending on user
+  configuration.
 \end{enumerate}
 
 To reduce the time taken to fossil collect LPs, ROSS further divides the LPs in a single process
 into groups called Kernel Processes (KPs).  All LPs in a KP are rolled back together and fossil
 collected together in a similar manner as a clustered rollback in CTW.
 
-ROSS also uses reverse computation\cite{carothers-99} to rollback LPs to a previous state instead
-of using the traditional copy state saving.  This method allows simulations to run in a much smaller
-memory footprint because the previous states of LPs are not required to be saved.
+ROSS also uses reverse computation \cite{carothers-99} to rollback LPs to a previous state
+instead of using the traditional copy state saving.  This method allows simulations to
+potentially run in a smaller memory footprint because the previous states of LPs are not
+required to be saved.
 
 \section{\textsc{warped}}
 
-\textsc{warped} is the predecessor of \textsc{warped2} and serves as the basis for the design
-and architecture of \textsc{warped2}.  \textsc{warped}, unlike the previous Time Warp simulators,
-follows Jefferson's classic model with LPs having their own input, output, and state queues.  It
-started as a completely processed based solution with only message passing for communication,
-but eventually, with the development of multicore processors, each process was extended into
-multiple threads to further enhance concurrent processing of events.  Over the years, though, with
-many students developing new algorithms, the complexity of \textsc{warped} became unmaintainable.
-A great deal of indirection which, although made for a super configurable and modular
-design, became too complex for new students to learn it and enhance it.  This has led to the
-development of \textsc{warped2} which is detailed throughout the remained of this document.
+\textsc{warped} \cite{martin-96,ramanan-98-iscope} is the predecessor of \textsc{warped2}
+and serves as the basis for the design and architecture of \textsc{warped2}.
+\textsc{warped}, unlike the previous Time Warp simulators, follows Jefferson's classic
+model with LPs having their own input, output, and state queues.  It started as a
+completely process based solution with only message passing for communication, but
+eventually, with the development of multicore processors, each process was extended into
+multiple threads to further enhance concurrent processing of events.  Over the years,
+though, with many researchers developing new algorithms, the complexity of \textsc{warped}
+became unmaintainable.  A great deal of indirection which, although made for a super
+configurable and modular design, became too complex for new developers to learn and
+enhance it.  This has led to the development of \textsc{warped2} which is detailed
+throughout the remained of this document.
 
 \section{Others}
 
 \subsection{The ROme OpTimistic Simulator (ROOT-Sim)}
 
-ROOT-Sim is another general purpose Time Warp Simulator that uses message passing via MPI
-\cite{pellegrini-11}.  Like \textsc{warped}, ROOT-Sim is a more classic Time Warp
-implementation with each LP having their own input, state and output queues.  What sets
-ROOT-Sim apart from other Time Warp simulators is the internal instrumentation tool, Dynamic
-Memory Logger and Restorer (DyMeLoR) that can optimize memory usage.  DyMeLoR can determine
-whether the simulation models are better fit for copy-state saving or incremental state
-saving and transparently switch between them during runtime.  Another service that ROOT-Sim
-offers is the Committed and Consistent Global Snapshot (CCGS).  After each GVT calculation,
-ROOT-Sim transparently rebuilds a global snapshot of all LP states.  Each LP can access its
-portion of the global snapshot on every GVT calculation.  With this service, a simulation
-model can implement any custom global snapshot algorithm.
+The ROme OpTimistic Simulator \cite{pellegrini-11} (ROOT-Sim) is another general purpose
+Time Warp Simulator that uses message passing via MPI.  Like \textsc{warped}, ROOT-Sim is
+a more classic Time Warp implementation with each LP having their own input, state and
+output queues.  What sets ROOT-Sim apart from other Time Warp simulators is the internal
+instrumentation tool, Dynamic Memory Logger and Restorer (DyMeLoR) that can optimize
+memory usage.  DyMeLoR can determine whether the simulation models are better fit for
+copy-state saving or incremental state saving and transparently switch between them during
+runtime.  Another service that ROOT-Sim offers is the Committed and Consistent Global
+Snapshot (CCGS).  After each GVT calculation, ROOT-Sim transparently rebuilds a global
+snapshot of all LP states.  Each LP can access its portion of the global snapshot on every
+GVT calculation.  With this service, a simulation model can implement any custom global
+snapshot algorithm.
 
 \subsection{ROSS-MT}
 
-ROSS-MT\cite{jagtap-12} is a multi-threaded version of ROSS which is optimized to use shared
-memory to communicate among threads.  The use of message passing with MPI was completely
-removed and all events are sent by direct insertion into the event queues.  To reduce the
-added contention on the event queues, they are further divided by possible senders.  ROSS-MT
-also optimizes the memory management so that it is more NUMA aware.
+ROSS-MT \cite{jagtap-12} is a multi-threaded version of ROSS which is optimized to use
+shared memory to communicate among threads.  The use of message passing with MPI was
+completely removed and all events are sent by direct insertion into the event queues.  To
+reduce the added contention on the event queues, they are further divided by possible
+senders.  ROSS-MT also optimizes the memory management so that it is more NUMA aware.
 
 
 
@@ -806,7 +817,7 @@ or a Time Warp simulation.  The sequential simulation does not depend on any oth
 contains only a single list of unprocessed events.  The Time Warp event dispatcher on the other
 hand depends on multiple components that implement specialized algorithms for event scheduling,
 state saving, cancellation, GVT, termination, interprocess communication, and statistics.  The
-main components for Time Warp and how they depend on each other are illustrated in figure
+main components for Time Warp and how they depend on each other are illustrated in Figure
 \ref{warped2_architecture}.
 
 \begin{figure}[H]
@@ -1201,7 +1212,7 @@ are the subscribers to the network.  The service area of the network is divided 
 it can allocate for calls.  When an incoming or outgoing call is made, a port must allocate
 a channel from the port and if one cannot be allocated then the call is \emph{blocked}\cite{lin-96b}.
 The only type of logical processes in the PCS simulation are the cells.  The cells in the
-\textsc{warped2} model form a rectangular grid as shown in figure \ref{pcs_model_lps}.
+\textsc{warped2} model form a rectangular grid as shown in Figure \ref{pcs_model_lps}.
 Portables can only move to other cells from an adjacent cell with a wrap around occuring
 at the edges.
 
@@ -1254,7 +1265,7 @@ route.  For each intersection, the state consists of:
     \item Total cars finished at the intersection
 \end{itemize}
 
-A car goes through three event phase in every intersection as shown in figure
+A car goes through three event phase in every intersection as shown in Figure
 \ref{traffic_events}.  The three types of events are: \begin{inparaenum}[(1)] \item Arrival,
 \item Direction Select, and \item Departure \end{inparaenum}.  The arrival and departure
 events are mainly used for simple state updates and timing of the next events.
@@ -1278,7 +1289,7 @@ The epidemic model describes the spreading of an infectious disease across a set
 geographic locations in a region and across a set of regions.  The logical processes in
 the simulation are geographic locations which represent a portion of the population.  The
 interactions between people in different geographic locations and regions are modeled with
-a diffusion network.  An abstract view of the simulation model is shown below in figure
+a diffusion network.  An abstract view of the simulation model is shown below in Figure
 \ref{epidemic_model}.
 
 \begin{figure}
@@ -1339,7 +1350,7 @@ instability.  Serialized or full multiple thread communication, however, can inc
 for access to MPI library calls and slow down the worker threads and also forces worker
 threads to take more time for serialization, deserialization, and memory allocation/deallocation.
 
-The plots in figure \ref{model_communication} summarize the performance and efficiency of single,
+The plots in Figure \ref{model_communication} summarize the performance and efficiency of single,
 funnelled, serialized, and multiple threaded communication in \textsc{warped2} for the Epidemic,
 PCS, and Traffic models.  Funnelled communication with aggregated messages is also shown.
 
@@ -1396,7 +1407,7 @@ For the traffic and PCS simulation models, aggregated funnelled messages is a cl
 is also apparent that when using funnelled communication, aggregating messages makes a huge
 impact on increasing the efficiency.  The epidemic model, on the other hand, works the best with
 a single threaded communication model.  Both of these observations can be explained by looking
-at the percentage of events that are sent to a remote MPI process in figure \ref{communication_model_premote}.
+at the percentage of events that are sent to a remote MPI process in Figure \ref{communication_model_premote}.
 
 Only a small fraction of a percent of events are remote for epidemic but for PCS and traffic,
 the percentage of remote events is much larger.  Having a much smaller percentage of remote
@@ -1480,7 +1491,7 @@ a simulation model has a peculiar communication pattern among LPs that is not su
 and does not implement a custom partitioning scheme.  It will also work well for any odd number
 MPI processes which may not work well with other schemes.
 
-The plots in figure \ref{partitioning_8node} show a comparison of the round-robin, block, and
+The plots in Figure \ref{partitioning_8node} show a comparison of the round-robin, block, and
 profile-guided partitioning schemes.  In general, more performance is closely tied with a lower
 percentage of remote events and a higher efficiency.  The biggest exception is with the airport
 model, which has a very low efficiency with the profile-guided partitioning.  This could just
@@ -1548,7 +1559,7 @@ Using a header rather than a token seperator within the aggregate message is als
 since a binary serialization technique is used making it impossible to deserialize the aggregate
 messages when they are received.
 
-The plots in figures \ref{aggregate_pcs_traffic} show how various message aggregate sizes change
+The plots in Figures \ref{aggregate_pcs_traffic} show how various message aggregate sizes change
 performance, rollback, and remote events for the PCS and Traffic models.  The results are also
 plotted for different state saving periods since different state saving period has a significant
 impact on the number of rollbacks and the number of remote events.
@@ -1828,7 +1839,7 @@ and the number of rollbacks can increase significantly.  The extent to which the
 depending on the characteristics of the simulation model.  Furthermore, they may also vary as
 the data structures and algorithms in \textsc{warped2} evolve to minimize contention.
 
-The plots shown in figure \ref{ltsf_analysis} illustrate the effects of increasing the number
+The plots shown in Figure \ref{ltsf_analysis} illustrate the effects of increasing the number
 of LTSF queues with 10 worker threads.
 
 \begin{figure}
@@ -1850,7 +1861,7 @@ of LTSF queues with 10 worker threads.
 
 Even though the number of total rollbacks increase with more LTSF queues, there is still a
 growing speedup.  That means that the contention of the LTSF queue locks outweighs the extra time
-needed to process more rollbacks.  By looking back at figure \ref{warped2_processing}, we can see all
+needed to process more rollbacks.  By looking back at Figure \ref{warped2_processing}, we can see all
 the critical points where worker threads can access the LTSF queues.  The lines with a number on
 the margin indicate possible access to the LTSF queue.  For every event the LTSF queue is accessed
 at least 3 times: \begin{inparaenum}[(1)] \item obtaining the next event, \item sending new
@@ -1992,7 +2003,7 @@ average number of events coast forwarded per rollback.  The rollback rate decays
 but the average number of coast forward events per rollback increases linearly.  Therefore the
 coast forward rate still increases logarithmically as the state saving period increases since
 the average number of events coast forwarded per rollback grows at faster rate than the rollback
-rate decreases.  Similar results can be seen in figure \ref{ssp_analysis_cluster} for a cluster.
+rate decreases.  Similar results can be seen in Figure \ref{ssp_analysis_cluster} for a cluster.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -2128,7 +2139,7 @@ from the processed queue are the same as dereferenced source events from output 
 queue so that no copying of the events is needed.  Furthermore, if events are sent within the
 same process, the same events can be pointed to from the output queue and an unprocessed or
 processed event from another LP.  The organization of the processed queue, state queue and output
-queue for a single LP is illustrated in figure \ref{rollback_ds}.
+queue for a single LP is illustrated in Figure \ref{rollback_ds}.
 
 \begin{figure}
     \centering
@@ -2809,7 +2820,7 @@ allocating and freeing memory.
 
 All results shown before now have all been with TCMalloc but until now, we have not shown why.
 A comparison of the event rates for ptmalloc2 which is the default allocator for GLIBC, jemalloc
-and tcmalloc is shown in figure \ref{allocator_analysis_eventrate}.
+and tcmalloc is shown in Figure \ref{allocator_analysis_eventrate}.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -2845,7 +2856,7 @@ table \ref{x86_platform} in appendix \ref{x86_nodes_and_clusters}, it supports u
 threads on 6 cores.  By adding a sixth worker thread which is the seventh thread counting the
 manager thread, we may start seeing some bad cache effects such as false sharing, or inconsistent
 task scheduling.  An imbalance can also be observed as a result of these cache effects by looking at
-the efficiency as shown in figure \ref{allocator_analysis_efficiency}.
+the efficiency as shown in Figure \ref{allocator_analysis_efficiency}.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -2895,7 +2906,7 @@ but before fossil collection and $N$ is the total number of GVT calculations.
 
 Increasing the number of LTSF Queues can speed up the simulation significantly by removing
 the necessity to be shared among worker threads.  However, by increasng the number of LTSF queues,
-more memory is required.  The plot in figure \ref{ltsf_memory} illustrates this by showing the
+more memory is required.  The plot in Figure \ref{ltsf_memory} illustrates this by showing the
 percent increase in average peak memory.  For all data points, the LTSF queues were shared among
 10 worker threads.  The memory measurements are taken from the actual memory used by a
 \textsc{warped2} process, and not the memory allocated by the OS for the process.
@@ -2917,7 +2928,7 @@ The state saving period is just as important for reducing memory requirements as
 speeding up event processing.  A larger state saving period means that fewer states must remain
 in memory but also means that more processed events must be saved.  Therefore the amount of
 memory required will depend on the relative sizes of states and events.  The percent memory
-reduction with an increasing state saving period is shown in figure \ref{ssp_analysis_smp_memory}
+reduction with an increasing state saving period is shown in Figure \ref{ssp_analysis_smp_memory}
 for various simulation models.
 
 \begin{figure}
@@ -3079,7 +3090,7 @@ in the future.
 \chapter{Simulation Model Configurations}\label{model_configurations}
 
 For all experimental analysis in the following sections, the simulation models will be configured
-with the parameters shown in figures \ref{model_params0} and \ref{model_params1} unless noted
+with the parameters shown in Figures \ref{model_params0} and \ref{model_params1} unless noted
 otherwise.
 
 \begin{figure}
