@@ -1,26 +1,27 @@
 digraph message_passing {
 
+    rankdir = RL;
+
     subgraph cluster_mp {
+
+        med [label = "Network\nor\nShared Memory", shape = record, style = filled,
+            color = tomato];
+
         subgraph worker0 {
-            rank = same;
-            w0 [label = "Worker 0", style = filled, color = sandybrown];
+            w0 [label = "Thread/Process", style = filled, color = sandybrown];
             m0 [shape = record, label = "Message Buffer(s)", style = filled, color = lightcyan];
-            "w0" -> "m0" [label = "serialization"];
-            "m0" -> "w0" [label = "deserialization"];
+            "w0" -> "m0" [dir = both, label = "serialization/\ndeserialization"];
         }
 
         subgraph worker1 {
-            rank = same;
-            w1 [label = "Worker 1", style = filled, color = sandybrown];
+            w1 [label = "Thread/Process", style = filled, color = sandybrown];
             m1 [shape = record, label = "Message Buffer(s)", style = filled, color = lightcyan];
-            "w1" -> "m1" [label = "serialization"];
-            "m1" -> "w1" [label = "deserialization"];
+            "w1" -> "m1" [dir = both, label = "serialization/\ndeserialization"];
         }
 
-        "w0" -> "w1" [style = "invis"];
+        "m0" -> "med" [dir = both, label = "send/\nreceive"];
+        "m1" -> "med" [dir = both, label = "send/\nreceive"];
 
-        "m0" -> "m1" [label = "send/receive"];
-        "m1" -> "m0";
         style = filled;
         color = lightgrey;
         label = "Message Passing";

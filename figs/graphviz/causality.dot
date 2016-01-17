@@ -1,0 +1,47 @@
+digraph {
+
+    node [shape = record];
+    rankdir = BT;
+    splines = ortho;
+
+    {
+        rank = same;
+        lp0 [label = "Increasing Real Time", shape = plaintext];
+        lp1 [label = "LP 1", shape = plaintext];
+        lp2 [label = "LP 2", shape = plaintext];
+        lp3 [label = "LP 3", shape = plaintext];
+        "lp1" -> "lp2" -> "lp3" [style = "invis"];
+    }
+
+    {
+        rank = same;
+        d0 [label = "", shape = plaintext];
+        d1 [label = "", shape = plaintext];
+        d2 [label = "", shape = plaintext];
+        d3 [label = "", shape = plaintext];
+        "d0" -> "d1" -> "d2" -> "d3" [style = "invis"];
+    }
+
+    "e3" -> "d2" [arrowhead = none, color = gray50];
+    "e1" -> "d1" [arrowhead = none, color = gray50];
+    "e2" -> "d3" [arrowhead = none, color = gray50];
+    "lp0" -> "d0";
+
+    e1 [label = "10", color = tan3, style = filled];
+    e2 [label = "15", color = tan3, style = filled];
+    e3 [label = "20", color = tan3, style = filled];
+    e4 [label = "25", color = tan3, style = filled];
+
+    "e1" -> "e2";
+    "e1" -> "e3" [style = "invis"];
+    "e1" -> "e4";
+    "e2" -> "e3";
+    "e4" -> "e3" [arrowhead = none, color = gray50];
+
+    "lp1" -> "e1" [arrowhead = none, color = gray50];
+    "lp2" -> "e4" [style = "invis"];
+    "lp2" -> "e4" [arrowhead = none, color = gray50];
+    "lp2" -> "e4" [style = "invis"];
+    "lp3" -> "e2" [arrowhead = none, color = gray50];
+
+}

@@ -1,0 +1,77 @@
+digraph {
+
+    node [shape = record, width = 1.3];
+    rankdir = LR;
+    ranksep = 0;
+    nodesep = 0.1;
+
+    {
+        rank = same
+
+        sq [label = "State Queue", shape = plaintext];
+        oq [label = "Output Queue", shape = plaintext];
+        iq [label = "Input Queue", shape = plaintext];
+
+        e2 [label = "{100} | {120}", fillcolor = dodgerblue, style = filled];
+        s2 [label = "{69} | {X}", fillcolor = darkolivegreen3, style = filled];
+        o2 [label = "{120} | {129}", fillcolor = tomato, style = filled];
+    }
+
+    {
+        rank = same
+        e3 [label = "{95} | {125}", fillcolor = dodgerblue, style = filled];
+        s3 [label = "{86} | {X}", fillcolor = darkolivegreen3, style = filled];
+        o3 [label = "{120} | {125}", fillcolor = tomato, style = filled];
+    }
+
+    {
+        rank = same
+        e4 [label = "{106} | {131}", fillcolor = dodgerblue, style = filled];
+        s4 [label = "{99} | {X}", fillcolor = darkolivegreen3, style = filled];
+        o4 [label = "{125} | {130}", fillcolor = tomato, style = filled];
+    }
+
+    {
+        rank = same
+        e5 [label = "{112} | {134}", fillcolor = dodgerblue, style = filled];
+        s5 [label = "{120} | {X}", fillcolor = darkolivegreen3, style = filled];
+        o5 [label = "{131} | {138}", fillcolor = tomato, style = filled];
+    }
+
+    {
+        rank = same
+        e6 [label = "{115} | {140}", fillcolor = dodgerblue, style = filled];
+        s6 [label = "{134} | {X}", fillcolor = darkolivegreen3, style = filled];
+        o6 [label = "{134} | {142}", fillcolor = tomato, style = filled];
+    }
+
+    {
+        rank = same;
+        u1 [label = "{120} | {142}", fillcolor = lightblue, style = filled];
+        o7 [label = "{140} | {145}", fillcolor = tomato, style = filled];
+        lvt [label = "LVT", shape = plaintext];
+        "u1" -> "lvt" [dir = back];
+    }
+
+    {
+        rank = same;
+        u2 [label = "{119} | {150}", fillcolor = lightblue, style = filled];
+        o8 [label = "{140} | {144}", fillcolor = tomato, style = filled];
+    }
+
+    u3 [label = "{127} | {155}", fillcolor = lightblue, style = filled];
+    u4 [label = "{130} | {160}", fillcolor = lightblue, style = filled];
+
+    elabel [label = "{Send Time} | {Receive Time}", color = "invis"];
+    olabel [label = "{Send Time} | {Receive Time}", color = "invis"];
+    slabel [label = "{Save Time} | {Saved State}", color = "invis"];
+
+    "e2" -> "e3" -> "e4" -> "e5" -> "e6" -> "u1" -> "u2" -> "u3" -> "u4" -> "elabel" [style = "invis"];
+    "s2" -> "s3" -> "s4" -> "s5" -> "s6" -> "slabel" [style = "invis"];
+    "o2" -> "o3" -> "o4" -> "o5" -> "o6" -> "o7" -> "o8" -> "olabel" [style = "invis"];
+
+    "iq" -> "e2" [style = "invis"];
+    "sq" -> "s2" [style = "invis"];
+    "oq" -> "o2" [style = "invis"];
+}
+

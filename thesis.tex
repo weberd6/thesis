@@ -230,7 +230,7 @@ configuration and implementation options are examined and evaluated against one 
 The a brief summary of the principle design options explored is summarized in the
 remainder of this section.
 
-\begin{figure}[H]
+\begin{figure}
     \centering
     \includegraphics[width=\textwidth,quiet]{figs/graphviz/warped_communication.pdf}
     \caption{Communication Model of \textsc{warped2}}\label{warped2_communication}
@@ -268,18 +268,24 @@ message.
 %% should simply rewrite it to highlight the barrier arpproach).  you're call.
 
 %% GVT and Termination
-The combination of shared memory and message passing communication does create some
-complications in the implementation of a Time Warp system.  GVT and termination detection
-algorithms are usually designed for either shared memory or message passing but not both
-\cite{}.  Using a single message passing algorithm between worker threads and processes
-would mean that some kind of message passing scheme would have to be implemented for
-worker threads to communicate.  This scheme would still use shared memory for message
-communication but would still have the overheads of explicit message passing.  On the
-contrary, it is possible to have a single shared memory algorithm that extends to
-distributed memory systems but would require more complex algorithms that would either not
-scale efficiently or would require extra synchronization and communication.  For these
-reasons, the GVT and termination algorithms developed for \textsc{warped2} include both a
-message passing algorithm and a shared memory algorithm that work in conjunction.
+The combination of shared memory and message passing communication does create some complications
+in the implementation of a Time Warp system.  GVT and termination detection algorithms are
+usually designed for either shared memory or message passing but not both
+\cite{mattern-93,bellenot-90,fujimoto-94,xaio-95}.  Using a single message passing algorithm
+between worker threads and between processes would mean that some kind of message passing scheme
+would have to be implemented for worker threads to communicate.  This scheme would still use
+shared memory for message communication but would still have the overheads of explicit message
+passing.  On the contrary, it is possible to have a single shared memory algorithm that
+extends to distributed memory systems but would require more complex algorithms that would
+either not scale efficiently or would require extra synchronization and communication.  For
+these reasons, the GVT and termination algorithms developed for \textsc{warped2} include both
+a message passing algorithm and a shared memory algorithm that work in conjunction.  For GVT
+calculation, both synchronous and asynchronous algorithms have been implemented.  The asynchronous
+algorithm is based on Mattern's message passing algorithm\cite{mattern-93} and Fujimoto's shared
+memory algorithm\cite{fujimoto-94}, whereas the synchronous algorithm is based on a synchronized
+global reduction between all threads from all processes.  The termination detection algorithm
+is an asynchronous algorithm based on the "sticky flags" principle\cite{mattern-91} where the
+state of each process is based on the state of all of it's threads.
 
 \section{Thesis Overview}
 
@@ -349,7 +355,6 @@ should be processed.  With each event that occurs, and only when an event occurs
 state of the system is updated.
 
 In a \emph{Sequential} Discrete Event Simulation only one event is processed at a time.
-
 All pending events are kept in a list that is sorted by the timestamp that the event is to
 be processed.  The next event to be processed is always the one with lowest timestamp.
 Each successive event updates the state of the system, advances the simulation clock, and
@@ -370,7 +375,7 @@ in this thesis is the Time Warp Mechanism \cite{jefferson-85,fujimoto-90,fujimot
 The Time Warp Mechanism is an \emph{optimistic synchronization mechanism} where the causal
 ordering of events is not strictly enforced and is sometimes (temporarily) violated by the
 simulation executive.  A brief overview of the Time Warp mechanism is provided in the next
-subsection. 
+subsection.
 
 \subsection{Time Warp}
 
@@ -378,75 +383,63 @@ The Time Warp mechanism is an optimistic method of simulation which is based on 
 time paradigm \cite{jefferson-85}.  \emph{Virtual Time} provides a method of ordering events
 in distributed systems which are not described by real time such as a simulation.  When used
 for parallel discrete event simulation, Virtual Time is synonymous with simulation time.
-The current time of an LPs simulation clock in Time Warp is called the \emph{Local Virtual
-Time} (LVT).
 
-%% DOUG: it makes no sense to the reader to jump into the next paragraph.  you must first
-%% describe the parallel execution of events in a time warp simulation (basically a brief
-%% description of the unsynchronizated/uncoordinated/greedy execution of events by each of
-%% the concurrently executing LPs.   
+In an optimistically synchronized mechanism such as Time Warp, events from different LPs are
+processed independantly without any consideration that lower timestamped events could be
+received. Because of this, it is possible that the causal order of event is violated. Consider
+the timing diagram shown in figure \ref{causality_violation} which illustrates this scenario
+with three LPs. An event processed at LP 1 triggers a new event to be sent to both LP 2 and
+LP 3 and in turn, LP 3 processes the event which triggers a new event to be sent to LP 2 with
+a lower receive time than the previously one. If the first event received at LP 2 is processed
+before the second, then the state could be updated and new events could be sent to other LPs
+incorrectly.
 
-When a causality error is detected at an LP (next event to be processed is less than the
-LVT) the effects of the incorrectly processed event(s) must be undone.  The process of
-undoing the effects is called a \emph{rollback} and the event that triggers a rollback is
-called a \emph{straggler event}.  When a straggler event is detected at an LP, the first
-step taken during the rollback is to restore the LP's state back to a previous state
-before the incorrect event(s) were processed.  Then the LP must ``unsend'' the events that
-were incorrectly sent by sending \emph{negative events} or \emph{anti-messages}.  The
-negative events, when received by the receiving LP will stop the corresponding positive
-event from being processed or if the corresponding positive message has already been
-processed at the receiving LP then that LP must also rollback.  This processes recursively
-occurs until all causality errors are corrected.  The negative messages are never
-processed as normal events but serve only to annhilate an generated event produced by an
-incorrectly processed event.
+\begin{figure}
+    \centering
+    \includegraphics[width=0.4\textwidth,quiet]{figs/graphviz/causality.pdf}
+    \caption{Causality Violation}\label{causality_violation}
+\end{figure}
 
-%% DOUG: this entire discussion is very confusing and the uninformed reader would not be
-%% able to make sense of this.  in the paragraph following this enumeration, the first
-%% setntence should specifically describe each element as simply and concisely as
-%% possible.  do not confuse the reader with processed/unprocessed events, or LVT updates
-%% when you introduce these terms.  i would probably drop this enumeration entirely;
-%% instead, i recommend that you use a figure and describe the entire processing mechanism
-%% of Time Warp using that figure.  i am going to skip the remainder of this subsection
-%% and let you try again.
+When a causality violation is detected at an LP the effects of the incorrectly processed event(s)
+must be undone. The process of undoing the effects is called a \emph{rollback} and the event
+that triggers a rollback is called a \emph{straggler event}. Jefferson\cite{jefferson-85}
+describes how to support rollbacks by having three data structures per LP:
+\begin{inparaenum}[(1)] \item Input Queue, \item Output Queue, and \item State Queue
+\end{inparaenum} which are illustrated in figure \ref{lp_data_structures}. The input queue
+contains all past and future event, the output queue contains all previously sent events, and
+the state queue contains snapshots of previous states.
 
-Jefferson\cite{jefferson-85} describes how to support rollbacks with three main data
-structures, specifically the:
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth,quiet]{figs/graphviz/logical_process.pdf}
+    \caption{Time Warp LP Data Structures}\label{lp_data_structures}
+\end{figure}
 
-\begin{enumerate}
-\item Input Queue,
-\item Output Queue, and
-\item State Queue.
-\end{enumerate}
+When a straggler event is detected, the LPs state is restored back to a state that was saved
+at a timestamp prior to the straggler event. All events in the output queue with a send time
+greater than the straggler event that were sent incorrectly are then sent again but as an
+\emph{anti-message} or \emph{negative event}. The anti-messages are exactly the same as the
+events that were already sent (positive events) but must be differentiated by including a bit
+indicator within the event payload. Anti-messages are not processed by the receiving LP but
+serve only to cancel out the positive counterpart in the input queue. If the anti-message is
+a straggler then a rollback occurs in the same fashion and the process occurs recursively
+occurs until all causality violations are corrected. When an anti-message causes a rollback,
+it is sometimes referred to as a \emph{secondary rollback}, whereas a rollbacks triggered by
+a positive straggler event is a \emph{primary rollback}.
 
-\noindent
-Each LP will maintain a seperate input, output, and state queue.  The input
-queue contains events destined to be executed by that LP.  The
-input queue must be sorted in timestamp order and the LPs will always process from the
-lowest unprocessed event.  The LVT is always the largest timestamped processed event and
-is used to detect a straggler event.  The output queue contains the events that have been
-sent by the LP that it belongs to which will allow the LP to send anti-messages during a
-rollback.  The state queue contains previous states of the LP and allows the proper states
-to be restored during a rollback.
-
-The \emph{Global Virtual Time} (GVT) of the simulation at a given point during the simulation
-is the minimum timestamp of all unprocessed events including the events that have been
-sent but not received\cite{jefferson-85}.  There are numerous algorithms for determining
-the GVT which will be discussed further in chapter\ref{gvt_termination}.  LPs cannot send
-events that are less than their LVT value and so the GVT acts as a lower bound on how far
-a rollback can occur.  Because no LPs will ever rollback past the GVT value, it is often
-used to free memory that is no longer needed for the events in the input and output queues
-and the states in the state queue that have timestamps less than the GVT as well as committing
-I/O operations that cannot be undone.  This process of freeing memory and committing I/O
-operations is known as \emph{fossil collection}.  Fossil collection does not have to be based
-on the GVT and several other methods of fossil collection have been developed which will
-also be discussed more in chapter \ref{memory_management}.
-
-The need to save the state of the LPs is one of the fundamental overheads in the Time Warp
-mechanism in terms of both the amount of time it takes to copy the LPs states to save them
-and the amount of memory that must be used to store them.  Because of this, a number of
-different approaches have been developed to reduce the overhead of state saving such as
-periodic state saving, incremental state saving, and reverse computation.  These methods
-will also be discussed more in chapter \ref{memory_management}.
+The \emph{Local Virtual Time} (LVT) of an LP is the timestamp of the smallest unprocessed event.
+By itself, the LVT of an LP does not mean anything but is useful for determing the 
+\emph{Global Virtual Time} (GVT). The GVT of the simulation at a given point during the simulation
+is the minimum timestamp of all unprocessed events and anti-messages including the events that
+have been sent but not received\cite{fujimoto-94}. Determining the GVT is a complex problem
+and there are numerous algorithms for determining the GVT. More details and some of the
+algorithms will be discussed further in chapter \ref{gvt_termination}. The GVT is a lower
+bound on how far a rollback can occur which makes it useful in determining which events in the
+input and output queues and the states in the state queue that will never be used again and can
+be freed as well as committing I/O operations that cannot be undone. The process of freeing
+memory and committing I/O operations is known as \emph{fossil collection}. Fossil collection
+does not have to be based on the GVT and several other methods of fossil collection have been
+developed which will be discussed more in chapter \ref{memory_management}.
 
 \section{Parallel Systems Architectures}
 
@@ -468,7 +461,7 @@ or two levels of private caches as well as a shared cache which act as a way lim
 number of memory accesses.  Figure \ref{smp} illustrates what a typical SMP system might
 look like.
 
-\begin{figure}[H]
+\begin{figure}
   \centering
   \includegraphics[width=0.75\textwidth,quiet]{figs/graphviz/smp.pdf}
   \caption{SMP System}\label{smp}
@@ -485,7 +478,7 @@ because contention to single memory does not necessarily increase with an increa
 number of processors.  Figure \ref{distributed} illustrates what a typical NUMA system
 might look like.
 
-\begin{figure}[H]
+\begin{figure}
   \centering
   \includegraphics[width=\textwidth,quiet]{figs/graphviz/distributed.pdf}
   \caption{NUMA System}\label{distributed}
@@ -501,7 +494,7 @@ type of message passing to communicate among processes and typically uses parall
 communication software such as MPI or PVM.  Figure \ref{beowulf} illustrates a common
 realization of a beowulf cluster.
 
-\begin{figure}[H]
+\begin{figure}
   \centering
   \includegraphics[width=0.6\textwidth,quiet]{figs/graphviz/beowulf.pdf}
   \caption{Beowulf Cluster}\label{beowulf}
@@ -509,45 +502,45 @@ realization of a beowulf cluster.
 
 \section{Parallel Systems Communication}
 
-%% DOUG: worker?  what's that.  you should stick to standard terms like
-%% threads/processors/cores/nodes while discussing these general background topics.  you
-%% should limit your use of the term worker (or ``worker thread'') to your discussion of
-%% warped2 (and only then after you introduce and define the term.  please fix.
-
-Parallel applications are composed of multiple workers that operate independently in
-parallel and may have to exchange information.  The workers in a parallel application can
-be a process, thread, or any other type of execution context and can be within a shared
-memory system or a cluster or any type of parallel system.  Workers can communicate by
-either sending explicitly passing messages to each other by means of well defined message
-formats or by using shared data structures that all workers can access.  The former method
+Parallel applications are composed of multiple processes/threads that execute independently
+in parallel and may have to exchange information. For the following discussion, the term process
+will be used although it still applies to threads as well.  Processes can communicate by
+either explicitly passing messages to each other by means of well defined message
+formats or by using shared data structures that all processes can access.  The former method
 of communication is known as \emph{message passing} and the latter method of communication
-is known as \emph{shared memory} communication.  Both communication methods are
-fundamentally different and both have strengths and weaknesses.
+is known as \emph{shared memory} communication.  Both communication methods are fundamentally
+different and both have strengths and weaknesses.
 
 \subsection{Message Passing}
 
-In a message passing system, workers are completely isolated in different address spaces
-and communicate only through serialized messages.  The formats of the messages must be
-defined so that the message can be serialized and deserialized by the sender and the
-reciever, respectively.  Message passing can either be synchronous or asynchronous.  With
-synchronous message passing, the send/receive operations must be done in a specific order
-so that the sender/receiver workers operate together in a synchronized fashion.  The send
-operation at the sender will block until the message is received at the reciever and the
+In a message passing system, processes communicate only through serialized messages.  The formats
+of the messages must be defined so that the message can be serialized and deserialized by the
+sender and the reciever, respectively.  Message passing can be either synchronous or asynchronous.
+
+With synchronous message passing, the send/receive operations for each process must be done in
+a specific order so that the sender/receiver processes operate together in a synchronized fashion.
+The send operation at the sender will block until the message is received at the reciever and the
 receive operation at the receiver will block until the message is fully received.  That
-means the every worker must follow a predictable communication pattern.  Workers cannot
+means the every process must follow a predictable communication pattern.  Processes cannot
 continue other operations during communication operations and may slow down the whole
-system.  On the other hand, asynchronous communication allows workers to start a send and
+system.
+
+On the other hand, asynchronous communication allows proccesses to start a send and
 recieve operations and immediately continue without blocking.  To allow this, temporary
-queues must be used to hold pending operations.  The workers do not have to follow a
+queues must be used to hold pending operations.  The processes do not have to follow a
 predictable communication pattern in this case because the messages will be queued and can
-be processed at any time and in any order.  The main advantage of message passing, in
-general, is that the number of workers can be scaled to any size as long as the work is
-partitioned in the right way.  Also, the workers can execute in address spaces on
-different machines and communicate over a local network connection.  The biggest
-disadvantage, however, is an increased communication latency which can be vary large
-compared to the speed of computation.  This makes message passing especially hard for
-fine-grained parallel applications.  An illustration of simple message passing is shown in
-Figure \ref{communication} (a).
+be processed at any time and in any order.
+
+The main advantage of message passing, in general, is that the number of cooperating processes
+can be scaled to essentially any size as long as the work is partitioned in the right way so
+that communication is minimized.  Also, the processes can execute in address spaces on totally
+seperate machines and communicate over a local network connection.  A disadvantage, however,
+is the latency introduced by the necessity to serialize, deserialize, and copy messages which
+can take a relatively long time compared to the speed of computation.  Furthermore, if an
+interconnection network is used between processes, an extra communication latency further slows
+the system down.  This makes message passing especially hard for fine-grained parallel applications
+which must send and receive a lot of small messages.  An illustration of message passing is shown
+in Figure \ref{communication} (a).
 
 \subsubsection{Message Passing Interface (MPI)}
 
@@ -558,20 +551,21 @@ exist.  Two widely used implementations of MPI are MPICH and OpenMPI.
 
 \subsection{Shared Memory}
 
-The workers in a parallel application can also share a common address space and communicate
-through shared data structures.  The producer worker will insert data directly into the data
-structure and the consumer worker will remove the data and use it.  This takes much less time
+The processes in a parallel application can also share a common address space and communicate
+through shared data structures.  A producer process will insert data directly into the data
+structure and a consumer process will remove the data and use it.  This takes much less time
 to transmit data than with a message passing scheme.  Furthermore, pointers can be used to
-eliminate copying overheads.  Access to the shared data structures, however, must be protected
-so that multiple workers do not simultaneously access the same data which could cause unpredictable
-results.  Access to the data structures is usually enforced using lock synchronization mechanisms
-that protect entire sections of code that are executed by different workers and can end up accessing
-the same data structures such as mutexes or semaphores.  Shared memory data structures may suffer
-from performance if lots of workers contend for the lock at the same time.  For this reason, it
+eliminate the need to copy large amounts of data.  Access to the shared data structures, however,
+must be protected so that multiple processes cannot simultaneously perform read-modify-write
+operations on the same data which could cause unpredictable results.  Access to the data
+structures is usually enforced using lock synchronization mechanisms that protect entire sections
+of code that are executed by different processes and can end up accessing the same data structures
+such as mutexes or semaphores.  The performance of shared memory data structures may suffer
+from performance if lots of processes contend for the lock at the same time.  For this reason, it
 is very hard to scale systems that use only shared memory as a means of communication.
 An illustration of a simple shared memory system is show in Figure \ref{communication} (b).
 
-\begin{figure}[H]
+\begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
       (a)
@@ -610,7 +604,6 @@ has influenced the design of other simulators that are still used widely in prac
 simulation models run in a single multi-threaded processes and use only shared data
 structures to communicate between threads that are bound to single processor.
 
-<<<<<<< HEAD
 All of the LPs in a simulation model are statically allocated to a single thread so that
 events for an LP are always processed by the same processing core.  The pending event set
 is distributed among threads with each having its own data structures for the set of LPs
@@ -822,7 +815,7 @@ state saving, cancellation, GVT, termination, interprocess communication, and st
 main components for Time Warp and how they depend on each other are illustrated in Figure
 \ref{warped2_architecture}.
 
-\begin{figure}[H]
+\begin{figure}
     \centering
     \includegraphics[width=\textwidth,quiet]{figs/graphviz/warped2_overview.pdf}
     \caption{Time Warp Components in \textsc{warped2}}\label{warped2_architecture}
@@ -2618,7 +2611,7 @@ worker thread count so the inactivity of all worker threads will eventually be d
 \subsubsection{Message Passing Algorithm}
 
 The algorithm that is carried out among processes is an asynchronous message passing
-algorithm based on Mattern's "sticky flags" algorithm\cite{mattern-93}.  Just like the GVT
+algorithm based on Mattern's "sticky flags" algorithm\cite{mattern-91}.  Just like the GVT
 algorithm, the token is passed in a logical ring to increasing PIDs.  However, the
 initiator process of the algorithm can change with each execution of the algorithm.  The initiator
 of each successive execution is the first active process that the token reaches during the previous
