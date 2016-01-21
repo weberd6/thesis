@@ -798,7 +798,7 @@ senders.  ROSS-MT also optimizes the memory management so that it is more NUMA a
 \textsc{warped2} is a discrete event simulation kernel that has been designed primarily for research
 explorations with Time Warp synchronized parallel simulation on multi-core processors and clusters.
 The \textsc{warped2} system is implemented in C++ and presents a modeling API to assist in model
-development.  That said, the API is fairly low-level and does include some concepts that exits
+development.  That said, the API is fairly low-level and does include some concepts that exist
 specifically to support the Time Warp implementation (\emph{e.g.,} state definition and copy
 constructors for the state).  The \textsc{warped2} system is stored in git repositories at
 \url{https://github.com/wilseypa/warped2} and \url{https://github.com/wilseypa/warped2-models}.  The
@@ -834,17 +834,18 @@ In general, \textsc{warped2} represents a discrete event simulation as a collect
 processing subsystems that process and exchange events with other LPs.  This model follows closely
 the general PDES simulation model for optimistically synchronized parallel simulation
 \cite{fujimoto-90,jefferson-85}.  An illustration of the main components in a \textsc{warped2}
-simulation model is presented in Figure \cite{warped2_conceptual_overview}.  The Partitioner object
+simulation model is presented in Figure \ref{warped2_conceptual_overview}.  The Partitioner object
 and Random Number Generator objects are optional depending on the needs of the model.  A brief
 overview of these components follows.
 
 At its most basic level, a simulation model in \textsc{warped2} must contain a definition of an
-\texttt{event} and a set of \texttt{logical processes (LPs)}.  Within each LP, the user must define
-the state of the LP and construct a description of what it means to process an event.  While this is
-the minimalist requirements for the construction of a \textsc{warped2} simulation model, most models
-will require two more items, namely: (i) declarations of rollbackable random number generators and,
-at the user's discretion, (ii) the definition of a Partitioner object to make LP assignments to
-processing nodes/threads.
+\texttt{event} and a definition for one more types of \texttt{logical processes (LPs)}.  For
+each LP type, the user must define the state of the LP and construct a description of what it
+means to process an event.  While this is the minimalist requirements for the construction of
+a \textsc{warped2} simulation model, most models will require two more items, namely:
+\begin{inparaenum}[(1)] \item declarations of rollbackable random number generators and,
+at the user's discretion, \item the definition of a Partitioner object to make LP assignments
+to some number of processes/threads.\end{inparaenum}
 
 If an LP requires \emph{random number generation}, the user will also have to instantiate a Random
 Number Generator object that can save and restore its internal state (this is needed so that the
@@ -866,9 +867,6 @@ partitions.  Briefly a user must first pre-simulate the simulation model with th
 into a file that is then used by the subsequently invoked parallel simulation to make the LP
 assignments.
 
-%% DOUG: this is very choppy and difficult to follow.  perhaps you can read/revise in the context of
-%% the reader having the ``Conceptual Overview'' subsection to place everything in context.
-
 \subsection{The C++ Modeling API of \textsc{warped2}}
 
 %% DOUG: take a look at this next paragraph and compare it to the way you had written it.
@@ -886,12 +884,13 @@ implementations are shown for each.
 
 \subsubsection{The LPState Structure}
 
-The state of the LPs must be defined with the \texttt{WARPED\_DEFINE\_LP\_STATE\_STRUCT}
-macro which automatically derives from an intermediate structure that defines a necessary
-clone method so that the model developer does not have to.  It is needed to ensure that the \textsc{warped2}
-kernel can save a copy of the state and restore the state from a pointer to the \texttt{LogicalProcess}
-base class.  A simple example of a LP state that contains just message counts is shown below in
-listing \ref{example_state}.
+The LPState structure is derived from by using the \texttt{WARPED\_DEFINE\_LP\_STATE\_STRUCT}
+macro instead of the standard C++ syntax. By using this macro, a \texttt{clone} method and
+\texttt{restoreState} method are automatically defined to allow copy construction and copy
+assignment, respectively, from a pointer to base class. The \textsc{warped2} kernel can then
+save a copy of the state and restore the state for the model without knowing the details of the
+state definition. A simple example of a LP state that contains just message counts is shown below
+in listing \ref{example_state}.
 
 \begin{lstlisting}[caption=Example \textsc{warped2} State Definition, label=example_state, float]
 WARPED_DEFINE_LP_STATE_STRUCT(ExampleState) {
@@ -899,23 +898,23 @@ WARPED_DEFINE_LP_STATE_STRUCT(ExampleState) {
 };
 \end{lstlisting}
 
-If the state contains complex data structures that contain pointers then the default copy
-constructor and default copy assignment operator will only perform shallow copies.  In this
-case the user must implement a custom copy constructor or a custom copy assignment operator
-or both.  The copy constructor will define the behavior for saving the state whereas the
+The default copy constructor and default copy assignment operator will only perform shallow
+copies, so if more complex states are necessary in the model then custom implementations may
+be necessary. The copy constructor will define the behavior for saving the state whereas the
 copy assignent operator will define the behavior for restoring the state.  Note that the
-copy assignment operator will most likely not be needed since a shallow copy will usually
+copy assignment operator will probably not be needed since a shallow copy will usually
 suffice for restoring the state.
 
 \subsubsection{The Event Class}
 
-The \texttt{Event} base class is used as the basis for creating model specific events.  The user must
-implement at least two methods: \begin{inparaenum}[(1)] \item \texttt{receiverName()} and 
-\item \texttt{timestamp()} \end{inparaenum}.  It is necessary so that the name of the receiver
-and receive time, respectively, can be obtained for each instance of an event within the kernel.
-The user must also that events are serializable so that they can be sent and received through
-the message passing system.  A basic example of an event implementation is shown below in listing
-\ref{event_example}.
+The \texttt{Event} base class is used as the basis for creating model specific events.  The model
+must implement at least two methods: \begin{inparaenum}[(1)] \item \texttt{receiverName()} and 
+\item \texttt{timestamp()} \end{inparaenum} so that the name of the receiver and receive time
+can be used for ordering events from pointer to the base class. In addition, any other data
+that must be exchanged between LPs must also be included as a class member. It is also up to
+the model developer to ensure that events are serializable so that they can be sent and received
+through the message passing system.  More details about serialization will be discussed in the
+next section. A basic example of an event definition is shown below in listing \ref{event_example}.
 
 \begin{lstlisting}[caption=Example \textsc{warped2} Event Definition, label=event_example, float]
 class ExampleEvent : public warped::Event {
@@ -937,25 +936,31 @@ WARPED_REGISTER_POLYMORPHIC_SERIALIZABLE_CLASS(ExampleEvent)
 
 The most important class definition in the simulation model is the \texttt{LogicalProcess} class.
 The implementation of the \texttt{LogicalProcess} class defines the callback functions that the
-event dispatcher with the \textsc{warped2} kernel calls and thus it defines the behavior of the simulation.
-The user must include a single \texttt{LPState} as a data member of the \texttt{LogicalProcess}
-and provide three callback method implementations:
+\textsc{warped2} kernel interfaces with during a running simulation and thus defines the behavior
+of the simulation model. The user must include a single \texttt{LPState} as a data member of the
+\texttt{LogicalProcess} and provide three callback functions:
 
 \begin{enumerate}
     \item The \texttt{initializeLP} method is called to perform any initializations of an LP that
-        must be done prior to the start of the simulation and must return a set of initial events.
-    \item The \texttt{receiveEvent} method is called to perform the forward computation based on
-        the event that is passed.  The implementation of this method should process the event by
-        updating the state of the LP and returning a set of new events with future timestamps.
+        must be done prior to the start of the simulation.  Initializations should include
+        but are not limited to \begin{inparaenum}[(1)] \item registering a random number generator
+        with the \textsc{warped2} kernel and \item producing a set of initial events to be sent.
+        \end{inparaenum}
+    \item The \texttt{receiveEvent} method is called when an LP is to receive an event which
+        is passed by a single parameter.  The implementation of this method should process the
+        event by updating the state of the LP and returning a set of new events with \emph{future}
+        timestamps.  If necessary, the future event timestamps should also be calculated by using
+        the received event timestamp as a lower bound.
     \item The \texttt{getState} method provides a way for the \textsc{warped2} kernel to get the
         current state of the LP so that it can be saved.
 \end{enumerate}
 
-It is necessary that at least one LP has an initial event that is returned by initializeLP,
-otherwise no events can be received and simulation will terminate immediately.  Also note that
-it will be called once for \emph{every} LP instance so it is possible that initial events
-are returned only in some cases.  An example of a \texttt{LogicalProcess} implementation is shown below
-in listing \ref{lp_example}.
+It is necessary that there is at least one case where \texttt{initializeLP} returns an initial
+event so that at least one LP instance produces an event and the simulation can start.
+Otherwise the simulation will terminate immediately. However, most simulation models will start
+by sending a fixed number of events for each LP and each received event that is processed will
+trigger a single new event to be sent. An example of a \texttt{LogicalProcess} implementation
+is shown below in listing \ref{lp_example}.
 
 \begin{lstlisting}[caption=Example \textsc{warped2} LogicalProcess Definition, label=lp_example, float]
 class ExampleLP : public warped::LogicalProcess {
@@ -965,15 +970,19 @@ public:
 
     std::vector<std::shared_ptr<warped::Event> > initializeLP() override {
         this->registerRNG(this->rng_);
-        std::vector<std::shared_ptr<warped::Event> > events;
-        ...
-        return events;
+        std::vector<std::shared_ptr<warped::Event> > initial_events;
+
+        /* Create new event(s) and insert into initial_events vector */
+
+        return initial_events;
     }
 
     std::vector<std::shared_ptr<warped::Event>> receiveEvent(const warped::Event& event) {
         ++this->state_.messages_received_;
         std::vector<std::shared_ptr<warped::Event> > response_events;
-        ...
+
+        /* Create new event(s) and insert into response_events vector */
+
         return response_events;
     }
 
@@ -985,18 +994,20 @@ public:
 
 The \textsc{warped2} kernel already provides a set of partitioners but the model developer can define
 their own partitioner that is customized for the model.  The user must derive from the Partitioner
-base class and implement just a single method which takes a vector of all LPs and the number of
-partitions desired and returns a vector of vectors of LPs.  In general, the partitioner should
-work for any number of partitions and not impose any constraints because the partition method
-is called back in a general way from the kernel.  A simple template of a partitioner is shown in
-listing \ref{partitioner_example}.
+base class and implement just a single \texttt{partition} method which takes a vector of all
+LPs and the number of partitions desired and returns a vector of vectors of LPs.  In general,
+the partitioner should work for any number of partitions and not impose any constraints.
+A simple example of a partitioner is shown in listing \ref{partitioner_example}.
 
 \begin{lstlisting}[caption=Example \textsc{warped2} Partitioner Definition, label=partitioner_example, float]
 class ExamplePartitioner : public Partitioner {
     std::vector<std::vector<LogicalProcess*>>
-    partition(const std::vector<LogicalProcess*>& lps, const unsigned int num_partitions) {
-        std::vector<std::vector<LogicalProcess*>> parts;
-        ...
+    partition(const std::vector<LogicalProcess*>& lps, const unsigned int n) {
+
+        std::vector<std::vector<LogicalProcess*>> parts(n);
+        
+        /* Allocate LPs from "lps" into one of the n partitions */
+
         return parts;
     }
 };
@@ -1004,28 +1015,35 @@ class ExamplePartitioner : public Partitioner {
 
 \subsubsection{Random Number Generation}
 
-If the simulation model must use random number generators, then they must all be registered
+If the simulation model must uses random number generators, then they must all be registered
 with the \textsc{warped2} kernel so that the state of the random number generator can be saved and
 restored in case of rollbacks and provide deterministic result.  The random number generators
 can be any type as long as they implement the \texttt{<< operator} and \texttt{>> operator} to
 allow the kernel to save and restore the internal state of the random number generator.  The
 random number generators in the C++11 standard libraries \cite{c++11-rng} all fit this requirement
-and can all be used so it is not necessary to always build a custom random number generator.  To
-register the random number generator, the \texttt{registerRNG} template function must be used which is
-a member of the \texttt{LogicalProcess} class.  All LPs must have separate random number generators and
-must be registered in the initializeLP callback function as shown in listing \ref{lp_example}.
+so it is not necessary to define a custom random number generator although it is still an
+option.  To register the random number generator, the \texttt{registerRNG} template
+function is provided as a member of the \texttt{LogicalProcess} class.  Any random number
+generators should be a data member of the \texttt{LogicalProcess} definition so that each
+LP instance has its own and they should be registered in the \texttt{initializeLP} callback
+function as shown in listing \ref{lp_example}.
 
-\subsubsection{Command Line Arguments and the Kernel Entry Point}
+\subsubsection{The Main Function}
 
 Once all the necessary structures and classes have been defined, the model's main function
-must be implementd which is where all calls into the kernel are made.  First, the model can create
-specific command line arguments but they must be registered with the kernel.  This must be done
-first so that it can be passed to the constructor of a \texttt{Simulation} instance and so that
-the command line arguments can be displayed without unnecessarily running a simulation.  The
-kernel uses a third-party library called TCLAP for command line arguments.  After setting
-up the command line arguments, all of the LP objects and optionally a partitioner object must
-be instantiated and passed to the kernel through the \texttt{simulate} method of
-\texttt{Simulation} object.  Two versions of the simulate method is available, one for a model
+must be implementd which is where all objects are instantiated and the model interfaces
+with the \textsc{warped2} kernel. The model interfaces through an instance of the \texttt{Simulation}
+class.
+
+If the simulation model needs to have custom command line arguments, they must be
+defined registered with \textsc{warped2}.  This should be done before anything else is done so that
+the command line arguments can be displayed without running a simulation.  \textsc{warped2}
+uses a third-party library called TCLAP for command line arguments.  More details about the
+TCLAP library can be found at \url{http://tclap.sourceforge.net/manual.html}.
+
+After setting up the command line arguments, all of the LP objects and optionally a partitioner
+object is created and passed to the kernel through the \texttt{simulate} method of
+\texttt{Simulation} class.  Two versions of the simulate method is available, one for a model
 with a custom partitioner and one without as listed below:
 
 \begin{enumerate}
@@ -1070,18 +1088,6 @@ int main(int argc, const char **argv) {
 %% thesis is really more about the conceptual structure of the implementation.....will think on it.
 
 \subsection{Conceptual Overview}
-
-\subsection{Details}
-
-
-
-
-
-This chapter describes the software architecture of the \textsc{warped2} simulation kernel.
-The main compenents are described and the dependencies between each of them.  The modeling API
-is also described and an example model is shown to illustrate the API.
-
-\section{The Software Architecture of \textsc{warped2}}
 
 The \textsc{warped2} simulation kernel uses a modular design to make it more configurable,
 extendable, and maintainable.  All components are configured and created at startup individually
@@ -1144,7 +1150,7 @@ is an abstract base class which defines a well defined API for a GVT algorithm b
 \texttt{TerminationManager} and \texttt{StatisticsManager} are concrete classes which implement
 a termination detection algorithm and a central statistics manager, respectively.
 
-\paragraph{The GVTmanager} keeps track of the GVT and implements a specific Global Virtual Time
+\paragraph{The GVTManager} keeps track of the GVT and implements a specific Global Virtual Time
 (GVT) algorithm.  Due to the hybrid communication design of \textsc{warped2}, the GVT algorithms
 will have some contribution from the worker threads and must also use the \texttt{CommunicationManager}
 for a message passing algorithm to use between the set of processes.  Currently, \textsc{warped2}
@@ -1163,34 +1169,94 @@ performing global reductions on the them.
 \subsection{CommunicationManager}
 
 The \texttt{CommunicationManager} provides an interface between the underlying message passing library
-and the global Time Warp components in the \textsc{warped2} simulation kernel.  Any interprocess
+and the global time Warp components in the \textsc{warped2} simulation kernel.  Any interprocess
 communication must go through the \texttt{CommunicationManager}, including remote events that must be
 sent to another process or received from another process.  Any class that has to do interprocess
 communication must register message types and a recieve callback function for each type with
-the \texttt{CommunicationManager}.  The \texttt{WARPED\_REGISTER\_MSG\_HANDLER} macro can be used
-to register the message types and recieve callbacks as long as the communicating class contains
-a data member that is a pointer the \texttt{CommunicationManager} and is named \texttt{comm\_manager\_}.
-
-The message type must also be derived from the \texttt{TimeWarpKernelMessage} base class and
-must be serializable which means that all member variables must be registered with the serialization
-API so that a storage order can be defined.  To do this, the \texttt{WARPED\_REGISTER\_SERIALIZABLE\_MEMBERS}
-macro is provided.  All member variable must be passed to this macro as well as
-\texttt{cereal::base\_class<TimeWarpKernelMessage>(this)} to ensure that all members that are
-inherited from \texttt{TimeWarpKernelMessage} are also serialized.  The order that the members are
-listed is completely arbitrary and does not matter.  In addition, the derived message type must
-be registered using the \texttt{WARPED\_REGISTER\_POLYMORPHIC\_SERIALIZABLE\_CLASS} macro.  
-
-Currently, \textsc{warped2} only implements an MPI based \texttt{CommunicationManager} through
-the \texttt{MPICommunicationManager} subclass.
+the \texttt{CommunicationManager}. More details on how to do this will be presented in the
+next section. Currently, \textsc{warped2} only implements an MPI based \texttt{CommunicationManager}
+through the \texttt{MPICommunicationManager} subclass.
 
 \subsection{Partitioner}
 
 The \texttt{Partitioner} is an abstract base class for implementating a method of logical
-process partitioning.  Given a vector of LPs and some number of partitions, $N$, the \texttt{Partitioner}
-returns $N$ vectors of LPs by using some partitioning technique.  The \textsc{warped2} kernel
+process partitioning.  Given a vector of LPs and some number of partitions, $N$, the partitioner
+object returns $N$ vectors of LPs by using some partitioning technique.  The \textsc{warped2} kernel
 implements a \texttt{RoundRobin} partitioner and a \texttt{ProfileGuidedPartitioner} but also
 allows simulation models to define their own custom partitioners.  More details of these
 partitioning techniques are given in chapter \ref{partitioning_communication}.
+
+\subsection{Implementation Details}
+
+\subsubsection[Rollbacks \& Cancellation]{Data Structures to Support Rollbacks}
+
+Jefferson\cite{jefferson-85} described the rollback and cancellation process in terms of three
+data structures: the input queue, output queue, and state queue.  The data structures that are
+implemented in \textsc{warped2} follows pretty closely to Jefferson's description except that
+in Jefferson's approach, the input queue holds both unprocessed and processed events whereas
+\textsc{warped2} has two seperate data structures to allow easier scheduling of unprocessed
+events.
+
+The state queues contain a 3-tuple value for each state.  The first value is a pointer to a
+memory location which holds the saved copy of the LP state.  The second value is a pointer to the
+event that produced the state of the LP and is used for comparison against a straggler event
+on a rollback to determine which state to restore or against the GVT during fossil collection.
+The third value is the state of the LPs random number generators at the time the state was saved.
+The random number generator states are saved in a linked list and are also restored during a
+rollback to ensure deterministic results.
+
+Similar to the state queue, the output queue also contains a tuple of values.  In the output
+queue though, only a pointer to a source event and a sent event are used.  In the same way
+as the state queue, the source event is used for comparison against a straggler event during
+a rollback but is used to determine which sent events should be sent as anti-messages.
+
+The processed queues only contain a pointer to the processed events.  The events referred to
+by all data structures all share the same memory so that memory is conserved and copying is
+avoided. Furthermore, if events are sent within the same process, the same events can be referred
+to from the output queue and an unprocessed or processed event from another LP.  The organization
+of the processed queue, state queue and output queue for a single LP is illustrated in
+Figure \ref{rollback_ds}.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth,quiet]{figs/graphviz/rollback_ds.pdf}
+    \caption{Rollback and Cancellation Data Structures in \textsc{warped2}}\label{rollback_ds}
+\end{figure}
+
+Although the organization of these data structures prevents copying of events or timestamp
+information, there are also some limitations.  First, it introduces a lot of indirect memory
+accesses which could slow down access to memory, especially in a multiprocessor system.  Secondly,
+it adds some complexity when events must be fossil collected.  To solve this problem though,
+\textsc{warped2} uses the smart pointers offered by the standard C++11 libraries which maintain
+a reference count and automatically free memory when the reference count reaches zero.
+
+\subsubsection{Message Passing Communication and Serialization}
+
+%% I NEED TO FIX THIS SECTION UP MORE... HAVING SOME TROUBLE EXPLAINING THIS.
+
+For any time warp component that must use the message passing library must register a message
+type with the communication manager.  When the message type is registered, a receive callback
+method that is linked to the message type is also registered so that any messages received with
+that type can be handled appropriately.
+
+To create a message type, the name of the type must first be added to the \texttt{MessageType}
+enum as a new value. Then the new type must then be defined by deriving from the
+\texttt{TimeWarpKernelMessage} base class which will allow all message types to be stored
+in the same container data structures.
+
+The receive callback is defined in the class that sends the message just as any other method.
+The \texttt{WARPED\_REGISTER\_MSG\_HANDLER} macro can be used to register the message types
+and recieve callback as long as the communicating class contains a data member that is a pointer
+the \texttt{CommunicationManager} and is named \texttt{comm\_manager\_}. 
+
+The message types must all be serializable which means that all member variables within the
+message type define must be registered with the serialization API so that a storage order can
+be defined.  To do this, the \texttt{WARPED\_REGISTER\_SERIALIZABLE\_MEMBERS} macro is provided.
+All member variable must be passed to this macro as well as
+\texttt{cereal::base\_class<TimeWarpKernelMessage>(this)} to ensure that all base class members
+are also serialized.  The order that the members are listed is completely arbitrary.  In addition,
+the message type must be registered using the \texttt{WARPED\_REGISTER\_POLYMORPHIC\_SERIALIZABLE\_CLASS}
+macro.
 
 
 
@@ -1783,7 +1849,7 @@ instead of processing events.
 
 
 
-\chapter[Event Scheduling]{Event Scheduling and Data Structures in \textsc{warped2}}\label{warped2_ds}
+\chapter[Event Scheduling]{Event Scheduling and Processing in \textsc{warped2}}\label{warped2_ds}
 
 \section{Pending Event Set Data Structures}
 
@@ -2203,47 +2269,6 @@ is slowed down by other computation.
   \includegraphics[width=0.5\textwidth,quiet]{figs/pending_event_set/spinlock_speedup.pdf}
   \caption{Speedup with Spinlocks}\label{spinlock_speedup}
 \end{figure}
-
-\section[Rollback \& Cancellation]{Data Structures to Support Rollback and Cancellation}
-
-Jefferson\cite{jefferson-85} described the rollback and cancellation process in terms of three
-data structures: the input queue, output queue, and state queue.  The data structures that are
-implemented in \textsc{warped2} follows pretty closely to Jefferson's description except that
-in Jefferson's approach, the input queue holds both unprocessed and processed events whereas
-\textsc{warped2} has two seperate data structures to allow easier scheduling of new events.
-
-The state queues contain a 3-tuple value for each state.  The first value is a pointer to a
-memory location which holds the saved copy of the LP state.  The second value is a pointer to the
-event that produced the state of the LP and is used for comparison against a straggler event
-on a rollback to determine which state to restore or against the GVT during fossil collection.
-The third value is the state of the LPs random number generators at the time the state was saved.
-The random number generator states are saved in a linked list and are also restored during a
-rollback to ensure deterministic results.
-
-Similar to the state queue, the output queue also contains a tuple of values.  In the output
-queue though, only a pointer to a source event and a sent events are used.  In the same way
-as the state queue, the source event is used for comparison against a straggler event during
-a rollback but is used to determine which events should be sent as anti-messages.
-
-The processed queues only contain a pointer to the processed events.  The dereferenced events
-from the processed queue are the same as dereferenced source events from output queue and state
-queue so that no copying of the events is needed.  Furthermore, if events are sent within the
-same process, the same events can be pointed to from the output queue and an unprocessed or
-processed event from another LP.  The organization of the processed queue, state queue and output
-queue for a single LP is illustrated in Figure \ref{rollback_ds}.
-
-\begin{figure}
-    \centering
-    \includegraphics[width=\textwidth,quiet]{figs/graphviz/rollback_ds.pdf}
-    \caption{Rollback and Cancellation Data Structures in \textsc{warped2}}\label{rollback_ds}
-\end{figure}
-
-Although the organization of these data structures prevents copying of events, there are also
-some limitations.  First, it introduces a lot of indirect memory accesses which could slow down
-access to memory, especially in a multiprocessor system.  Secondly, it adds some complexity
-when freeing memory used by events.  To solve this problem though, \textsc{warped2} uses the
-smart pointers offered by the standard C++11 libraries which employ a reference counting
-scheme.
 
 
 
