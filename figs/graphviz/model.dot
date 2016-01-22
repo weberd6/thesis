@@ -6,7 +6,7 @@ digraph {
 
         subgraph cluster_lp {
             lpstate [label = "LP State", style = filled, fillcolor = darkseagreen3];
-            rng [label = "Random Number Generator", style = filled, fillcolor = darkseagreen3];
+            rng [label = "Random Number Generator", style = dashed, fillcolor = darkseagreen3];
 
             label = "Logical Process";
             style = filled;
@@ -14,7 +14,7 @@ digraph {
         }
 
         event [label = "Event", style = filled, fillcolor = darkseagreen3];
-        part [label = "Partitioner", style = filled, fillcolor = darkseagreen3];
+        part [label = "Partitioner", style = dashed, fillcolor = darkseagreen3];
 
         label = "Simulation Model";
         fillcolor = lightgray;
