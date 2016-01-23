@@ -815,7 +815,8 @@ available in the README of the repository.
 
 The remainder of this chapter provides a brief overview of the \textsc{warped2} simulation model API
 and the Time Warp implementation.  In each case, a high level overview is first presented and then a
-detailed discussion of the C++ classes and object interactions is reviewed.
+detailed discussion of the C++ classes and object interactions is reviewed.  A complete example
+of an aiport model implementation is also provided in appendix \ref{airport_model}.
 
 \section{The \textsc{warped2} Modeling API}
 
@@ -3182,6 +3183,17 @@ scheme that does not rely on GVT such as optimistic fossil collection could be w
 in the future.
 
 \appendix
+
+\chapter{Airport Model Implementation}\label{airport_model}
+
+\section{Airport Model Header File}
+
+\lstinputlisting[language = C++, caption = Airport Model Header File]{code/airport.hpp}
+
+\section{Airport Model Source File}
+
+\lstinputlisting[language = C++, caption = Airport Model Source File]{code/airport.cpp}
+
 \chapter{x86 SMP Nodes and Cluster}\label{x86_nodes_and_clusters}
 
 \begin{table}
