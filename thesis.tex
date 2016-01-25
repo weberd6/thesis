@@ -1233,8 +1233,6 @@ a reference count and automatically free memory when the reference count reaches
 
 \subsubsection{Message Passing Communication and Serialization}
 
-%% I NEED TO FIX THIS SECTION UP MORE... HAVING SOME TROUBLE EXPLAINING THIS.
-
 For any time warp component that must use the message passing library must register a message
 type with the communication manager.  When the message type is registered, a receive callback
 method that is linked to the message type is also registered so that any messages received with
@@ -1242,13 +1240,14 @@ that type can be handled appropriately.
 
 To create a message type, the name of the type must first be added to the \texttt{MessageType}
 enum as a new value. Then the new type must then be defined by deriving from the
-\texttt{TimeWarpKernelMessage} base class which will allow all message types to be stored
-in the same container data structures.
+\texttt{TimeWarpKernelMessage} base class.
 
-The receive callback is defined in the class that sends the message just as any other method.
-The \texttt{WARPED\_REGISTER\_MSG\_HANDLER} macro can be used to register the message types
-and recieve callback as long as the communicating class contains a data member that is a pointer
-the \texttt{CommunicationManager} and is named \texttt{comm\_manager\_}. 
+The receive callback is defined in the class that sends the message just as any other class
+method.  The callback method must have a \texttt{void} return type and take a single argument
+of type \texttt{std::unique\_ptr<TimeWarpKernelMessage>}.  For simplicity, the
+\texttt{WARPED\_REGISTER\_MSG\_HANDLER} macro can be used to register the message types
+and recieve callback as long as the communicating class contains a data member that is declared
+exactly as \texttt{std::shared\_ptr<CommunicationManager> comm\_manager\_;}.
 
 The message types must all be serializable which means that all member variables within the
 message type define must be registered with the serialization API so that a storage order can
@@ -1264,22 +1263,24 @@ macro.
 \chapter{Plans of Study}\label{plans_of_study}
 
 Experimental results will be presented throughout the remaining chapters as the various aspects
-of \textsc{warped2} are discussed.  All chapters will contain experimental results for only x86
-SMP nodes and clusters and will be targeted towards understanding and determining the best
+of \textsc{warped2} are discussed.  All chapters will contain experimental results for single
+x86 SMP nodes and x86 clusters and will be targeted towards understanding and determining the best
 design options and configurations.
 
 The single node SMP experiments will be run on an Intel\textsuperscript{\textregistered}
 Xeon\textsuperscript{\textregistered} X5675 processor.  The intel\textsuperscript{\textregistered} Xeon
 \textsuperscript{\textregistered} X5675 has 6 cores with hyperthreading so that 12 simultaneous
-threads are supported.  Cluster experiments will be run on Intel\textsuperscript{\textregistered}
+threads can be executed.  Cluster experiments will be run on Intel\textsuperscript{\textregistered}
 Xeon\textsuperscript{\textregistered} E5410.  The Intel\textsuperscript{\textregistered}
 Xeon\textsuperscript{\textregistered} E5410 is a quad core processor but each machine contains
-two sockets so that 8 cores are available.  A summary of the architectural features and runtime
-systems for both machines are summarized in table \ref{x86_platform} in appendix \ref{x86_nodes_and_clusters}.
+two sockets so that two processors can be used which gives a total of 8 cores per machine.
+A summary of the architectural features and runtime software for both machines are summarized
+in table \ref{x86_platform} found in appendix \ref{x86_nodes_and_clusters}.
 
-Throughout the rest of this text, the \emph{efficieny} and \emph{event rate} will be two of the main
-measures used to analyze behavior.  Other measures will be introduced as needed.  The efficiency
-is defined as:
+Throughout the rest of this text, a number of different measures will be used for comparison
+of different optimizations and configurations.  The \emph{efficieny} and \emph{event rate} are
+two examples of measures that are used the most so they are introduced here.  Other measures
+will be introduced as needed.  The efficiency is defined as:
 
 $$ Efficiency = {events_{committed}}/{events_{processed}} * 100 $$
 
@@ -1290,6 +1291,10 @@ back or not.  Thus, the efficiency is a measure of the percentage of events that
 and not rolled back.  The event rate is defined as:
 
 $$ Event Rate = {events_{committed}}/{runtime} $$
+
+\noindent
+where $runtime$ is the real time that it takes for the simulation the complete and $events_{committed}$
+is again the total number of events processed and not rolled back.
 
 \section{Experiments}
 
@@ -1363,8 +1368,8 @@ experiments.  The model configurations that are used are included within tables 
 
 \subsection{PCS}
 
-The model describes a type of wireless communication network known as a Portable Cellular
-Service (PCS) network.  A PCS network provides services for a number of \emph{portables} which
+The model describes a type of wireless communication network known as a \emph{Portable Cellular
+Service (PCS)} network.  A PCS network provides services for a number of \emph{portables} which
 are the subscribers to the network.  The service area of the network is divided into
 \emph{cells} and a single \emph{port} covers a single cell which has a certain number channels that
 it can allocate for calls.  When an incoming or outgoing call is made, a port must allocate
@@ -1395,11 +1400,11 @@ Every LP keeps track of the following state variables:
 \noindent
 Call arrivals to a portable also follow a poisson distribution.  The cells in the model
 generate all of their own incoming calls in a self-initiating process.
-Four types of events are used to model the network: \begin{inparaenum}[(1)] \item NextCall,
-\item CallCompletion, \item PortableMoveOut, and \item PortableMoveIn \end{inparaenum}.
-The NextCall, CallCompletion, and PortableMoveOut events are all sent to self whereas
-the PortableMoveIn event is sent to an adjacent cell based on a random variable with
-uniform probability.
+Four types of events are used to model the network: \begin{inparaenum}[(1)] \item \texttt{NextCall},
+\item \texttt{CallCompletion}, \item \texttt{PortableMoveOut}, and \item \texttt{PortableMoveIn}
+\end{inparaenum}.  The \texttt{NextCall}, \texttt{CallCompletion}, and \texttt{PortableMoveOut}
+events are all sent to self whereas the \texttt{PortableMoveIn} event is sent to an adjacent
+cell based on a random variable with uniform probability.
 
 \subsection{Traffic}
 
@@ -1410,11 +1415,11 @@ and form a rectangular grid in the same way as that of the PCS model.
 
 The simulation starts with a uniform distribution of cars at each intersection and each
 car is a assigned a destination which it finishes at.  With each arrival at an intersection
-the car always goes in the direction that gets it closer to its destination.
+the car always first tries to go in the direction that gets it closer to its destination.
 The number of cars going out of an intersection in the same direction is limited to a
 maximum number due to traffic on the destination road.  An incoming car that cannot travel in
-a specific direction is forced back in the same direction it came from and tries another
-route.  For each intersection, the state consists of:
+a specific direction because of traffic is forced to wait or take another route.  For each
+intersection, the state consists of:
 
 \begin{itemize}
     \item Number of cars coming into the intersection from each direction
@@ -1439,7 +1444,7 @@ take another route due to traffic.
 
 All events in the traffic model follow an exponential distribution and a single event
 is generated with the processing of each event.  The departure and direction select events
-are self-generated but the arrival event is from an adjacent intersection.
+are self-generated but the arrival event are received from an adjacent intersection.
 
 \subsection{Epidemic}
 
@@ -3140,12 +3145,13 @@ mutexes with spinlocks has also been proven to effective.
 \section{Detailed Conclusions}
 
 The limitations of \textsc{warped2} all seem to be centered around the necessity of synchronization
-and communication.  For message passing between nodes in a cluster, any optimization
-that reduces remote communication will usually give optimistic results and for a shared memory
-communication between worker threads, any optimization that reduces synchronization of shared
-data structures is usually better.  The two are connected, however, when it comes to synchronizing
-access to the message passing library.  We found that thread synchronization is more costly than
-a small increase in remote communication caused by extra rollbacks.
+and communication.  For message passing between processes that are spread over nodes in a cluster,
+optimizations that reduces remote communication will usually give better performance and for
+shared memory communication between worker threads, optimizations that reduce synchronization
+give better performance.  There is a tradeoff, however, when both forms of communication are
+used.  We found that synchronizing worker thread access to the message passing library is more
+costly than an increased latency from funnelling messages to a dedicated manager thread to
+handle all message passing communication.
 
 For a single SMP node, increasing the number of LTSF queues, LTSF queue partitioning,
 replacing blocking mutexes with spinlocks, and replacing the default allocator all work to
@@ -3169,6 +3175,8 @@ it will decrease the amount of time taken to fossil collect essentially pushing 
 the manager thread.  On the other hand, a weak scaling approach may end up pushing the bounds
 on memory requirements due to a diminishing GVT granularity and could possibly lead to imbalances
 which will force us to rely more on better partitioning and load balancing.
+
+%% Something about message aggregation and rollback profiling
 
 As the number of threads increases, memory allocations and deallocation occur more frequently
 and it becomes harder to manage memory which tends to lead to increased memory fragmentation
