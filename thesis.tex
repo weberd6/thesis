@@ -1484,18 +1484,20 @@ exponential distributions.
 
 \chapter[Communication]{Interprocess Communication} \label{partitioning_communication}
 
-This chapter first provides an overview of different hybrid communication models that can be
-used with MPI and compares the performances of them.  Then various partitioning schemes that are
-implemented in \textsc{warped2} are discussed and analyzed.  Lastly, the message aggregation
-technique that is used is described and the behavior with various aggregate message counts are
-explored.
+One of the main goals of \textsc{warped2} is to efficiently use shared data structures among
+a set of worker threads executing on the same node while also allowing remote communication
+among multiple processes executing on multiple nodes.  To achieve this, a message passing
+system must be setup so that all threads of a single process can send events to LPs handled by
+remote processes.  This first part of this chapter describes an overview of different communication
+models that have been considered in the design and implementation of \textsc{warped2}.  Then
+some techniques to minimize remote communication such as partitioning and message aggregation
+are discussed and various configurations for each are compared.
 
 \section{Multithreaded Message Passing with MPI}
 
-In a hybrid communication model, the choice of which threads and how many threads should be
-involved in message passing communication is an important design decision that can significantly
-impact performance and stability of the simulator.  The MPI standard specifies four level of
-thread support that each implementation may support:
+Message passing between processes in \textsc{warped2} is currently implemented with MPI.
+The MPI standard says that an MPI implementation may support up to four different levels of
+thread support for an application:
 
 \begin{description}
     \item[MPI\_THREAD\_SINGLE:] The application uses only a single thread.  
@@ -1506,68 +1508,73 @@ thread support that each implementation may support:
     \item[MPI\_THREAD\_MULTIPLE:] The application is multithreaded and threads have no restrictions.
 \end{description}
 
-Funnelling the communication to the manager thread can increase latency because an extra step
-for temporarily queueing the message is necessary.  Furthermore, with too fine of a granularity,
-the number of messages can pile up and create a bottleneck in the communication and cause
-instability.  Serialized or full multiple thread communication, however, can increase contention
-for access to MPI library calls and slow down the worker threads and also forces worker
-threads to take more time for serialization, deserialization, and memory allocation/deallocation.
+For the remainder of this discussion, the thread models listed above will be referred to as
+simply single, funneled, serialized, and multiple.  The funneled communication model can
+increase latency because the thread that handles communication may be busy doing some other
+work so an extra step will be necessary to temporarily queue remote events to be sent.
+Furthermore, if communication is too fine-grained, then some type of flow control may also be
+necessary.  Serialized or full multiple thread communication, on the other hand, can increase
+contention for access to MPI library calls and slow down the worker threads.  It will also
+force worker threads to take more time for serialization, deserialization, and memory
+allocation/deallocation.  The singled threaded communication model does not really fit the
+needs of \textsc{warped2} but is mentioned for completeness.
 
 The plots in Figure \ref{model_communication} summarize the performance and efficiency of single,
-funnelled, serialized, and multiple threaded communication in \textsc{warped2} for the Epidemic,
-PCS, and Traffic models.  Funnelled communication with aggregated messages is also shown.
-
-For serialized communication, a single global spinlock is used to protect access to all MPI library
-calls.  For all multithreaded communication models, 7 worker threads and a manager thread are used
-per node and for single threaded communication, 8 processes per node are used.  Aggregated messages
-contain 5 ordinary messages which could be positive events, anti-messages, or other control
-tokens for GVT and termination detection.
+funneled, serialized, and multiple threaded communication in \textsc{warped2} for the Epidemic,
+PCS, and Traffic models.  For serialized communication, a single global spinlock is used to
+protect access to all MPI library calls.  For funneled, serialized, and multiple communication
+models, 7 worker threads and a manager thread are used per node and for single threaded communication,
+8 processes per node are used.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_epidemic_eventrate.pdf} \\
-      Event Rate - Epidemic \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_epidemic_efficiency.pdf} \\
-      Efficiency - Epidemic \\
-    \end{center}
-  \end{minipage}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_pcs_eventrate.pdf} \\
-      Event Rate - PCS \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_pcs_efficiency.pdf} \\
-      Efficiency - PCS \\
-    \end{center}
-  \end{minipage}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_traffic_eventrate.pdf} \\
-      Event Rate - Traffic \\
+      PCS \\
     \end{center}
   \end{minipage}%
   \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_traffic_efficiency.pdf} \\
-      Efficiency - Traffic \\
+      Traffic \\
     \end{center}
   \end{minipage}
-  \caption{Communication Models: Speedup and Efficiency}\label{model_communication}
+  \centering
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_epidemic_efficiency.pdf} \\
+      Epidemic \\
+    \end{center}
+  \end{minipage}
+  \caption{Communication Models: Efficiency}
 \end{figure}
 
-For the traffic and PCS simulation models, aggregated funnelled messages is a clear winner.  It
-is also apparent that when using funnelled communication, aggregating messages makes a huge
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_pcs_eventrate.pdf} \\
+      PCS \\
+    \end{center}
+  \end{minipage}%
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_traffic_eventrate.pdf} \\
+      Traffic \\
+    \end{center}
+  \end{minipage}
+  \centering
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_epidemic_eventrate.pdf} \\
+      Epidemic \\
+    \end{center}
+  \end{minipage}
+  \caption{Communication Models: Event Rate}
+\end{figure}
+
+For the traffic and PCS simulation models, the funneled communication model is slightly.  It
+is also apparent that when using funneled communication, aggregating messages makes a huge
 impact on increasing the efficiency.  The epidemic model, on the other hand, works the best with
 a single threaded communication model.  Both of these observations can be explained by looking
 at the percentage of events that are sent to a remote MPI process in Figure \ref{communication_model_premote}.
@@ -1575,37 +1582,12 @@ at the percentage of events that are sent to a remote MPI process in Figure \ref
 Only a small fraction of a percent of events are remote for epidemic but for PCS and traffic,
 the percentage of remote events is much larger.  Having a much smaller percentage of remote
 events means that there will be very little synchronization overhead between threads for communication
-and funnelled communication will only increase the communication latency due to the queueing delay,
+and funneled communication will only increase the communication latency due to the queueing delay,
 and thus increase rollbacks.  As remote communication increases, however, the synchronization costs
 of worker threads increases and funnelling all communication to the manager thread can help to
 reduce synchronization and increase performance but the queueing delay and rollbacks will both
-increase.  Aggregating messages with funnelled communication can decrease the rollbacks even
+increase.  Aggregating messages with funneled communication can decrease the rollbacks even
 though the queueing delay is still increased.  Not sure why this is.
-
-\begin{figure}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_epidemic_premote.pdf} \\
-      \% Remote - Epidemic \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_pcs_premote.pdf} \\
-      \% Remote - PCS \\
-    \end{center}
-  \end{minipage}
-  \centering
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_traffic_premote.pdf} \\
-      \% Remote - Traffic \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \caption{Communication Models: \% Remote Events}\label{communication_model_premote} 
-\end{figure}
 
 \section{Communication Tuning Parameters}
 
