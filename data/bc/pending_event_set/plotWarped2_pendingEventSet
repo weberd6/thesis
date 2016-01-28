@@ -52,6 +52,7 @@ def main():
     speedup_lines = list()
     memory_lines = list()
     memi_lines = list()
+    rb_length_lines = list()
 
     for m in models:
 
@@ -97,6 +98,7 @@ def main():
         event_rate = [a / b for a, b in zip(comm_y, time_y)]
         efficiency = [a / b * 100 for a, b in zip(comm_y, proc_y)]
         mem_increase = [(a - mem_single) / a * 100 for a in mem_y]
+        rb_length = [(a - b) / (c + d) for a, b, c, d in zip(proc_y, comm_y, prb_y, srb_y)]
 
         addLineXY(memory_lines, sq_x, mem_y, m)
         addLineXY(memi_lines, sq_x, mem_increase, m)
@@ -106,6 +108,7 @@ def main():
         addLineXY(prollback_lines, sq_x, prb_y, m)
         addLineXY(srollback_lines, sq_x, srb_y, m)
         addLineXY(speedup_lines, sq_x, speedup, m)
+        addLineXY(rb_length_lines, sq_x, rb_length, m)
 
     addPlotXY(plots, "", "# LTSF Queues", "Average Peak Memory", memory_lines)
     addPlotXY(plots, "", "# LTSF Queues", "% Memory Increase", memi_lines)
@@ -115,6 +118,7 @@ def main():
     addPlotXY(plots, "", "# LTSF Queues", "Efficiency (%)", efficiency_lines)
     addPlotXY(plots, "", "# LTSF Queues", "Event Rate", event_rate_lines)
     addPlotXY(plots, "", "# LTSF Queues", "Speedup", speedup_lines)
+    addPlotXY(plots, "", "# LTSF Queues", "Rollback Length", rb_length_lines)
 
 
     ##

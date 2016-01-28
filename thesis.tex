@@ -1341,14 +1341,17 @@ in table \ref{smp_experiments} and for a cluster in table \ref{cluster_experimen
         \hline
         \textbf{Comparison} & \textbf{Measure(s)}  & \textbf{Figure(s)}   & \textbf{Machine(s)}  \\
         \hline
-        Communication Model & Event Rate and Efficiency & Figure \ref{model_communication}  & E5410 \\
+        Communication Model & Event Rate & Figure \ref{communication_model_eventrate}  & E5410 \\
         \hline
-        Communication Model & \% Remote Events   & Figure \ref{communication_model_premote}  & E5410 \\
+        Communication Model & Efficicency & Figure \ref{communication_model_efficiency}  & E5410 \\
         \hline
-        Interprocess Partitioning & Time, Efficiency, \% Remote Events   & Figure \ref{partitioning_8node} & E5410 \\
+        Interprocess Partitioning & Event Rate, Efficiency, \% Remote Events   & Figure \ref{partitioning_8node} & E5410 \\
         \hline
-        Aggregate Messages & Time, Rollbacks, Remote Events  & Figures \ref{aggregate_pcs_traffic},
-            \ref{aggregate_epidemic} & E5410 \\ 
+        Aggregate Messages & Event Rate & Figures \ref{aggregate_eventrate}, \ref{aggregate_epidemic} & E5410 \\ 
+        \hline
+        Aggregate Messages & Efficiency & Figures \ref{aggregate_efficiency}, \ref{aggregate_epidemic} & E5410 \\ 
+        \hline
+        Aggregate Messages & Rollback Length & Figures \ref{aggregate_rblength}, \ref{aggregate_epidemic} & E5410 \\ 
         \hline
         Scaling LPs & Efficiency, \% Remote Events, Event Rate & Figure \ref{scaling}    & E5410 \\
         \hline
@@ -1519,12 +1522,42 @@ force worker threads to take more time for serialization, deserialization, and m
 allocation/deallocation.  The singled threaded communication model does not really fit the
 needs of \textsc{warped2} but is mentioned for completeness.
 
-The plots in Figure \ref{model_communication} summarize the performance and efficiency of single,
-funneled, serialized, and multiple threaded communication in \textsc{warped2} for the Epidemic,
+The plots in Figures \ref{communication_model_eventrate} and \ref{communication_model_efficiency}
+compare the event rates and efficiencies for all of the communication models with the Epidemic,
 PCS, and Traffic models.  For serialized communication, a single global spinlock is used to
-protect access to all MPI library calls.  For funneled, serialized, and multiple communication
-models, 7 worker threads and a manager thread are used per node and for single threaded communication,
-8 processes per node are used.
+serialize access to all MPI library calls.  For funneled, serialized, and multiple threaded
+communication models, 7 worker threads and a manager thread are used per node and for single
+threaded communication, 8 processes per node are used with no manager thread.
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_pcs_eventrate.pdf} \\
+      PCS \\
+    \end{center}
+  \end{minipage}%
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_traffic_eventrate.pdf} \\
+      Traffic \\
+    \end{center}
+  \end{minipage}
+  \centering
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_epidemic_eventrate.pdf} \\
+      Epidemic \\
+    \end{center}
+  \end{minipage}
+  \caption{Communication Models: Event Rate}\label{communication_model_eventrate}
+\end{figure}
+
+The single threaded and funnelled communication models show much better performance than a
+serialized or multiple threaded communication model.  This indicates that lock contention
+is inihibits performance more than an extra remote communication or an increase in latency due to
+a queueing delay.  However, as shown in figure \ref{communication_model_efficiency}, the efficiency
+decreases at a pretty fast rate as the number of nodes increase for singled threaded and funnelled
+communication which could lead to less performance gain as the number of nodes is scaled up.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -1547,53 +1580,19 @@ models, 7 worker threads and a manager thread are used per node and for single t
       Epidemic \\
     \end{center}
   \end{minipage}
-  \caption{Communication Models: Efficiency}
+  \caption{Communication Models: Efficiency}\label{communication_model_efficiency}
 \end{figure}
 
-\begin{figure}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_pcs_eventrate.pdf} \\
-      PCS \\
-    \end{center}
-  \end{minipage}%
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_traffic_eventrate.pdf} \\
-      Traffic \\
-    \end{center}
-  \end{minipage}
-  \centering
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/communication_epidemic_eventrate.pdf} \\
-      Epidemic \\
-    \end{center}
-  \end{minipage}
-  \caption{Communication Models: Event Rate}
-\end{figure}
-
-For the traffic and PCS simulation models, the funneled communication model is slightly.  It
-is also apparent that when using funneled communication, aggregating messages makes a huge
-impact on increasing the efficiency.  The epidemic model, on the other hand, works the best with
-a single threaded communication model.  Both of these observations can be explained by looking
-at the percentage of events that are sent to a remote MPI process in Figure \ref{communication_model_premote}.
-
-Only a small fraction of a percent of events are remote for epidemic but for PCS and traffic,
-the percentage of remote events is much larger.  Having a much smaller percentage of remote
-events means that there will be very little synchronization overhead between threads for communication
-and funneled communication will only increase the communication latency due to the queueing delay,
-and thus increase rollbacks.  As remote communication increases, however, the synchronization costs
-of worker threads increases and funnelling all communication to the manager thread can help to
-reduce synchronization and increase performance but the queueing delay and rollbacks will both
-increase.  Aggregating messages with funneled communication can decrease the rollbacks even
-though the queueing delay is still increased.  Not sure why this is.
+The efficiency can be improved with other methods that can be tuned in \textsc{warped2} such
+as partitioning and message aggregation so it is not considered to be much of problem.  The
+rest of this chapter will describe how this can be achieved in \textsc{warped2} by using
+parameters that can be tuned based on the needs of speficif simulation models.
 
 \section{Communication Tuning Parameters}
 
 To effectively scale simulations to larger number of nodes in a cluster, the interprocess communication
-should be minimized as much as possible to avoid synchronization and communication costs
-and rollbacks.  To allow different types of models to run on larger scale cluster, \textsc{warped2}
+should be minimized as much as possible to avoid excessive communication which will lead to
+more rollbacks.  To allow different types of models to run on larger scale cluster, \textsc{warped2}
 allows the user to choose how to partition LPs among the MPI processes and how many messages
 to aggregate for each receiver process.  The next two sections will provide any overview
 of supported partitioning schemes and message aggregation in \textsc{warped2}.
@@ -1637,16 +1636,18 @@ and does not implement a custom partitioning scheme.  It will also work well for
 MPI processes which may not work well with other schemes.
 
 The plots in Figure \ref{partitioning_8node} show a comparison of the round-robin, block, and
-profile-guided partitioning schemes.  In general, more performance is closely tied with a lower
-percentage of remote events and a higher efficiency.  The biggest exception is with the airport
-model, which has a very low efficiency with the profile-guided partitioning.  This could just
-be a result of the model size which is only 2500 LPs making each node individually less efficient.
+profile-guided partitioning schemes.  The data was collectected with the full multithreaded
+communication model where worker threads handle all remote communication.
+In general, more performance is closely tied with a lower percentage of remote events and a
+higher efficiency.
+
+%% NEED MORE EXPLANATION
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/partitioning_time_8node.pdf} \\
-      Simulation Times (s) \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/partitioning_eventrate_8node.pdf} \\
+      Event Rate \\
     \end{center}
   \end{minipage}%
   \hfill
@@ -1673,8 +1674,8 @@ and hence are better for coarse-grained parallelism with large message sizes.  P
 event simulation is inherently fine-grained and the events are usually pretty small which makes
 it less suitable for MPI.  To coarsen the granularity and make use the available network bandwidth,
 messages that are sent to the same destination process can be aggregated at the sender and
-split at the receiver.  As seen previously, aggregating messages can also increases the efficiency
-of simulations.
+split at the receiver.  By coarsening the granularity, aggregating messages can also increase
+the efficiency of simulations by lowering rollbacks.
 
 The idividual messages are aggregated into a single aggregate message until the aggregate message
 contains $N$ idividual messages or until a control message is included.  A control message could be
@@ -1704,60 +1705,71 @@ Using a header rather than a token seperator within the aggregate message is als
 since a binary serialization technique is used making it impossible to deserialize the aggregate
 messages when they are received.
 
-The plots in Figures \ref{aggregate_pcs_traffic} show how various message aggregate sizes change
-performance, rollback, and remote events for the PCS and Traffic models.  The results are also
-plotted for different state saving periods since different state saving period has a significant
-impact on the number of rollbacks and the number of remote events.
+The plots in figures \ref{aggregate_eventrate} and \ref{aggregate_efficiency} show how various
+message aggregate sizes affect event rate and efficiency for the PCS and Traffic models.  The
+results are also plotted for different state saving periods since different state saving period
+has a significant impact on these measures.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_pcs_time.pdf} \\
-      PCS - Simulation Times (s) \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_pcs_eventrate.pdf} \\
+      PCS \\
     \end{center}
   \end{minipage}%
   \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_traffic_time.pdf} \\
-      Traffic - Simulation Times (s) \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_traffic_eventrate.pdf} \\
+      Traffic \\
     \end{center}
-  \end{minipage}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_pcs_remote.pdf} \\
-      PCS - Remote Events \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_traffic_remote.pdf} \\
-      Traffic - Remote Events \\
-    \end{center}
-  \end{minipage}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_pcs_rollbacks.pdf} \\
-      PCS - Rollbacks \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_traffic_rollbacks.pdf} \\
-      Rollbacks \\
-    \end{center}
-  \end{minipage}
-  \caption{Aggregate Messages: PCS and Traffic Models}\label{aggregate_pcs_traffic}
+    \end{minipage}
+    \caption{Aggregate Messages: Event Rate}\label{aggregate_eventrate}
 \end{figure}
 
-The results for PCS and Traffic indicate that just a small number of aggregated messages has
-a durastic effect on increasing performance, and decreasing remote events and rollbacks.  With
-a larger state saving period, the performance drops off much faster with an increasing number
-of aggregated messages than with a small state saving period.  This is probably due a decrease
-in the forward computation time which would make the increased latency from message aggregation
-much more intolerable.  
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_pcs_efficiency.pdf} \\
+      PCS \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_traffic_efficiency.pdf} \\
+      Traffic \\
+    \end{center}
+  \end{minipage}
+  \caption{Aggregate Messages: Efficiency}\label{aggregate_efficiency}
+\end{figure}
+
+The results for PCS and Traffic indicate that just a small number of aggregated messages can
+have a significant impact on increasing performance and efficiency as long as the state saving
+period is not too high.  
+
+With a larger state saving period, the performance drops off much faster with an increasing
+number of aggregated messages than with a small state saving period.  This is probably due the
+increased amount of time that is spent restoring the state of the LP back to a its proper state.
+
+%% MORE EXPLANATION
+
+\begin{figure}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_pcs_rblength.pdf} \\
+      PCS \\
+    \end{center}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_traffic_rblength.pdf} \\
+      Traffic \\
+    \end{center}
+  \end{minipage}
+  \caption{Aggregate Messages: Rollback Length}\label{aggregate_rblength}
+\end{figure}
 
 Not all models benefit from message aggregation, however.  Figure \ref{aggregate_epidemic}
 illustrates this for the epidemic model which has very little interprocess communication.
@@ -1768,21 +1780,21 @@ of message aggregation only hurts performance by increasing communication latenc
   \centering
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_epidemic_time.pdf} \\
-      Simulation Times (s) \\
-    \end{center}
-  \end{minipage}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_epidemic_remote.pdf} \\
-      Remote Events \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_epidemic_eventrate.pdf} \\
+      Event Rate \\
     \end{center}
   \end{minipage}%
   \hfill
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_epidemic_rollbacks.pdf} \\
-      Rollbacks \\
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_epidemic_efficiency.pdf} \\
+      Efficiency \\
+    \end{center}
+  \end{minipage}
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_epidemic_rblength.pdf} \\
+      Rollback Length \\
     \end{center}
   \end{minipage}
   \caption{Aggregate Messages: Epidemic Model}\label{aggregate_epidemic}

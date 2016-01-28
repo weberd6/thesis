@@ -4,13 +4,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import re
 
-models = ["pcs", "traffic", "epidemic", "airport"];
+models = ["pcs", "traffic", "epidemic"];
 parttypes = ["block", "pg", "rr"];
 warped_data_path = "."
 
 def filenames():
     for pt in parttypes:
-        filename = "1n7wt7sq25ssp1000gvtp_{}.csv".format(pt)
+        filename = "8n7wt7sq25ssp1000gvtp_{}.csv".format(pt)
         yield filename
 
 def filter_total_lines(f):
@@ -38,6 +38,10 @@ def main():
     times_by_model_pg = list()
     times_by_model_rr = list()
 
+    eventrate_by_model_block = list()
+    eventrate_by_model_pg = list()
+    eventrate_by_model_rr = list()
+
     efficiency_by_model_block = list()
     efficiency_by_model_pg = list()
     efficiency_by_model_rr = list()
@@ -60,6 +64,8 @@ def main():
 
             efficiency = np.mean(ydata['committed']) / np.mean(ydata['processed']) * 100
 
+            eventrate = np.mean(ydata['committed']) / np.mean(ydata['time'])
+
             premote = (np.mean(ydata['remotep']) + np.mean(ydata['remoten'])) / \
             (np.mean(ydata['remotep']) + np.mean(ydata['remoten']) + np.mean(ydata['localp']) + np.mean(ydata['localn'])) * \
             100
@@ -67,24 +73,28 @@ def main():
             if "block" in filename:
                 times_by_model_block.append(np.mean(ydata['time']))
                 efficiency_by_model_block.append(efficiency)
+                eventrate_by_model_block.append(eventrate)
                 premote_by_model_block.append(premote)
             elif "rr" in filename:
                 times_by_model_rr.append(np.mean(ydata['time']))
                 efficiency_by_model_rr.append(efficiency)
+                eventrate_by_model_rr.append(eventrate)
                 premote_by_model_rr.append(premote)
             elif "pg" in filename:
                 times_by_model_pg.append(np.mean(ydata['time']))
                 efficiency_by_model_pg.append(efficiency)
+                eventrate_by_model_pg.append(eventrate)
                 premote_by_model_pg.append(premote)
 
 
-    index = np.arange(4)
-    index = 2*index
-    bar_width = 0.60
+#    index = np.arange(4)
+#    index = 2*index
+#    bar_width = 0.60
 
-#    index = np.arange(3)
-#    index = index
-#    bar_width = 0.30
+    index = np.arange(3)
+    index = index
+    bar_width = 0.30
+
     rects1 = plt.bar(index, times_by_model_rr, bar_width,
             color='g', label='Round-Robin', alpha=0.7)
     rects2 = plt.bar(index+bar_width, times_by_model_pg , bar_width,
@@ -118,6 +128,21 @@ def main():
     plt.ylim(0, 110)
     plt.ylabel('Efficiency (%)')
     plt.xticks(index+2*bar_width, ('PCS', 'Traffic', 'Epidemic'))
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=4, fancybox=True, shadow=True)
+    plt.grid()
+    plt.show()
+
+    rects1 = plt.bar(index, eventrate_by_model_rr, bar_width,
+            color='g', label='Round-Robin', alpha=0.7)
+    rects2 = plt.bar(index+bar_width, eventrate_by_model_pg , bar_width,
+            color='b', label = 'Profile-Guided', alpha=0.7)
+    rects3 = plt.bar(index+2*bar_width, eventrate_by_model_block, bar_width,
+            color='r', label = 'Block', alpha=0.7)
+
+    plt.xlim(-bar_width, len(index)+bar_width)
+    plt.xlabel('Model')
+    plt.ylabel('Event Rate')
+    plt.xticks(index+1.5*bar_width, ('PCS', 'Traffic', 'Epidemic'))
     plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.10), ncol=4, fancybox=True, shadow=True)
     plt.grid()
     plt.show()
