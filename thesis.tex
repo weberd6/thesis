@@ -1347,11 +1347,11 @@ in table \ref{smp_experiments} and for a cluster in table \ref{cluster_experimen
         \hline
         Interprocess Partitioning & Event Rate, Efficiency, \% Remote Events   & Figure \ref{partitioning_8node} & E5410 \\
         \hline
-        Aggregate Messages & Event Rate & Figures \ref{aggregate_eventrate}, \ref{aggregate_epidemic} & E5410 \\ 
+        Aggregate Messages & Event Rate & Figures \ref{aggregate_eventrate} & E5410 \\ 
         \hline
-        Aggregate Messages & Efficiency & Figures \ref{aggregate_efficiency}, \ref{aggregate_epidemic} & E5410 \\ 
+        Aggregate Messages & Efficiency & Figures \ref{aggregate_efficiency} & E5410 \\ 
         \hline
-        Aggregate Messages & Rollback Length & Figures \ref{aggregate_rblength}, \ref{aggregate_epidemic} & E5410 \\ 
+        Aggregate Messages & Average Rollback Length & Figures \ref{aggregate_rblength} & E5410 \\ 
         \hline
         Scaling LPs & Efficiency, \% Remote Events, Event Rate & Figure \ref{scaling}    & E5410 \\
         \hline
@@ -1633,15 +1633,13 @@ graph and uses a graph partitioning tool to create partitions that minimize the 
 cross-partition communication is minimized.  Profile-Guided partitioning should be used if
 a simulation model has a peculiar communication pattern among LPs that is not suitable for round-robin
 and does not implement a custom partitioning scheme.  It will also work well for any odd number
-MPI processes which may not work well with other schemes.
+MPI processes which may not work well with other partitioning schemes.
 
-The plots in Figure \ref{partitioning_8node} show a comparison of the round-robin, block, and
+The plots in figure \ref{partitioning_8node} show a comparison of the round-robin, block, and
 profile-guided partitioning schemes.  The data was collectected with the full multithreaded
-communication model where worker threads handle all remote communication.
-In general, more performance is closely tied with a lower percentage of remote events and a
-higher efficiency.
-
-%% NEED MORE EXPLANATION
+communication model where worker threads handle all remote communication.  For this reason, the
+event rates and efficiencies will be significantly different than the mainline version of
+\textsc{warped2} but should still be valid for the comparison of partitioning methods.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -1667,15 +1665,21 @@ higher efficiency.
   \caption{Interprocess Partitioning: 8 Node Cluster}\label{partitioning_8node}
 \end{figure}
 
+For all models, the partitioning method that results in the highest event rate is block partitioning
+and the second highest profile-guided partitioning.  In general, the best partitioning method
+decreases remote communication the most which also results in the best efficiency.
+
 \subsection{Aggregate Message Count}
 
-In general, MPI implementations are usually designed to efficiently use networking bandwidth
-and hence are better for coarse-grained parallelism with large message sizes.  Parallel discrete
-event simulation is inherently fine-grained and the events are usually pretty small which makes
-it less suitable for MPI.  To coarsen the granularity and make use the available network bandwidth,
+MPI implementations are usually designed for coarse-grained parallelism and optimized for
+large message sizes.  Parallel discrete event simulation is inherently fine-grained and the
+event sizes are usually  small which makes it less suitable for MPI.  To coarsen the granularity,
 messages that are sent to the same destination process can be aggregated at the sender and
-split at the receiver.  By coarsening the granularity, aggregating messages can also increase
-the efficiency of simulations by lowering rollbacks.
+split at the receiver.  By aggregating messages destined for the same process,  some of the
+communication overheads can be minimized.  Although the latency of each individual message may
+be increased, the total number of messages that share the same latency will be larger than one.
+
+\subsubsection{Message Aggregation Implementation}
 
 The idividual messages are aggregated into a single aggregate message until the aggregate message
 contains $N$ idividual messages or until a control message is included.  A control message could be
@@ -1699,16 +1703,23 @@ Size of the aggregated messages in bytes are:
 $$ 4 * (N + 1) + \sum_{n=0}^{N-1} length[n] $$
 
 A message count approach was chosen over size base approach in \textsc{warped2} since the
-size of the messages would not be known until they are serialized and a seperate temporary buffer
-would be needed for each individual messaage before copying them into a new aggregate buffer.
-Using a header rather than a token seperator within the aggregate message is also necessary
-since a binary serialization technique is used making it impossible to deserialize the aggregate
-messages when they are received.
+size of the serialized messages would not be known until they the serialization is performed.
+Because of this, a seperate temporary buffer would be needed for each individual message before
+copying them into a new aggregated buffer, which could be very costly.  Also, smaller message
+sizes could be possible by eliminating the need for a header by seperating individual messages
+with a special token.  However, a binary serialization method is used in \textsc{warped2} which
+would make it impossible to split and deserialize the individual messages at the receiving process.
 
-The plots in figures \ref{aggregate_eventrate} and \ref{aggregate_efficiency} show how various
-message aggregate sizes affect event rate and efficiency for the PCS and Traffic models.  The
-results are also plotted for different state saving periods since different state saving period
-has a significant impact on these measures.
+\subsubsection{Message Aggregation Analysis}
+
+The plots in figures \ref{aggregate_eventrate} show how various message aggregate sizes affect
+event rate the PCS, traffic, and epidemic models.  The results are also plotted for different
+state saving periods since different state saving period tends to have a significant impact
+on message aggregation behavior.  The results for PCS and Traffic indicate that just a small
+number of aggregated messages can have a significant impact on increasing the event rate and
+the efficiency as long as the state saving period is not too high.  With a larger state saving
+period, the performance drops off much faster with an increasing number of aggregated messages
+than with a small state saving period.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -1723,8 +1734,15 @@ has a significant impact on these measures.
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_traffic_eventrate.pdf} \\
       Traffic \\
     \end{center}
-    \end{minipage}
-    \caption{Aggregate Messages: Event Rate}\label{aggregate_eventrate}
+  \end{minipage}
+  \centering
+  \begin{minipage}{.5\textwidth}
+    \begin{center}
+      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_epidemic_eventrate.pdf} \\
+      Epidemic \\
+    \end{center}
+  \end{minipage}
+  \caption{Aggregate Messages: Event Rate}\label{aggregate_eventrate}
 \end{figure}
 
 \begin{figure}
@@ -1741,64 +1759,41 @@ has a significant impact on these measures.
       Traffic \\
     \end{center}
   \end{minipage}
-  \caption{Aggregate Messages: Efficiency}\label{aggregate_efficiency}
-\end{figure}
-
-The results for PCS and Traffic indicate that just a small number of aggregated messages can
-have a significant impact on increasing performance and efficiency as long as the state saving
-period is not too high.  
-
-With a larger state saving period, the performance drops off much faster with an increasing
-number of aggregated messages than with a small state saving period.  This is probably due the
-increased amount of time that is spent restoring the state of the LP back to a its proper state.
-
-%% MORE EXPLANATION
-
-\begin{figure}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_pcs_rblength.pdf} \\
-      PCS \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_traffic_rblength.pdf} \\
-      Traffic \\
-    \end{center}
-  \end{minipage}
-  \caption{Aggregate Messages: Rollback Length}\label{aggregate_rblength}
-\end{figure}
-
-Not all models benefit from message aggregation, however.  Figure \ref{aggregate_epidemic}
-illustrates this for the epidemic model which has very little interprocess communication.
-With such little remote communication due to excellent partitioning capabilities, any amount
-of message aggregation only hurts performance by increasing communication latency.
-
-\begin{figure}
   \centering
   \begin{minipage}{.5\textwidth}
     \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_epidemic_eventrate.pdf} \\
-      Event Rate \\
-    \end{center}
-  \end{minipage}%
-  \hfill
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
       \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_epidemic_efficiency.pdf} \\
-      Efficiency \\
+      Epidemic \\
     \end{center}
   \end{minipage}
-  \begin{minipage}{.5\textwidth}
-    \begin{center}
-      \includegraphics[width=\textwidth,keepaspectratio,quiet]{figs/partitioning_communication/aggregate_epidemic_rblength.pdf} \\
-      Rollback Length \\
-    \end{center}
-  \end{minipage}
-  \caption{Aggregate Messages: Epidemic Model}\label{aggregate_epidemic}
+  \caption{Aggregate Messages: Efficiency}\label{aggregate_efficiency}
 \end{figure}
+  
+The behavior of message aggregation on performance and efficiency can be described by realizing
+that it works better in cases that remote events are sent at faster rates.  Figure \ref{remote_ssp}
+illustrates how the state saving period can change the rate at which remote events are sent.  As
+the state saving period is increased the remote event rate tends to decrease.  Also, it shows
+that the epidemic model has a much slower rate than PCS and traffic models which explains why
+message aggregation doesn't have any benefit for epidemic.
+
+\begin{figure}
+  \centering
+  \includegraphics[width=0.5\textwidth,keepaspectratio,quiet]{figs/state_saving/beowulf/remote_rate.pdf} \\
+  \caption{Remote Rate versus State Saving Period}\label{remote_ssp}
+\end{figure}
+
+If remote events are sent at a faster rate, then the aggregated messages can be sent faster and
+individual events are not temporarily queued as long.  If the amount of time that the individual
+events are queued is small compared to the network latency, then aggregation will have
+much benefit but if the time is too long, then the queuing delay will slow down communication.
+
+The total latency is a combination of the queuing delay and network latency.  Minimizing the
+total latency of the individual messages is the key to minimizing rollbacks and increasing the
+efficiency.  By increasing the number of messages aggregated together, the network latency
+per individual message becomes smaller because the latency is shared between the messages but
+the queueing delay increases.  For this reason, a small number of messages aggregated together
+may improve efficiency if the queuing delay is small, but when the number of messages gets too
+high then the queuing delay gets too large and very long rollbacks may occur.
 
 \section{Scaling up the Simulation Model}
 
@@ -1832,8 +1827,8 @@ and PCS simulation model scale up with 5 messages aggregated and no message aggr
 \end{figure}
 
 It appear, from these results, that as these models are scaled up, the benefit of aggregated
-messages decreases.  That is, the efficiency and percent remote events for aggregate versus
-individual messages converge with more LPs.
+messages decreases.  That is, the efficiency and event rate for aggregate versus individual
+messages converge with more LPs.
 
 In general, whether aggregate messages are used or not, scaling up the number of LP always has
 the same effect.  The efficiency increases significantly due to the work being spread out among
@@ -1843,6 +1838,7 @@ Also, each process processes events for a larger subset of the LPs.  If the simu
 be partitioned well in any way, scaling up will only make partitioning more effective since
 the cross-partition communication will remain small as the partition size grows.  This is what
 ultimately reduces the reduction in the percentage of events that are remote.
+
 The event rate tends to decrease, however as the number of LPs increases.  The reason for this
 is that each worker thread will have to use a larger percent its time to fossil collect LPs
 instead of processing events.

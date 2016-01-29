@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import re
 
-ss_period_list = [1, 5, 10, 25, 50, 100, 150, 200, 300, 400, 500, 600, 700, 800];
+ss_period_list = [1, 5, 10, 25, 50, 100, 150, 200, 300, 400, 500];
 models = ["epidemic", "pcs", "traffic"];
 
 warped_data_path = "."
@@ -42,6 +42,7 @@ def main():
     rollback_lines = list()
     premote_lines = list()
     remote_lines = list()
+    remote_rate_lines = list()
     rb_rate_lines = list()
     cf_rate_lines = list()
     rb_len_lines = list()
@@ -108,6 +109,7 @@ def main():
         average_coasted = [0 if b == 0 else a / b for a, b in zip(coast_y, rb_y)]
         premote = [(a + b) / (a + b + c + d) for a, b, c, d in zip(remotep_y, remoten_y, localp_y, localn_y)]
         remote = [(a + b) for a, b in zip(remotep_y, remoten_y)]
+        remote_rate = [a / b for a, b in zip(remote, time_y)]
         rb_rate = [a / b for a, b in zip(rb_y, time_y)]
         cf_rate = [a / b for a, b in zip(coast_y, time_y)]
         rb_len = [(a - b) / c for a, b, c in zip(proc_y, comm_y, rb_y)]
@@ -121,6 +123,7 @@ def main():
         addLineXY(coasted_lines, ssp_x, average_coasted, m)
 #        addLineXY(premote_lines, ssp_x, premote, m)
 #        addLineXY(remote_lines, ssp_x, remote, m)
+        addLineXY(remote_rate_lines, ssp_x, remote_rate, m)
         addLineXY(rb_rate_lines, ssp_x, rb_rate, m)
         addLineXY(cf_rate_lines, ssp_x, cf_rate, m)
         addLineXY(rb_len_lines, ssp_x, rb_len, m)
@@ -133,6 +136,7 @@ def main():
     addPlotXY(plots, "", "State Saving Period", "Event Rate", event_rate_lines)
 #    addPlotXY(plots, "", "State Saving Period", "% Remote", premote_lines)
 #    addPlotXY(plots, "", "State Saving Period", "Remote Events", remote_lines)
+    addPlotXY(plots, "", "State Saving Period", "Remote Rate", remote_rate_lines)
     addPlotXY(plots, "", "State Saving Period", "Coast Forward Rate", cf_rate_lines)
     addPlotXY(plots, "", "State Saving Period", "Rollback Rate", rb_rate_lines)
     addPlotXY(plots, "", "State Saving Period", "Rollback Length", rb_len_lines)
