@@ -2727,83 +2727,83 @@ from each process just like with the Mattern GVT algorithm.
 
 \chapter{Memory Management}\label{memory_management}
 
-This chapter will focus on main topics related to memory management in a Time Warp system
-and their implementations in \textsc{warped2}.  The topics will include state saving, fossil
-collection and memory allocation.  The memory requirements and performance for different state
-saving, fossil collection, and memory allocation techniques can vary greatly.
+This chapter will focus on main topics related to memory management in a Time Warp system and their
+implementations in \textsc{warped2}.  The topics will include state saving, fossil collection and
+memory allocation \cite{fujimoto-90,fujimoto-00}.  The memory requirements and performance for
+different state saving, fossil collection, and memory allocation techniques can vary greatly.
 
 \section{State Saving}
 
 \subsection{State Saving Techniques}
 
-\paragraph{Copy-state Saving} is the classic state saving technique that saves every past
-state of every LP and requires that the all states are copied and saved into the state queues.
-This method requires a lot of extra memory and requires a lot of extra computation to copy
-the states and insert them into the state queue.  For this reason, copy-state saving is
-usually used in conjuction with other technique or not at all.
+\paragraph{Copy-state Saving} is the classic state saving technique that saves every past state of
+every LP and requires that the all states are copied and saved into the state queues.  This method
+requires a lot of extra memory and requires a lot of extra computation to copy the states and insert
+them into the state queue.  For this reason, copy-state saving is usually used in conjuction with
+other technique or not at all.
 
-\paragraph{Periodic State Saving} is another state saving technique where the state of each LP
-is saved only once every $N$ events, where $N$ is a number greater than one.  Periodic state
-saving can significantly reduce the overhead of the time taken to copy the state of the
-LPs into the state queue.  However, due to state history being lost, more processed event
-have to be saved so that the state of LPs can be restored correctly.  These saved events
-must be reprocessed to restore the state in a process known as \emph{coast forwarding}.
-During coast forwarding the events are processed normally but only to update the state.
-The only difference is that no events are sent during the coast forwarding phase.  The
-downside is that the rollback length is increased due to the loss in state saving.  However,
-periodic state saving is a significant improvement over the base copy-state staving approach
-since the reduced time in state saving far outweighs the extra rollback time for increased
-rollback length.
+\paragraph{Periodic State Saving} is another state saving technique where the state of each LP is
+saved only once every $N$ events, where $N$ is a number greater than one.  Periodic state saving can
+significantly reduce the overhead of the time taken to copy the state of the LPs into the state
+queue.  However, due to state history being lost, more processed event have to be saved so that the
+state of LPs can be restored correctly.  These saved events must be reprocessed to restore the state
+in a process known as \emph{coast forwarding}.  During coast forwarding the events are processed
+normally but only to update the state.  The only difference is that no events are sent during the
+coast forwarding phase.  The downside is that the rollback length is increased due to the loss in
+state saving.  However, periodic state saving is a significant improvement over the base copy-state
+staving approach since the reduced time in state saving far outweighs the extra rollback time for
+increased rollback length.
 
-\paragraph{Incremental State Saving} is a technique that aims to reduce the amount of
-memory needed to store past states of the LPs.  Instead of saving entire snapshots of the
-past states, the differences in specific state variables are saved.  This method requires
-that metadata describing which variables are modified for each event.  Therefore, this approach
-works well as long as only a small portion of the state variables change during the forward
-execution of events.
+\paragraph{Incremental State Saving} is a technique that aims to reduce the amount of memory needed
+to store past states of the LPs.  Instead of saving entire snapshots of the past states, the
+differences in specific state variables are saved.  This method requires that metadata describing
+which variables are modified for each event.  Therefore, this approach works well as long as only a
+small portion of the state variables change during the forward execution of events.
 
-\paragraph{Reverse Computation} is a modern approach to state state saving that does not
-actually save any past states of the LPs.  Instead, the \emph{control state} of the forward
+\paragraph{Reverse Computation} \cite{carothers-99a} is a modern approach to state state saving that
+does not actually save any past states of the LPs.  Instead, the \emph{control state} of the forward
 computation is saved as a set of bits that describe the forward control flow.  By saving the control
-flow of the forward execution for each event, the state variables that are modified and
-how they are modified are known and can be reversed.  This is the case at least if all state variables
-are reversible without the need to know the histories of the variables.  Also, a reversible
-random number generator is required.  The major problem with this approach is the necessity to
-understand forward and reverse computation precisely in the implementation of the simulation model.
+flow of the forward execution for each event, the state variables that are modified and how they are
+modified are known and can be reversed.  This is the case at least if all state variables are
+reversible without the need to know the histories of the variables.  Also, a reversible random
+number generator is required.  The major problem with this approach is the necessity to understand
+forward and reverse computation precisely in the implementation of the simulation model.
 
 \subsection{State Saving in \textsc{warped2}}
 
-\textsc{warped2} currently implements periodic state saving because it is simple to understand
-and does not require that model developers know anything about it.  Furthermore, it can increase
-performance and decrease memory requirements for any type of simulation model.  
+\textsc{warped2} currently implements periodic state saving because it is simple to understand and
+does not require that model developers know anything about it.  Furthermore, it can increase
+performance and decrease memory requirements for any type of simulation model.
 
 \section{Fossil Collection}
 
-When the events and states in the processed queues, output queues, and state queues are
-no longer needed, the memory that they consume is no longer needed and can either be freed
-or reused.  Fossil collection is the process of reclaiming memory for future use.  There
+When the events and states in the processed queues, output queues, and state queues are no longer
+needed, the memory that they consume is no longer needed and can either be freed or reused.  Fossil
+collection is the process of reclaiming memory for future use \cite{fujimoto-90,fujimoto-00}.  There
 are many methods of fossil collection that have been used in practice.
 
 \subsection{Fossil Collection Techniques}
 
-\paragraph{GVT-based Fossil Collection} is the traditional method of fossil collection.
-Since rollbacks cannot occur past the GVT, it can be used be used as a marker to indicate
-what can be fossil collected.  Fossil collection is triggered after every GVT calculation
-and all memory is explicitly freed so that it can be reallocated for future use.
+\paragraph{GVT-based Fossil Collection} is the traditional method of fossil collection.  Since
+rollbacks cannot occur past the GVT, it can be used be used as a marker to indicate what can be
+fossil collected.  Fossil collection is triggered after every GVT calculation and all memory is
+explicitly freed so that it can be reallocated for future use.
 
-\paragraph{On-the-fly Fossil Collection} is a method of fossil collection used in GTW
-which does not use GVT as a starting point and memory is not explicitly freed.  Instead, after
-events are processed, they are added to one of the per-processor free memory lists.  New events
-can then be allocated from a list as long the first event in the list has a timestamp less than
-the GVT.  If it does not then the current event being processed is either aborted until the GVT
-reaches a higher value or the list is searched for a lower timestamp event.  This approach however,
-has been shown to produce instability caused by imbalances in rollbacks which creates imbalances
-in the free lists, and ultimately leads to a lot of aborted events or a long search time.
+%% DOUG: complete the citation at the end of this next paragraph
 
-\paragraph{Optimistic Fossil Collection} is another method of fossil collection which, like
-on-the-fly aims to reuse memory instead of explicitly freeing it.  However, optimistic fossil
-collection is based on a statistical bound for rollbacks.  It is still possible that memory that
-was fossil collected could still be used.  This situation is called an OFC fault.  Therefore,
+\paragraph{On-the-fly Fossil Collection} is a method of fossil collection used in GTW which does not
+use GVT as a starting point and memory is not explicitly freed.  Instead, after events are
+processed, they are added to one of the per-processor free memory lists.  New events can then be
+allocated from a list as long the first event in the list has a timestamp less than the GVT.  If it
+does not then the current event being processed is either aborted until the GVT reaches a higher
+value or the list is searched for a lower timestamp event.  This approach however, has been shown to
+produce instability caused by imbalances in rollbacks which creates imbalances in the free lists,
+and ultimately leads to a lot of aborted events or a long search time \cite{}.
+
+\paragraph{Optimistic Fossil Collection} \cite{young-98-dsc} is another method of fossil collection
+which, like on-the-fly aims to reuse memory instead of explicitly freeing it.  However, optimistic
+fossil collection is based on a statistical bound for rollbacks.  It is still possible that memory
+that was fossil collected could still be used.  This situation is called an OFC fault.  Therefore,
 methods such as global state checkpointing must also be implemented to recover from these faults.
 
 \subsection{Fossil Collection in \textsc{warped2}}
@@ -2822,8 +2822,8 @@ processed queue, output queue, and state queue for each LP.  Worker thread fossi
 will be the more scalable approach for both the number of LPs and the number of processes since
 the manager thread must perform other tasks such as GVT and interprocess communication.
 
-Figure \ref{fc_times} shows how the event rates compare in a single SMP machine with
-10 worker threads, 10 LTSF Queues, a GVT period of 100ms, and a state saving period of 25 events.
+Figure \ref{fc_times} shows how the event rates compare in a single SMP machine with 10 worker
+threads, 10 LTSF Queues, a GVT period of 100ms, and a state saving period of 25 events.
 
 \begin{figure}
   \centering
@@ -2832,10 +2832,10 @@ Figure \ref{fc_times} shows how the event rates compare in a single SMP machine 
 \end{figure}
 
 The results show that on average, having the manager thread do fossil collection will yields a
-slightly better event rate, but not significant.  It is uncertain what will happen when the
-manager thread has more LPs to fossil collect or if it had remote messages to send and receive.
-The time taken to fossil collect with more LPs could interfere with sending and receiving remote
-messages or with calculating the GVT.
+slightly better event rate, but not significant.  It is uncertain what will happen when the manager
+thread has more LPs to fossil collect or if it had remote messages to send and receive.  The time
+taken to fossil collect with more LPs could interfere with sending and receiving remote messages or
+with calculating the GVT.
 
 One observation is that unstable behavior will occur with manager thread fossil collection
 if the state saving period is set very low with model that have a large state size such as with
@@ -2844,17 +2844,17 @@ be due to fossil collection interfering with the GVT calculation which would fur
 to build up faster than it can be freed.  Each fossil collection period and GVT period will grow
 and grow in a positive feedback loop until memory in the system runs out.
 
-Ultimately, a worker thread approach was chosen so that the \textsc{warped2} will be able to
-safely scale up simulations in terms of both the number of LPs and the number of nodes.  We feel
-that adding better scalability outweighs the loss in the single node event rate, especially since
-scaling up the number of nodes will still allow faster event rates anyway.
+Ultimately, a worker thread approach was chosen so that the \textsc{warped2} will be able to safely
+scale up simulations in terms of both the number of LPs and the number of nodes.  We feel that
+adding better scalability outweighs the loss in the single node event rate, especially since scaling
+up the number of nodes will still allow faster event rates anyway.
 
 \section{Memory Allocation}
 
-Parallel discrete event simulation systems must frequently allocate and free memory for
-events and states.  This can be a huge overhead if used memory and free memory is not
-maintained in an efficient way.  Furthermore, memory must be allocated to and deallocated from
-each process by the operating system as needed which can be even more costly.
+Parallel discrete event simulation systems must frequently allocate and free memory for events and
+states.  This can be a huge overhead if used memory and free memory is not maintained in an
+efficient way.  Furthermore, memory must be allocated to and deallocated from each process by the
+operating system as needed which can be even more costly.
 
 In a standard system, the application will never know when memory is allocated from the operating
 system or returned to it because it is usually handled by runtime libraries for the programming
@@ -2865,23 +2865,30 @@ schemes.  In these Time Warp systems, the simulation kernel must provide a way f
 models to allocate memory for events that need to be sent instead of calling the standard programming
 language APIs.
 
+%% DOUG: complete citations below
+
 Dynamic memory management in \textsc{warped2} is achieved through the standard C++ library
 interface and does not pre-allocate any memory.  The simulation model is responsible for the
 allocation of all states and events.  The kernel only receives pointers to the states and events
 through callback functions and accesses them indirectly.  By doing this, we allow simulation model
 developers to implement their own memory management schemes or override the default malloc with
-allocators such as TCMalloc, JEMalloc, Hoard, etc.
+allocators such as TCMalloc \cite{}, JEMalloc \cite{}, Hoard \cite{}, and so on
 
 \subsection{TCMalloc and JEMalloc}
 
-TCMalloc and JEMalloc are two good examples of memory allocators that are designed to efficiently
-allocate memory in multi-threaded applications liked \textsc{warped2}.  In both TCMalloc and
-JEMalloc, seperate thread-local caches of free memory are maintained to avoid contention when
-allocating and freeing memory.
+%% DOUG: yes, you should repeat the citations here.
 
-All results shown before now have all been with TCMalloc but until now, we have not shown why.
-A comparison of the event rates for ptmalloc2 which is the default allocator for GLIBC, jemalloc
-and tcmalloc is shown in Figure \ref{allocator_analysis_eventrate}.
+TCMalloc \cite{} and JEMalloc \cite{} are two good examples of memory allocators that are designed
+to efficiently allocate memory in multi-threaded applications liked \textsc{warped2}.  In both
+TCMalloc and JEMalloc, seperate thread-local caches of free memory are maintained to avoid
+contention when allocating and freeing memory.
+
+All of the eariller results reported in this thesis have been captured using TCMalloc.  This is due
+to the higher efficiences we have observed with TCMalloc.  In this next section, those results will
+be highlighted.
+
+A comparison of the event rates for \texttt{ptmalloc2} which is the default allocator for GLIBC,
+\texttt{jemalloc} and \texttt{tcmalloc} is shown in Figure \ref{allocator_analysis_eventrate}.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -2912,13 +2919,13 @@ and tcmalloc is shown in Figure \ref{allocator_analysis_eventrate}.
   \caption{Memory Allocator Event Rate Comparison}\label{allocator_analysis_eventrate}
 \end{figure}
 
-TCMalloc is the clear winner in terms of speed and scalability.  For the aiport model, it may
-appear that ptmalloc2 almost performs as well as tcmalloc but this is just a special case since
-aiport is a smaller model with less LPs and thus requires less memory.  The more interesting
-observation is what happens when the number of worker threads reaches six and the event rate
-drops.  However, it is just a result of the underlying architecture of the
+TCMalloc is the clear winner in terms of speed and scalability.  For the aiport model, it may appear
+that \texttt{ptmalloc2} almost performs as well as \texttt{tcmalloc} but this is just a special case
+since aiport is a smaller model with less LPs and thus requires less memory.  The more interesting
+observation is what happens when the number of worker threads reaches six and the event rate drops.
+However, it is just a result of the underlying architecture of the
 Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} X5675.  As shown in
-table \ref{x86_platform} in appendix \ref{x86_nodes_and_clusters}, it supports up to 12 simultaneous
+Table \ref{x86_platform} in Appendix \ref{x86_nodes_and_clusters}, it supports up to 12 simultaneous
 threads on 6 cores.  By adding a sixth worker thread which is the seventh thread counting the
 manager thread, we may start seeing some bad cache effects such as false sharing, or inconsistent
 task scheduling.  An imbalance can also be observed as a result of these cache effects by looking at
@@ -2953,19 +2960,18 @@ the efficiency as shown in Figure \ref{allocator_analysis_efficiency}.
   \caption{Memory Allocator Efficiency Comparison}\label{allocator_analysis_efficiency}
 \end{figure}
 
-Figure \ref{allocator_analysis_efficiency} also illustrates how ptmalloc2 can lead to unstable
-behavior with a smaller number of threads.  The reason for this may come from the data structures
-that are used by the allocators and how often that the OS is called to allocate more memory
-from the system.  Ptmalloc2 has memory blowup problems that stems from the separation of the thread
-local free memory pools that cannot ever merge back with a central heap.
+Figure \ref{allocator_analysis_efficiency} also illustrates how \texttt{ptmalloc2} can lead to
+unstable behavior with a smaller number of threads.  The reason for this may come from the data
+structures that are used by the allocators and how often that the OS is called to allocate more
+memory from the system.  \texttt{Ptmalloc2} has memory blowup problems that stems from the
+separation of the thread local free memory pools that cannot ever merge back with a central heap. 
 
 \section{Memory Tuning Parameters in \textsc{warped2}}
 
-To allow \textsc{warped2} to run on machines that might have different memory constraints,
-some parameters are available for fine tuning the memory footprint of the simulation.  The
-three main parameters that make a difference with regard to memory are the number of LTSF queues,
-the state saving period and the GVT period.  For this analysis, the Average Peak Memory will be
-defined as:
+To allow \textsc{warped2} to run on machines that might have different memory constraints, some
+parameters are available for fine tuning the memory footprint of the simulation.  The three main
+parameters that make a difference with regard to memory are the number of LTSF queues, the state
+saving period and the GVT period.  For this analysis, the Average Peak Memory will be defined as:
 
 $$ Average Peak Memory = {\sum_{n=0}^{N-1} {mem[n]} \over N} $$
 
@@ -2975,12 +2981,12 @@ but before fossil collection and $N$ is the total number of GVT calculations.
 
 \subsection{Number of LTSF Queues}
 
-Increasing the number of LTSF Queues can speed up the simulation significantly by removing
-the necessity to be shared among worker threads.  However, by increasng the number of LTSF queues,
-more memory is required.  The plot in Figure \ref{ltsf_memory} illustrates this by showing the
-percent increase in average peak memory.  For all data points, the LTSF queues were shared among
-10 worker threads.  The memory measurements are taken from the actual memory used by a
-\textsc{warped2} process, and not the memory allocated by the OS for the process.
+Increasing the number of LTSF Queues can speed up the simulation significantly by removing the
+necessity to be shared among worker threads.  However, by increasng the number of LTSF queues, more
+memory is required.  The plot in Figure \ref{ltsf_memory} illustrates this by showing the percent
+increase in average peak memory.  For all data points, the LTSF queues were shared among 10 worker
+threads.  The memory measurements are taken from the actual memory used by a \textsc{warped2}
+process, and not the memory allocated by the OS for the process.
 
 \begin{figure}
   \centering
@@ -2989,18 +2995,17 @@ percent increase in average peak memory.  For all data points, the LTSF queues w
 \end{figure}
 
 The reason for this increase in memory as more LTSF queues are used is due to spread out of the
-critical path of the simulation which increases the odds that events will be received out of
-order and cause a rollback.  Because of this, the GVT will progress more slowly and more previous
-states and events will have to be saved.  
+critical path of the simulation which increases the odds that events will be received out of order
+and cause a rollback.  Because of this, the GVT will progress more slowly and more previous states
+and events will have to be saved.
 
 \subsection{State Saving Period}
 
-The state saving period is just as important for reducing memory requirements as it is for
-speeding up event processing.  A larger state saving period means that fewer states must remain
-in memory but also means that more processed events must be saved.  Therefore the amount of
-memory required will depend on the relative sizes of states and events.  The percent memory
-reduction with an increasing state saving period is shown in Figure \ref{ssp_analysis_smp_memory}
-for various simulation models.
+The state saving period is just as important for reducing memory requirements as it is for speeding
+up event processing.  A larger state saving period means that fewer states must remain in memory but
+also means that more processed events must be saved.  Therefore the amount of memory required will
+depend on the relative sizes of states and events.  The percent memory reduction with an increasing
+state saving period is shown in Figure \ref{ssp_analysis_smp_memory} for various simulation models.
 
 \begin{figure}
   \begin{minipage}{.5\textwidth}
@@ -3019,19 +3024,19 @@ for various simulation models.
   \caption{Periodic State Saving: \% Decrease in Average Peak Memory}\label{ssp_analysis_smp_memory}
 \end{figure}
 
-The best state saving period for memory reduction will be different for all models
-because it will depend on the relative size of the events and states.  The period for the PCS,
-Traffic, and Airport models appears to be the best around 25 but for the Epidemic model which
-has a large state to event ratio will be much larger.
+The best state saving period for memory reduction will be different for all models because it will
+depend on the relative size of the events and states.  The period for the PCS, Traffic, and Airport
+models appears to be the best around 25 but for the Epidemic model which has a large state to event
+ratio will be much larger.
 
 \subsection{GVT Period}
 
-The GVT period is a time value given in milliseconds which dictates how often to start a new
-GVT calculation.  A smaller GVT period means that fossil collection will be more efficient and
-the memory consumption will stay lower.  However, the GVT period is only a lower bound since
-a new GVT calculation cannot be started while a previous one is still in progress.  This has to
-be taken into account especially when scaling up to a larger number of processes since a token
-must be circulated to all processes at least least twice.
+The GVT period is a time value given in milliseconds which dictates how often to start a new GVT
+calculation.  A smaller GVT period means that fossil collection will be more efficient and the
+memory consumption will stay lower.  However, the GVT period is only a lower bound since a new GVT
+calculation cannot be started while a previous one is still in progress.  This has to be taken into
+account especially when scaling up to a larger number of processes since a token must be circulated
+to all processes at least least twice.
 
 %% GVT Period
 Figure \ref{fc_memory_analysis} shows the effect of an increasing GVT interval on average peak
@@ -3068,36 +3073,35 @@ with an extremely small period, the performance is only worsened by a very small
 \section{Summary of Findings}
 
 To better allow the system to scale to a larger number of nodes, a seperate manager thread which all
-remote communication is funnelled to has been shown to be the best communication model.  The
-reason is that the high contention for resources within the MPI library seem to be much more
-of a problem than a small queueing delay.  In general, though, avoiding remote communication at
-all costs by partitioning effectively and aggregating messages reduces rollbacks and increases
-performance.  
+remote communication is funnelled to has been shown to be the best communication model.  The reason
+is that the high contention for resources within the MPI library seem to be much more of a problem
+than a small queueing delay.  In general, though, \emph{avoiding remote communication at all costs
+  by partitioning effectively and aggregating messages reduces rollbacks and increases performance}.
 
-For a single SMP node, increasing the number of LTSF queues to the same as the number of worker
-threads so that there is no sharing between the LTSF queues shows the best performance.  Furthermore,
-partitioning the LPs to the LTSF queues using a block partitioning scheme seems to work the best
-for all models that were tested.  Other compile time optimizations to further increase performance
-such as replacing the default ptmalloc2 allocator with tcmalloc or jemalloc and replacing blocking
-mutexes with spinlocks has also been proven to effective.
+For a single SMP node, \emph{increasing the number of LTSF queues to the same as the number of
+  worker threads so that there is no sharing between the LTSF queues shows the best performance}.
+Furthermore, partitioning the LPs to the LTSF queues using a block partitioning scheme seems to work
+the best for all models that were tested.  Other compile time optimizations to further increase
+performance such as replacing the default \texttt{ptmalloc2} allocator with \texttt{tcmalloc} or
+\texttt{jemalloc} and replacing blocking mutexes with spinlocks has also been proven to effective. 
 
 \section{Detailed Conclusions}
 
 The limitations of \textsc{warped2} all seem to be centered around the necessity of synchronization
 and communication.  For message passing between processes that are spread over nodes in a cluster,
-optimizations that reduces remote communication will usually give better performance and for
-shared memory communication between worker threads, optimizations that reduce synchronization
-give better performance.  There is a tradeoff, however, when both forms of communication are
-used.  We found that synchronizing worker thread access to the message passing library is more
-costly than an increased latency from funnelling messages to a dedicated manager thread to
-handle all message passing communication.
+optimizations that reduces remote communication will usually give better performance and for shared
+memory communication between worker threads, optimizations that reduce synchronization give better
+performance.  There is a tradeoff, however, when both forms of communication are used.  We found
+that synchronizing worker thread access to the message passing library is more costly than an
+increased latency from funnelling messages to a dedicated manager thread to handle all message
+passing communication.
 
-For a single SMP node, increasing the number of LTSF queues, LTSF queue partitioning,
-replacing blocking mutexes with spinlocks, and replacing the default allocator all work to
-minimize the costs associated with thread synchronization and all have been shown to increase
-performance to some extent.  For a cluster, reducing communication overheads is achieved by
-partitioning and aggregating messages by decreasing remote remote communication.  For models that
-partition very well, message aggregation has no significant impact on performance.
+For a single SMP node, increasing the number of LTSF queues, LTSF queue partitioning, replacing
+blocking mutexes with spinlocks, and replacing the default allocator all work to minimize the costs
+associated with thread synchronization and all have been shown to increase performance to some
+extent.  For a cluster, reducing communication overheads is achieved by partitioning and aggregating
+messages by decreasing remote remote communication.  For models that partition very well, message
+aggregation has no significant impact on performance.
 
 There is also a tradeoff between scalability and performance when it comes to fossil collection.
 For better scalability, a fossil collection method which is carried out by the worker threads is
@@ -3107,27 +3111,24 @@ actually allow a larger event rate to be achieved by scaling up.
 
 \section{Suggestions for Future Work}
 
-It is still unknown what will be observed as the simulations are scaled up to larger
-multi-core processors and/or larger clusters and whether a strong scaling or a weak scaling
-approach should be taken.  A strong scaling approach will increase remote communication but
-it will decrease the amount of time taken to fossil collect essentially pushing more work to
-the manager thread.  On the other hand, a weak scaling approach may end up pushing the bounds
-on memory requirements due to a diminishing GVT granularity and could possibly lead to imbalances
-which will force us to rely more on better partitioning and load balancing.
+It is still unknown what will be observed as the simulations are scaled up to larger multi-core
+processors and/or larger clusters and whether a strong scaling or a weak scaling approach should be
+taken.  A strong scaling approach will increase remote communication but it will decrease the amount
+of time taken to fossil collect essentially pushing more work to the manager thread.  On the other
+hand, a weak scaling approach may end up pushing the bounds on memory requirements due to a
+diminishing GVT granularity and could possibly lead to imbalances which will force us to rely more
+on better partitioning and load balancing.
 
-%% Something about message aggregation and rollback profiling
-
-As the number of threads increases, memory allocations and deallocation occur more frequently
-and it becomes harder to manage memory which tends to lead to increased memory fragmentation
-and contention.  The increased memory fragmentation leads to more frequent memory allocation
-from the OS which could also lead to more imbalance.  
+As the number of threads increases, memory allocations and deallocation occur more frequently and it
+becomes harder to manage memory which tends to lead to increased memory fragmentation and
+contention.  The increased memory fragmentation leads to more frequent memory allocation from the OS
+which could also lead to more imbalance.
 
 As the number of nodes is increased, the harder it becomes to calculate a good GVT estimate
 efficiently.  With an asynchronous GVT algorithm, the time taken to calculate a GVT estimate
-increases and becomes increasingly less accurate but with a synchronous GVT algorithm, the
-necessity to stop all event processing kills performance.  An alternative fossil collection
-scheme that does not rely on GVT such as optimistic fossil collection could be worth pursuing
-in the future.
+increases and becomes increasingly less accurate but with a synchronous GVT algorithm, the necessity
+to stop all event processing kills performance.  An alternative fossil collection scheme that does
+not rely on GVT such as optimistic fossil collection could be worth pursuing in the future.
 
 \appendix
 
