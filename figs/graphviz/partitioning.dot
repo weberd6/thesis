@@ -34,6 +34,8 @@ digraph partitioning {
             color = cadetblue3;
         }
 
+        mt [label = "Manager Thread", shape = oval, style = filled, color = tomato];
+
         w0 [label = "Worker Thread 0", shape = oval, style = filled, color = burlywood];
         w1 [label = "Worker Thread 1", shape = oval, style = filled, color = burlywood];
         w2 [label = "Worker Thread 2", shape = oval, style = filled, color = burlywood];
@@ -44,52 +46,6 @@ digraph partitioning {
         "w3" -> "sq1";
 
         label = "Process 0";
-        style = filled;
-        color = lightgrey;
-    }
-
-    subgraph cluster_p1 {
-        subgraph cluster_sq3 {
-            lp15 [label = "LP 7", style = filled, color = lightpink];
-            lp14 [label = "LP 6", style = filled, color = lightpink];
-            lp13 [label = "LP 5", style = filled, color = lightpink];
-            lp12 [label = "LP 4", style = filled, color = lightpink];
-
-            sq3 [label = "LTSF Queue 1", width = 4, style = filled, color = lightgrey];
-
-            "sq3" -> "lp12" [style = "invis"];
-            "sq3" -> "lp13" [style = "invis"];
-            "sq3" -> "lp14" [style = "invis"];
-            "sq3" -> "lp15" [style = "invis"];
-            style = filled;
-            color = cadetblue3;
-        }
-        subgraph cluster_sq2 {
-            lp11 [label = "LP 3", style = filled, color = lightpink];
-            lp10 [label = "LP 2", style = filled, color = lightpink];
-            lp9 [label = "LP 1", style = filled, color = lightpink];
-            lp8 [label = "LP 0", style = filled, color = lightpink];
-
-            sq2 [label = "LTSF Queue 0", width = 4, style = filled, color = lightgrey];
-
-            "sq2" -> "lp8" [style = "invis"];
-            "sq2" -> "lp9" [style = "invis"];
-            "sq2" -> "lp10" [style = "invis"];
-            "sq2" -> "lp11" [style = "invis"];
-            style = filled;
-            color = cadetblue3;
-        }
-
-        w4 [label = "Worker Thread 0", shape = oval, style = filled, color = burlywood];
-        w5 [label = "Worker Thread 1", shape = oval, style = filled, color = burlywood];
-        w6 [label = "Worker Thread 2", shape = oval, style = filled, color = burlywood];
-        w7 [label = "Worker Thread 3", shape = oval, style = filled, color = burlywood];
-        "w4" -> "sq2";
-        "w5" -> "sq2";
-        "w6" -> "sq3";
-        "w7" -> "sq3";
-
-        label = "Process 1";
         style = filled;
         color = lightgrey;
     }
