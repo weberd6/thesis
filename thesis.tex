@@ -1,7 +1,5 @@
 \documentclass[11pt]{book}
 
-\overfullrule=2cm
-
 \usepackage{fullpage}
 \usepackage{graphicx}
 \usepackage{cite}
@@ -37,9 +35,6 @@
 \setboolean{@twoside}{false}
 \setlength{\headsep}{25pt}
 \setlength{\headheight}{14pt}
-
-%\pdfsuppresswarningpagegroup=1
-\vbadness=10000
 
 \definecolor{dkgreen}{rgb}{0,0.6,0}
 \definecolor{gray}{rgb}{0.5,0.5,0.5}
@@ -99,7 +94,7 @@
 
 Parallel Discrete Event Simulation (PDES) systems have traditionally been designed for either
 clusters using message passing communication \emph{or} for shared-memory multiprocessors using
-shared data structures but not both.  The fine granularity of PDES appications makes the
+shared data structures but not both.  The fine granularity of PDES applications makes the
 communication latency of message passing a target issue.  Message passing, however, is necessary to
 scale up the computational power and memory required for larger simulation models that would be
 limited in a single shared-memory processor.  Shared memory communication, on the other hand, means
@@ -116,7 +111,7 @@ This thesis explores the design of a Time Warp synchronized PDES simulation kern
 clusters of multi-core clusters.  The \textsc{warped2} simulation kernel uses a hybrid approach
 where a set of mulithreaded processes communicate with message passing between nodes but threads
 within each process communicate through shared data structures within a node.  To attack the
-inbalanced latencies in these two communication mediums, the \textsc{warped2} simulation kernel
+imbalanced latencies in these two communication mediums, the \textsc{warped2} simulation kernel
 supports a variety of partitioning methods to minimize communication between nodes and also to
 assist memory referencing patterns within the cores of a compute node.  If the logical processes
 (LPs) of the simulation model are partitioned properly, then the interprocess communication will be
@@ -129,7 +124,7 @@ to protected shared data structures.  This problem not only adds significant ove
 simulation mechanism (dispatching of local events and processing events) but with the standard
 runtime and message passing libraries as well.  A few of the solutions what will described include
 separating data structures for thread local use to eliminate synchronization, using spinlocks to
-reduce lock aquisition latency, using alternative multithreaded memory allocators, and using a
+reduce lock acquisition latency, using alternative multithreaded memory allocators, and using a
 separate thread to handle message passing communication.
 
 The second, and more Time Warp specific problem, arises with a hybrid communication model is with
@@ -140,7 +135,7 @@ analyzed.
 
 Experimental analysis will be performed on SMP nodes and clusters to gain a better understanding of
 the tunable performance, communication, and memory parameters of \textsc{warped2}.  Preliminary
-results indicate that any optimization that minimizes thread synchronization is usually preferrable
+results indicate that any optimization that minimizes thread synchronization is usually preferable
 on a single SMP node even if rollbacks increase and event processing efficiency decreases.  On a
 cluster, minimizing remote communication is the key to minimizing rollbacks and increasing
 performance.  Funneling communication to a dedicated thread has been shown to be more effective than
@@ -150,7 +145,7 @@ passing library is more limiting than an increased communication latency.
 %% DOUG: should you also comment on your findings regarding fossil collection in this
 %% abstract?  i will probably have stronger direction on this after i finish the thesis.
 
-%% DOUG: should you have a final paragraph that comments on the feasility/scalability of
+%% DOUG: should you have a final paragraph that comments on the feasibility/scalability of
 %% PDES performance results on these multi-core processors and clusters?
 
 \chapter*{Acknowledgments}
@@ -199,16 +194,16 @@ threads.
 
 The Time Warp Mechanism \cite{jefferson-85,fujimoto-90}, which is the focus of this thesis, is one
 approach to synchronize PDES where causal dependencies of events are not enforced before processing
-an event.  A method of undoing erroneous computation and cancelling incorrectly sent events must be
+an event.  A method of undoing erroneous computation and canceling incorrectly sent events must be
 implemented in a Time Warp system to ensure causality of events.
 
 Some Time Warp systems are designed primarily for shared memory multiprocessors \cite{das-94}.
 These systems minimize communication latencies and allow very fast, simple algorithms because
-everything can run in a single address space and use shared data structrures with pointers to
+everything can run in a single address space and use shared data structures with pointers to
 prevent unnecessary copying.  However, they are still limited by the computational power and memory
 size of the machine.  Other Time Warp systems target message passing based platforms
 \cite{carothers-00,ramanan-98-iscope}.  These systems can be scaled to any number of machines using
-interconnection networks as a means of exhchanging messages.  However, this approach introduces high
+interconnection networks as a means of exchanging messages.  However, this approach introduces high
 communication latencies.
 
 %% Solution
@@ -223,7 +218,7 @@ termination detection.  Figure \ref{warped2_communication} illustrates the commu
 is used in \textsc{warped2}.  \emph{This thesis explores the principle design structure of
 \textsc{warped2} for efficient execution on a cluster with x86-based multi-core processing nodes}.
 Various configuration and implementation options are examined and evaluated against one another.
-The a brief summary of the principle design options explored is summarized in the remainder of this
+Then a brief summary of the principle design options explored is summarized in the remainder of this
 section.
 
 \begin{figure}
@@ -243,12 +238,12 @@ complicates the scheduling of events on the critical path of execution --- trigg
 and consequently decreasing in the event processing efficiency.
 
 %% Partitioning and Message Aggregation
-To reduce communication overheads in both message passing and shared memorory communication,
+To reduce communication overheads in both message passing and shared memory communication,
 partitioning of the work between processes and threads will also be explored.  Partitioning the work
 in a parallel discrete event simulation is achieved by simply partitioning the LPs.  In
 \textsc{warped2}, a two phase partitioning scheme will be explored.  The first phase is for
-partitiong LPs among processes in order to minimize interprocess communication and the second phase
-is for further partioning the LPs in a process among LTSF queues which will localize LP
+partitioning LPs among processes in order to minimize interprocess communication and the second phase
+is for further partitioning the LPs in a process among LTSF queues which will localize LP
 communication among worker threads, allowing better cache locality, and lowering rollbacks.  To
 further reduce the side effects of message passing communication, messages that are sent to the same
 process are aggregated and sent together as a single larger message.
@@ -300,7 +295,7 @@ Chapter \ref{warped2_ds} describes the basic event scheduling algorithms in
 structures.  Some parameters that can be used to tune the performance of the simulation
 will also be discussed.
 
-Chapter \ref{gvt_termination} analyzes the probem of GVT and termination detection in
+Chapter \ref{gvt_termination} analyzes the problem of GVT and termination detection in
 distributed systems and describes various algorithms that have been used as well as
 algorithms used in \textsc{warped2}.
 
@@ -330,7 +325,7 @@ typically contains three main data structures, namely:
 \item[State variables: ] A set of variables that describe the current state of the system.
 \item[Simulation Clock: ] A clock to measure the progress of the simulation and determine the order
   of event processing.
-\item[Pending Event Set: ] A set of future events that are waiting to be procesed.
+\item[Pending Event Set: ] A set of future events that are waiting to be processed.
 \end{description}
 
 \noindent
@@ -350,7 +345,7 @@ that events for different LP's are independent and will only affect the state fo
 
 \emph{Parallel} Discrete Event Simulation (PDES) is a method running a discrete event simulation on
 a parallel computing platform.  The parallel computing platform can be a shared memory
-multiprocssor, a distributed memory cluster, or a combination of both.  An important issue in the
+multiprocessor, a distributed memory cluster, or a combination of both.  An important issue in the
 design and implementation of a PDES is the \emph{synchronization mechanism} that is used to
 coordinate the processing of events by the concurrently executing LPs so that they satisfy their
 causal order \cite{lamport-78}.  While there are numerous synchronization mechanisms for
@@ -368,7 +363,7 @@ distributed systems which are not described by real time such as a simulation.  
 parallel discrete event simulation, Virtual Time is synonymous with simulation time.
 
 In an optimistically synchronized mechanism such as Time Warp, events from different LPs are
-processed independantly without any consideration that lower timestamped events could be received.
+processed independently without any consideration that lower timestamped events could be received.
 Because of this, it is possible that the causal order of event is violated.  Consider the timing
 diagram shown in Figure \ref{causality_violation} which illustrates this scenario with three LPs. An
 event processed at $LP_1$ triggers a new event to be sent to both $LP_2$ and $LP_3$ and in turn,
@@ -429,7 +424,7 @@ Systems that support parallel processing come in many forms \cite{culler-97,patt
 generally be characterized by how processors and memories are grouped together.  A shared memory
 system is a single machine which shares a common address space for all processes and can have a
 either a single physical memory unit or multiple memory units.  A cluster is a system comprised of
-multiple machines with seperate process address spaces connected over an interconnection network.
+multiple machines with separate process address spaces connected over an interconnection network.
 
 \subsection{Shared Memory Multiprocessor Systems}
 
@@ -447,8 +442,8 @@ what a typical SMP system might look like.
   \caption{SMP System}\label{smp}
 \end{figure}
 
-\paragraph{A Distributed Shared Memory} sytem, also known as a Non-Uniform Memory Access
-(NUMA) system has mulitple memories that are distributed.  In these systems, the programming model
+\paragraph{A Distributed Shared Memory} system, also known as a Non-Uniform Memory Access
+(NUMA) system has multiple memories that are distributed.  In these systems, the programming model
 is as a shared memory (SMP) platform, but access to different memories may have different access
 times.  In general, an interconnection network connects processors and memories together with one or
 more processors per memory unit.  Because memory access times can vary, software on NUMA systems
@@ -493,23 +488,23 @@ weaknesses.
 
 In a message passing system, processes communicate only through serialized messages.  The formats of
 the messages must be defined so that the message can be serialized and deserialized by the sender
-and the reciever, respectively.  Message passing can be either synchronous or asynchronous.
+and the receiver, respectively.  Message passing can be either synchronous or asynchronous.
 
 With synchronous message passing, the send/receive operations for each process must be performed in
 a specific order so that the sender/receiver processes operate together in a synchronized fashion.
-The send operation at the sender will block until the message is received at the reciever and the
+The send operation at the sender will block until the message is received at the receiver and the
 receive operation at the receiver will block until the message is fully received.  That means the
 every process must follow a predictable communication pattern.  Processes cannot continue other
 operations during communication operations and may slow down the whole system.
 
-On the other hand, asynchronous communication allows proccesses to start a send and recieve
+On the other hand, asynchronous communication allows processes to start a send and receive
 operations and immediately continue without blocking.  To allow this, temporary queues must be used
 to hold pending operations.  The processes do not have to follow a predictable communication pattern
 in this case because the messages will be queued and can be processed at any time and in any order.
 
 The main advantage of message passing, in general, is that the number of cooperating processes can
 be scaled to essentially any size as long as the work is partitioned in the right way so that
-communication is minimized.  Also, the processes can execute in address spaces on totally seperate
+communication is minimized.  Also, the processes can execute in address spaces on totally separate
 machines and communicate over a local network connection.  A disadvantage, however, is the latency
 introduced by the necessity to serialize, deserialize, and copy messages which can take a relatively
 long time compared to the speed of computation.  Furthermore, if an interconnection network is used
@@ -520,7 +515,7 @@ small messages.  An illustration of message passing is shown in Figure \ref{comm
 \subsubsection{Message Passing Interface (MPI)}
 
 MPI \cite{gropp-94} is an extensive message passing API specification for parallel applications and
-supports both synchronous and asychronous forms of communication.  It is a standard specification
+supports both synchronous and asynchronous forms of communication.  It is a standard specification
 for developers and MPI users and many current implementations exist.  Two widely used
 implementations of MPI are MPICH and OpenMPI.
 
@@ -562,7 +557,7 @@ system is show in Figure \ref{communication}(b).
 \chapter{Related Work}\label{related_work}
 
 This chapter give an overview of some of the most popular Time Warp implementations.  For each
-impementation the design will be described at a high level with a focus on the target architecture.
+implementation the design will be described at a high level with a focus on the target architecture.
 The featured data structures and algorithms for each will also be described as well as the strengths
 and weaknesses.
 
@@ -570,7 +565,7 @@ and weaknesses.
 
 Georgia Tech Time Warp \cite{das-94} (GTW) was a general purpose Time Warp Simulator designed
 specifically for shared memory multiprocessors.  It is not used anymore, however, because it was
-only written to target architectures that are now obselete such as the SparcStation and SGI
+only written to target architectures that are now obsolete such as the SparcStation and SGI
 PowerChallenge.  Although GTW is not used any more, its design has influenced the design of other
 simulators that are still used widely in practice.  GTW simulation models run in a single
 multi-threaded processes and use only shared data structures to communicate between threads that are
@@ -605,7 +600,7 @@ moving events from the message queue to the event queue and processing rollbacks
 messages from the cancel queue are removed and cancellations are processed and any more rollbacks
 are processed.  One or more of the smallest events from the event queue are then processed and added
 to the processed event list.  This procedure is repeated over and over again by all processors.
-Psuedocode for the main event processing loop in GTW is show in Figure \ref{gtw_processing}.
+Pseudocode for the main event processing loop in GTW is show in Figure \ref{gtw_processing}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -637,7 +632,7 @@ The partitioning of the LPs among processors must be done in the simulation mode
 initialization.  That means that the model developer must understand some the features of the
 underlying architecture such as the number of processors, to effectively partition the LPs.
 Furthermore, the initial partitioning of the LPs is hard to dynamically balance during the
-simulation because there are no seperate input queues for each LP but rather a single message queue
+simulation because there are no separate input queues for each LP but rather a single message queue
 to hold all unprocessed events for each processor.
 
 \section{Clustered Time Warp (CTW)}
@@ -649,7 +644,7 @@ have localized computation within a group of LPs.  Furthermore, digital logic si
 have low computational granularity and lots of LPs which can lead to a significant number of
 rollbacks and a large memory footprint in a traditional Time Warp simulator.  CTW is implemented for
 shared memory multiprocessors but only uses shared memory for use with a custom message passing
-system so that it can better support NUMA architectures.  It is not designed for use on a a Beowulf
+system so that it can better support NUMA architectures.  It is not designed for use on a Beowulf
 Cluster.
 
 Each cluster of LPs has a timezone table, an output queue, and a set of LPs that each have an input
@@ -663,7 +658,7 @@ timestamps greater than the straggler event will be rolled back.  This rollback 
 \emph{clustered rollback}.  The alternative to clustered rollback is \emph{local rollback}.  In a
 local rollback scheme the straggler event would be inserted into the receiver LPs input queue and
 the LP will roll back when it is detected.  Although clustered rollbacks may cause some LPs to be
-rolled back unnecessarily leading to slower compuation, the approach was chosen for CTW because
+rolled back unnecessarily leading to slower computation, the approach was chosen for CTW because
 processed events will not have to be saved which requires less memory.
 
 CTW uses a form of infrequent state savings with the timezone table used to determine the frequency.
@@ -690,7 +685,7 @@ threads and uses message passing explicitly with MPI instead of shared memory fo
 among the processes.
 
 Just as in GTW, ROSS maps every LP to a process and each process contains its own pending event set
-structures.  No locks are needed explicity within each process because there are no shared data
+structures.  No locks are needed explicitly within each process because there are no shared data
 structures among processes.  The data structures are very similar to those used in GTW but have a
 different naming convention.  The main data structures in ROSS are:
 
@@ -773,13 +768,11 @@ available in the README of the repository.
 The remainder of this chapter provides a brief overview of the \textsc{warped2} simulation model API
 and the Time Warp implementation.  In each case, a high level overview is first presented and then a
 detailed discussion of the C++ classes and object interactions is reviewed.  A complete example of
-an aiport model implementation is also provided in appendix \ref{airport_model}.
+an airport model implementation is also provided in appendix \ref{airport_model}.
 
 \section{The \textsc{warped2} Modeling API}
 
 \subsection{Conceptual Overview}
-
-%% DOUG: please check for accuracy.
 
 \begin{figure}
     \centering
@@ -853,7 +846,7 @@ WARPED_DEFINE_LP_STATE_STRUCT(ExampleState) {
 
 The default copy constructor and default copy assignment operator will only perform shallow copies,
 so if more complex states are necessary in the model then custom implementations may be necessary.
-The copy constructor will define the behavior for saving the state whereas the copy assignent
+The copy constructor will define the behavior for saving the state whereas the copy assignment
 operator will define the behavior for restoring the state.  Note that the copy assignment operator
 will probably not be needed since a shallow copy will usually suffice for restoring the state.
 
@@ -1047,7 +1040,7 @@ extendable, and maintainable.  All components are configured and created at star
 and subcomponents are accessed through pointers.  Furthermore, \textsc{warped2} is written in
 C++ so each component can also be an object of derived subclass that implement a well-defined
 interface by a base class.  The main central component is the event dispatcher which is responsible
-for calling the a set of LP callback methods that are implemented in the simulation model during
+for calling the LP callback methods that are implemented in the simulation model during
 the course of the simulation.  The event dispatcher can be configured for sequential simulation
 or a Time Warp simulation.  The sequential simulation does not depend on any other components and
 contains only a single list of unprocessed events.  The Time Warp event dispatcher on the other
@@ -1133,7 +1126,7 @@ the next section. Currently, \textsc{warped2} only implements an MPI based
 
 \subsection{Partitioner}
 
-The \texttt{Partitioner} is an abstract base class for implementating a method of logical process
+The \texttt{Partitioner} is an abstract base class for implementing a method of logical process
 partitioning.  Given a vector of LPs and some number of partitions, $N$, the partitioner object
 returns $N$ vectors of LPs by using some partitioning technique.  The \textsc{warped2} kernel
 implements a \texttt{RoundRobin} partitioner and a \texttt{ProfileGuidedPartitioner} but also allows
@@ -1148,7 +1141,7 @@ Jefferson \cite{jefferson-85} described the rollback and cancellation process in
 structures: the input queue, output queue, and state queue.  The data structures that are
 implemented in \textsc{warped2} follows closely to Jefferson's description except that in
 Jefferson's approach, the input queue holds both unprocessed and processed events whereas
-\textsc{warped2} has two seperate data structures to allow easier scheduling of unprocessed events.
+\textsc{warped2} has two separate data structures to allow easier scheduling of unprocessed events.
 
 The state queues contain a 3-tuple value for each state.  The first value is a pointer to a memory
 location which holds the saved copy of the LP state.  The second value is a pointer to the event
@@ -1197,7 +1190,7 @@ as a new value.  Then the new type must then be defined by deriving from the
 The receive callback is defined in the class that sends the message just as any other class method.
 The callback method must have a \texttt{void} return type and take a single argument of type
 \texttt{std::unique\_ptr<TimeWarpKernelMessage>}.  For simplicity, the
-\texttt{WARPED\_REGISTER\_MSG\_HANDLER} macro can be used to register the message types and recieve
+\texttt{WARPED\_REGISTER\_MSG\_HANDLER} macro can be used to register the message types and receive
 callback as long as the communicating class contains a data member that is declared exactly as
 \texttt{std::shared\_ptr<CommunicationManager> comm\_manager\_;}.
 
@@ -1221,8 +1214,8 @@ each platform with a goal of understanding and determining the best design optio
 configurations for generalized use in either framework.
 
 The single node SMP experiments will be run on an Intel\textsuperscript{\textregistered}
-Xeon\textsuperscript{\textregistered} X5675 processor.  The intel\textsuperscript{\textregistered}
-Xeon \textsuperscript{\textregistered} X5675 has 6 cores with hyperthreading so that 12 simultaneous
+Xeon\textsuperscript{\textregistered} X5675 processor.  The Intel\textsuperscript{\textregistered}
+Xeon\textsuperscript{\textregistered} X5675 has 6 cores with hyperthreading so that 12 simultaneous
 threads can be executed.  Cluster experiments will be run on Intel\textsuperscript{\textregistered}
 Xeon\textsuperscript{\textregistered} E5410.  The Intel\textsuperscript{\textregistered}
 Xeon\textsuperscript{\textregistered} E5410 is a quad core processor but each machine contains two
@@ -1323,11 +1316,6 @@ experiments.  Most of these models are similar to and inspired by simulation mod
 reported upon by other parallel simulation researchers.  The model configurations that are used are
 included within tables in Appendix \ref{model_configurations}.
 
-%% DOUG: you also need to give citations and credit to the original papers that introduced all of
-%% these simulation models.  the only one that does not specifically come from the published
-%% literature is the Traffic model; for that one i have included the appropriate pointer/credit back
-%% to the ROSS simulation team. (your citation for the epidemic model is fine).
-
 \subsection{PCS}
 
 The model describes a type of wireless communication network known as a \emph{Portable Cellular
@@ -1338,7 +1326,7 @@ calls.  When an incoming or outgoing call is made, a port must allocate a channe
 if one cannot be allocated then the call is \emph{blocked}\cite{lin-96b}.  The only type of logical
 processes in the PCS simulation are the cells.  The cells in the \textsc{warped2} model form a
 rectangular grid as shown in Figure \ref{pcs_model_lps}.  Portables can only move to other cells
-from an adjacent cell with a wrap around occuring at the edges.
+from an adjacent cell with a wrap around occurring at the edges.
 
 \begin{figure}
     \centering
@@ -1346,7 +1334,7 @@ from an adjacent cell with a wrap around occuring at the edges.
     \caption{PCS Model Logical Processes}\label{pcs_model_lps}
 \end{figure}
 
-The portables stay within a cell for a period of time which follows a poisson distribution
+The portables stay within a cell for a period of time which follows a Poisson distribution
 before moving to another cell.  If the all cells are busy in the cell that the portable
 is moving to then the call is dropped.  This is called a \emph{handoff block}.
 
@@ -1359,7 +1347,7 @@ Every LP keeps track of the following state variables:
 \end{itemize}
 
 \noindent
-Call arrivals to a portable also follow a poisson distribution.  The cells in the model generate all
+Call arrivals to a portable also follow a Poisson distribution.  The cells in the model generate all
 of their own incoming calls in a self-initiating process.  Four types of events are used to model
 the network: \begin{inparaenum}[(1)] \item \texttt{NextCall},
 \item \texttt{CallCompletion}, \item \texttt{PortableMoveOut}, and \item \texttt{PortableMoveIn}
@@ -1434,7 +1422,7 @@ the social interactions of people between locations and between regions \cite{ba
 The airport model describes the departure and arrivals of airplanes between a connected set of
 airports.  The logical processes represent airports and the events are simply departures and
 arrivals.  For simplicity, the airports are connected in a rectangular grid and can only fly to
-aiports to the north, east, south, or west of the aiport departed from.  The time spent between
+airports to the north, east, south, or west of the airport departed from.  The time spent between
 takeoff and landing and between landing and takeoff both follow an exponential distributions.
 
 
@@ -1508,7 +1496,7 @@ communication, 8 processes per node are used with no manager thread.
 
 The single threaded and funnelled communication models show much better performance than a
 serialized or multiple threaded communication model.  This indicates that lock contention is
-inihibits performance more than an extra remote communication or an increase in latency due to a
+inhibits performance more than an extra remote communication or an increase in latency due to a
 queueing delay.  However, as shown in Figure \ref{communication_model_efficiency}, the efficiency
 decreases at a pretty fast rate as the number of nodes increase for singled threaded and funnelled
 communication which could lead to less performance gain as the number of nodes is scaled up.
@@ -1540,7 +1528,7 @@ communication which could lead to less performance gain as the number of nodes i
 The efficiency can be improved with other methods that can be tuned in \textsc{warped2} such as
 partitioning and message aggregation so it is not considered to be much of problem.  The rest of
 this chapter will describe how this can be achieved in \textsc{warped2} by using parameters that can
-be tuned based on the needs of speficif simulation models.
+be tuned based on the needs of specific simulation models.
 
 \section{Communication Tuning Parameters}
 
@@ -1590,7 +1578,7 @@ and does not implement a custom partitioning scheme.  It will also work well for
 processes which may not work well with other partitioning schemes.
 
 The plots in Figure \ref{partitioning_8node} show a comparison of the round-robin, block, and
-profile-guided partitioning schemes.  The data was collectected with the full multithreaded
+profile-guided partitioning schemes.  The data was collected with the full multithreaded
 communication model where worker threads handle all remote communication.  For this reason, the
 event rates and efficiencies will be significantly different than the mainline version of
 \textsc{warped2} but should still be valid for the comparison of partitioning methods.
@@ -1635,12 +1623,12 @@ messages that share the same latency will be larger than one.
 
 \subsubsection{Message Aggregation Implementation}
 
-The idividual messages are aggregated into a single aggregate message until the aggregate message
-contains $N$ idividual messages or until a control message is included.  A control message could be
+The individual messages are aggregated into a single aggregate message until the aggregate message
+contains $N$ individual messages or until a control message is included.  A control message could be
 a GVT token, a termination token, a GVT update message, or termination status update message.
 
 The combined message is started with a header which includes the number of individual messages and
-the lengths of each individual message.  The locacation of each individual message can be found by
+the lengths of each individual message.  The location of each individual message can be found by
 adding the length of the header with the length of the previous message and the length of the header
 is easily determined by knowing how many individual message there are.  Figure
 \ref{aggregate_format} illustrates the format of the aggregated message with the sizes of each
@@ -1660,9 +1648,9 @@ $$ 4 * (N + 1) + \sum_{n=0}^{N-1} length[n] $$
 \noindent
 A message count approach was chosen over size base approach in \textsc{warped2} since the size of
 the serialized messages would not be known until they the serialization is performed.  Because of
-this, a seperate temporary buffer would be needed for each individual message before copying them
+this, a separate temporary buffer would be needed for each individual message before copying them
 into a new aggregated buffer, which could be very costly.  Also, smaller message sizes could be
-possible by eliminating the need for a header by seperating individual messages with a special
+possible by eliminating the need for a header by separating individual messages with a special
 token.  However, a binary serialization method is used in \textsc{warped2} which makes it impossible
 to split and deserialize the individual messages at the receiving process.
 
@@ -1806,10 +1794,10 @@ processing events.
 \section{Pending Event Set Data Structures}
 
 The pending event set is the set of events that are ready to be processed at any given time.  Every
-process contains a logically seperate pending event set for a dedicated set of LPs.  Events that are
+process contains a logically separate pending event set for a dedicated set of LPs.  Events that are
 being sent to an LP that is local to the process are directly inserted into the pending event set.
 Events that must be sent to a remote process are inserted into a remote event send queue where the
-manager thread will remove it, form an event message and send the message to the recieving process.
+manager thread will remove it, form an event message and send the message to the receiving process.
 The manager thread at the receiving process will then unpack the message and insert it into the
 pending event set.  The pending event set is made up of a queue for each LP known as an
 \emph{unprocessed queue} which is directly accessible from all threads and allows for the sending of
@@ -1831,7 +1819,7 @@ queues which the worker threads obtain the lowest timestamped event to process.
 
 A third type of data structure is also used to keep track of the events that have been scheduled or
 are currently being processed but organized by receiving LP.  It is used for two main reasons.
-First, when inserting an event into the recieving LPs unprocessed queue, it provides a way to
+First, when inserting an event into the receiving LPs unprocessed queue, it provides a way to
 determine if a smaller event has already been scheduled for the LP.  The new event can then be
 scheduled in place of the already scheduled event.  Second, it serves to prevent multiple worker
 threads from processing events from the same LP which could cause out of order committing of events
@@ -1848,17 +1836,17 @@ event set data structures in \textsc{warped2}.
 
 One or more of the worker threads are assigned to each LTSF Queue to process events from and they
 all follow the exact same procedure.  First, an event is removed from an LTSF queue to be processed
-but remains in the unprocessed queue until it is completely processed or cancelled out.  The event
+but remains in the unprocessed queue until it is completely processed or canceled out.  The event
 is first checked against the last processed event of the receiving LP to see if it is a straggler,
 and rolled back if necessary.  An anti-message is also considered to be a straggler if its positive
 counterpart was the last processed event for the LP.  If the event is an anti-message, the positive
 counterpart cannot be assumed to be in the LPs unprocessed queue.  If the positive event is present
-then it is cancelled out but if it is not present then the anti-message remains in the unprocessed
+then it is canceled out but if it is not present then the anti-message remains in the unprocessed
 queue.  In both cases, an attempt to reschedule a new event to the LTSF queue occurs and the worker
 thread continues to the next event.  If the next event to be processed is positive then it is
 processed normally, the state of the LP is saved, and new events are sent to other LPs.  The event
 is then moved into the processed queue and a new event is scheduled into the LTSF queue.  To
-summarize, the worker thread processing loop is shown in psuedocode in Algorithm
+summarize, the worker thread processing loop is shown in pseudocode in Algorithm
 \ref{warped2_processing}.
 
 \begin{algorithm}
@@ -1893,7 +1881,7 @@ summarize, the worker thread processing loop is shown in psuedocode in Algorithm
 %% Sending events
 When events are inserted into the unprocessed queues, they are compared to the currently scheduled
 event for the LP.  If there is no currently scheduled event or the new event is less than the
-currently scheduled event, then the new event is scheduled to prevent a rollback from occuring.
+currently scheduled event, then the new event is scheduled to prevent a rollback from occurring.
 
 \subsection{Ordering of Events}
 
@@ -1940,7 +1928,7 @@ than the number of worker threads and also be a factor of the number worker thre
 
 If all worker threads share a single LTSF queue then a huge contention point is created and
 performance will suffer.  At the opposite extreme, however, with all worker threads processing
-events from a seperate LTSF queue, the the critical path of the simulation will be spread out and
+events from a separate LTSF queue, the critical path of the simulation will be spread out and
 the number of rollbacks can increase significantly.  The extent to which these matter varies
 depending on the characteristics of the simulation model.  Furthermore, they may also vary as the
 data structures and algorithms in \textsc{warped2} evolve to minimize contention.
@@ -1986,7 +1974,7 @@ is also scaled up since efficiency and contention will not get worse.
 
 The LPs can also be partitioned between LTSF queues in various ways just like partitioning between
 processes.  In fact, there is only a single partitioning parameter for both levels of partitioning.
-This makes sense because the LTSF queue partitioning will be neglible compared to the interprocess
+This makes sense because the LTSF queue partitioning will be negligible compared to the interprocess
 but it allows the user to choose the LTSF queue partitioning directly on a single node simulation.
 
 Figures \ref{ltsf_partitioning_beowulf} and \ref{ltsf_partitioning_bc} show the effects of LTSF
@@ -2142,7 +2130,7 @@ can be seen in Figure \ref{ssp_analysis_cluster} for a cluster.
 
 There are few key observations that become apparent on a cluster that are not seen on a single SMP
 machine.  The most apparent is that once the state saving period is increased large enough, a
-noticable jump in the rollback rate starts degrading performance.  This is easily explained by
+noticeable jump in the rollback rate starts degrading performance.  This is easily explained by
 looking at the magnitude of the rollback rates and coast forward rate for a cluster versus a single
 SMP machine.  The cluster has a much larger coast forward rate due to an increased rollback rate
 which is a result of an increased discrepancy in communication latency and event processing time.
@@ -2153,18 +2141,18 @@ Worker threads must be able to access shared data structures without the possibi
 conditions.  To deal with this, \textsc{warped2} uses mutexes to serialize worker thread access to
 any section of code that accesses the LTSF queue.  This method, however can significantly slow down
 access to the LTSF queues.  In the default configuration, blocking mutexes are used which means that
-if a thread cannot aqcuire a the lock, it will be put to sleep and rescheduled for execution at a
-later time.  Blocking mutexes method can waiste a lot of exta time if access to the critical section
+if a thread cannot acquire the lock, it will be put to sleep and rescheduled for execution at a
+later time.  Blocking mutexes method can waist a lot of extra time if access to the critical section
 is quicker than putting the thread to sleep and waking it up again.  All of the accesses to the LTSF
 queues are quick in \textsc{warped2} so the locks should only held for a short period of time.
 
 A \emph{spinlock} is a type of mutex that does not force threads to be rescheduled but
 instead continue to attempt to aqcuire the lock over and over until it successfully acquires
-the lock or the timeslice of the thread expires.  The downside of spinlocks is that the CPU time
+the lock or the time slice of the thread expires.  The downside of spinlocks is that the CPU time
 can be wasted, especially as the number of contending threads increase.  Furthermore, if the
 number of total threads is larger than the number of available processors, spinlocks are
 even worse because a thread can be involuntarily pre-empted while holding the lock and entire
-timeslices can be wasted.
+time slices can be wasted.
 
 \subsection{Spinlocks in \textsc{warped2}}
 
@@ -2174,7 +2162,7 @@ a system that is running more threads than processors.  There are many ways to i
 with all varying attributes and complexities.  Ticket locks were chosen for \textsc{warped2} because
 they are simple to implement, provide fairness to all threads, and generally have good performance
 for a small number of threads \cite{lockless-10}.  A short psuedocode algorithm to illustrate the
-ticket lock aqcuisition and release procedures is shown below in algorithm \ref{ticket_lock}.
+ticket lock acquisition and release procedures is shown below in algorithm \ref{ticket_lock}.
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -2195,7 +2183,7 @@ ticket lock aqcuisition and release procedures is shown below in algorithm \ref{
 \end{algorithm}
 
 To acquire the lock, each thread atomically increments a counter and takes the old value as a
-``ticket'' to provide FIFO ordering.  Then when the central ticket cound reaches the ticket number
+``ticket'' to provide FIFO ordering.  Then when the central ticket count reaches the ticket number
 of the waiting thread, access to the critical section is given.  To release the lock, the thread
 simply increments the central ticket counter and allows the next thread to access the critical
 section.  If there is no contention for the lock, the next number will be equal to the ticket number
@@ -2230,11 +2218,11 @@ debugging, and checkpointing for failure recovery in distributed systems.
 \section{Global Snapshots}
 
 \paragraph{Chandy and Lamport} \cite{chandy-85} described a basic global state algorithm by using
-\emph{global snapshots} for distribtuted systems that use only FIFO channels for communication.  To
+\emph{global snapshots} for distributed systems that use only FIFO channels for communication.  To
 start the algorithm, an initiator process records its state and sends a control token out of all
 outgoing channels.  When a process receives a control token, and it has not yet recorded its state,
 the process records its state and sends more control tokens out of all its outgoing channels.  The
-algorithm terminates at each process when it has recieved a token through all of its incoming
+algorithm terminates at each process when it has received a token through all of its incoming
 channels.
 
 \paragraph{Lai and Yang} \cite{lai-87} describe an algorithm for non-FIFO systems that computes a
@@ -2247,23 +2235,23 @@ and turn red when a red message arrives.  When a red message arrives at a white 
 must record its state BEFORE actually receiving the message.  The snapshot only relies on basic
 messages and no control tokens are used.  This algorithm has several drawbacks.  First, it assumes
 that every process will eventually receive a red message and record its state which is not
-guarenteed.  Second, to ensure transient messages are recorded, the processes must record all
+guaranteed.  Second, to ensure transient messages are recorded, the processes must record all
 incoming and outgoing messages and send them to other processes within the basic messages.  That way
 the transient messages can be calculated by differences in incoming and outgoing messages.
 
 \paragraph{Mattern} \cite{mattern-93} extended the algorithm by Lai and Yang by adding a separate
-control token which is used to create two cuts by cirulating the control token to every process
+control token which is used to create two cuts by circulating the control token to every process
 twice.  The control token is used to color the processes instead of the basic messages.  This
-guarentees that every process will eventually record its state because the token is always
+guarantees that every process will eventually record its state because the token is always
 circulated.  Furthermore, processes do not have to keep track of sent and received messages.
 Instead counters can be used to keep track of the differences in sent and received white messages at
 each process.  The control token can then accumulate the counts.  When the white message counts
-accumulate to zero when the token arrives back at the initiator proccess, it can be determined that
+accumulate to zero when the token arrives back at the initiator process, it can be determined that
 the snapshot is complete.  These counters can be \emph{vector counters} or \emph{scalar counters}.
 Vector counters keep track of messages to/from each process individually whereas scalar counters
 keep track of just a single count at each process.  When the algorithm is complete, only the
 initiator process can produce a global snapshot so if all processes must use the snapshot, it must
-be broadcasted to the other processes.
+be broadcast to the other processes.
 
 \section{GVT}
 
@@ -2286,7 +2274,7 @@ There are two special cases that must be considered in a GVT algorithms:
 
 \begin{description}
     \item[Transient Message Problem:] is caused by messages(events) that have been sent by the
-      sending process but not yet recieved by the receiving process.  If not carefully considered in
+      sending process but not yet received by the receiving process.  If not carefully considered in
       a GVT algorithm, these \emph{transient messages} can be completely missed which could lead to
       an erroneous GVT calculation if they contain the minimum timestamp of all other events in the
       system.
@@ -2307,15 +2295,15 @@ that all have some method of either solving these problems.
 
 Most of the Time Warp systems in use today are based on message passing and classically GVT
 algorithms have been designed for message passing systems.  In this section Samadi's and Mattern's
-message passing algorithm \cite{samadi-85} are discussed and in the next section Fujimoto's shared
-memory GVT algorithm \cite{fujimoto-94} is discussed as well as the Seven O'Clock algorithm
-\cite{bauer-05} which is an extension of Fujimoto's shared memory algorithm extended for distributed
-memory systems.
+message passing algorithms \cite{samadi-85, mattern-93} are discussed and in the next section
+Fujimoto's shared memory GVT algorithm \cite{fujimoto-94} is discussed as well as the Seven O'Clock
+algorithm \cite{bauer-05} which is an extension of Fujimoto's shared memory algorithm extended
+for distributed memory systems.
 
 \paragraph{Samadi's Algorithm}\cite{samadi-85} in the most general form uses acknowledgements for
 all events that have been received.  All processes must track all events that have been sent but
 have not been acknowledged.  Furthermore, the received messages must also be tracked so that
-acknowlegements can be sent.  All transient message can then be calculated from the tracked
+acknowledgements can be sent.  All transient message can then be calculated from the tracked
 messages.  A process initiates the GVT algorithm by broadcasting a start message to all processes.
 After this start message is received by a process, it is marked(colored) and all acknowledgements
 sent from a marked process are also marked(colored).  All processes then calculate their local
@@ -2325,7 +2313,7 @@ calculation ensures that the simultaneous reporting problem will not occur.
 
 \paragraph{Mattern's Algorithm} \cite{mattern-93} for GVT calculation is an extension on his general
 snapshot algorithm that was described above.  The white message counts are used to determine whether
-transient messages are still in the sytem.  They also serve as the basis for determining when the
+transient messages are still in the system.  They also serve as the basis for determining when the
 snapshot is complete which occurs when the accumulated white message count of all processes is zero.
 To ensure that the simultaneous reporting problem does not occur, red messages sent are recorded and
 used in the local minimum value of the sending process.  The algorithm is initiated by sending a
@@ -2333,15 +2321,6 @@ control token to all processes in some defined order.  The token accumulates the
 counters, local minimum clocks, and minimum red message timestamps.  When the accumulated count
 reaches zero and the token is back at the initiator process, the GVT is approximated using the
 minimum of the accumulated clocks and red message timestamps.
-
-%% DOUG: i doubt that you could actually get this next paragraph though the community without some
-%% grief; for example, i would be offended at this portail of the pGVT algorithm.  i'll let you get
-%% away with it here, but you might want to rewrite this paragraph to simply provide a list of
-%% citations to the other, lesser known, less used GVT estimation algorithms.
-
-\paragraph{Other GVT Algorithms} that are based on message passing model are usually based on the
-same ideas from Samadi's algorithm or Mattern's algorithm.  Many algorithms are just extensions or
-variations of the algorithms that aim to optimize it in some particular way. 
 
 \subsubsection{Shared Memory Algorithms}
 
@@ -2352,14 +2331,14 @@ messages if a shared data structure is used to communicate between tasks running
 processors.  Furthermore, a shared flag variable can be used to initiate the GVT algorithm.
 However, it is still possible that the flag can be read at different times, so the simultaneous
 reporting problem can still occur.  To solve the simultaneous reporting problem, two things must be
-done, First, the start flag is checked after sending events and recorded if the sending task has not
+done. First, the start flag is checked after sending events and recorded if the sending task has not
 yet reported its local minimum value and is eventually used when the reporting is done.  Second, the
 start flag must be read into a temporary local variable before obtaining a new event to process.
 
 \paragraph{Seven O'Clock Algorithm} \cite{bauer-05} is an extension of Fujimoto's algorithm for
 distributed memory systems.  Although the algorithm can be used in message passing systems, the
 algorithm does not require any messages and is still uses shared memory ideas.  The key idea in the
-algorithm is that all processors in a distributed system all have a consistent view of wall clock.
+algorithm is that all processors in a distributed system all have a consistent view of wall clock time.
 Hence, the processors can carry out an operation in an atomic manner without having to explicitly
 interact.  The atomicity can be achieved by using cycle level counters which are available on most
 modern architectures.  Unlike Fujimoto's algorithm though, transient messages can still be missed in
@@ -2370,8 +2349,8 @@ calculated based on the worst round trip time for network transactions.
 
 \paragraph{Global Reductions} provide a good way to do a synchronous minimum calculation which and
 is a common way to implement a synchronous GVT algorithm.  ROSS implements a synchronous GVT
-algorithm which uses global reductions to implement a variant of Mattern's
-algorithm\cite{holder-08}.  First, to prevent the transient message problem, a global reduction on
+algorithm which uses global reductions to implement a variant of Mattern's algorithm\cite{holder-08}.
+First, to prevent the transient message problem, a global reduction on
 message counts of each process is performed until the total reaches zero.  Any events received after
 the start of the algorithm are recorded and included with the local minimum of the receiving
 process.  When the messages count reaches zero a global reduction is performed on the local minimum
@@ -2474,8 +2453,8 @@ doesn't really change.  The purpose of each is:
 \noindent
 This system of GVT calculation will work as long as the localGVTFlag indicator is retrieved before
 obtaining the next event and the sends are reported after sending an event.  The manager thread
-controls the initiation and termination of the GVT algorithms and vary greatly depending on the
-exact implementation.
+controls the initiation and termination of the GVT algorithms and will vary greatly depending
+on the exact implementation.
 
 \subsubsection{Asynchronous}
 
@@ -2500,13 +2479,13 @@ is not the general case in \textsc{warped2}, a running minimum of the white mess
 received is recorded and included in the minimum clock value when a token is sent to ensure that all
 white messages are included in the final GVT value.
 
-A GVT token will be sent by the manager thread when a the local GVT calculation based on Fujimoto's
+A GVT token will be sent by the manager thread when the local GVT calculation based on Fujimoto's
 shared memory algorithm \cite{fujimoto-94} is completed.  The local GVT calculation will begin
 either when a token is received or when the initiator process determines that is should start.  The
 initiator process is the process with PID of 0 and the start of a new calculation is some fixed time
 interval from the start of the previous calculation.
 
-The asynchronous algorithm desribed above works well in cases where the remote communication is
+The asynchronous algorithm described above works well in cases where the remote communication is
 relatively low but has been shown to be problematic under heavy remote communication.  The root of
 the problem is that the GVT token must compete with remote events that must be sent and received.
 Based on some observations that show large message counts, the bigger problem with being able to
@@ -2520,7 +2499,7 @@ ROSS simulation kernel.  The biggest difference is that the manager thread must 
 threads from processing any more events.  Also, unlike the algorithm used in ROSS, the processes are
 explicitly colored so that any events that are inserted into the remote send queue after the GVT
 calculation is started are known to be included with the sending process's local minimum value.  The
-algorithm executed by the manager thread is summarized in the psuedocode in Algorithm
+algorithm executed by the manager thread is summarized in the pseudocode in Algorithm
 \ref{gvt_manager_synchronous}.
 
 \begin{algorithm}
@@ -2615,7 +2594,7 @@ counter variable to keep track of the number of active worker threads and a arra
 the state of each worker thread.  Each worker thread updates their own state when they change and
 atomically update the counter.  The manager thread periodically checks to see if the counter has
 reached zero.  If the count has reached zero and the process is the master, then the interprocess
-message passing alorithm is initiated.  The integration of the shared memory algorithm is
+message passing algorithm is initiated.  The integration of the shared memory algorithm is
 illustrated in algorithm \ref{termination_workers}.  To allow the GVT calculation to continue,
 worker threads in a passive state must still report an infinite local minimum value.
 
@@ -2682,7 +2661,7 @@ on Mattern's ``sticky flags'' algorithm \cite{mattern-91}.  Similar to the GVT a
 is passed in a logical ring to increasing PIDs.  However, the initiator process of the algorithm can
 change with each execution of the algorithm.  The initiator of each successive execution is the
 first active process that the token reaches during the previous circulation.  For the first
-circulation, the initator is the process with the PID of 0.
+circulation, the initiator is the process with the PID of 0.
 
 Each process has two state indicators, one for the actual state and one for the \emph{sticky state}.
 When the sticky state of all processes are simultaneously passive, then the simulation can terminate
@@ -2696,7 +2675,7 @@ become passive before receiving the token and false termination could then be de
 The algorithm is started when the initiator process becomes passive which is determined by the
 shared memory algorithm.  When a process receives the token it becomes the initiator but loses its
 roles as initiator when it sends the token.  That way, only a single process can be the initiator.
-Furthermoe, since the token always stops at an active process, the token is always guaranteed to
+Furthermore, since the token always stops at an active process, the token is always guaranteed to
 start again when it becomes passive which also guarantees the liveness property.  When the token is
 received back at the initiator with a passive state, then termination is signaled to all processes.
 The procedure is illustrated in Algorithm \ref{termination_token_receive}.
@@ -2718,7 +2697,7 @@ The procedure is illustrated in Algorithm \ref{termination_token_receive}.
 \caption{Termination Token Receive}\label{termination_token_receive}
 \end{algorithm}
 
-It should also be noted that this algorithm is only gaurenteed to work if the message order is
+It should also be noted that this algorithm is only guaranteed to work if the message order is
 preserved between any two processes or if it can be determined that no transient messages can exist.
 For this reason, the termination algorithm also keeps message counters and accumulates the counters
 from each process just like with the Mattern GVT algorithm.
@@ -2739,7 +2718,7 @@ different state saving, fossil collection, and memory allocation techniques can 
 \paragraph{Copy-state Saving} is the classic state saving technique that saves every past state of
 every LP and requires that the all states are copied and saved into the state queues.  This method
 requires a lot of extra memory and requires a lot of extra computation to copy the states and insert
-them into the state queue.  For this reason, copy-state saving is usually used in conjuction with
+them into the state queue.  For this reason, copy-state saving is usually used in conjunction with
 other technique or not at all.
 
 \paragraph{Periodic State Saving} is another state saving technique where the state of each LP is
@@ -2789,8 +2768,6 @@ rollbacks cannot occur past the GVT, it can be used be used as a marker to indic
 fossil collected.  Fossil collection is triggered after every GVT calculation and all memory is
 explicitly freed so that it can be reallocated for future use.
 
-%% DOUG: complete the citation at the end of this next paragraph
-
 \paragraph{On-the-fly Fossil Collection} is a method of fossil collection used in GTW which does not
 use GVT as a starting point and memory is not explicitly freed.  Instead, after events are
 processed, they are added to one of the per-processor free memory lists.  New events can then be
@@ -2798,7 +2775,7 @@ allocated from a list as long the first event in the list has a timestamp less t
 does not then the current event being processed is either aborted until the GVT reaches a higher
 value or the list is searched for a lower timestamp event.  This approach however, has been shown to
 produce instability caused by imbalances in rollbacks which creates imbalances in the free lists,
-and ultimately leads to a lot of aborted events or a long search time \cite{}.
+and ultimately leads to a lot of aborted events or a long search time \cite{carothers-00}.
 
 \paragraph{Optimistic Fossil Collection} \cite{young-98-dsc} is another method of fossil collection
 which, like on-the-fly aims to reuse memory instead of explicitly freeing it.  However, optimistic
@@ -2865,27 +2842,26 @@ schemes.  In these Time Warp systems, the simulation kernel must provide a way f
 models to allocate memory for events that need to be sent instead of calling the standard programming
 language APIs.
 
-%% DOUG: complete citations below
-
 Dynamic memory management in \textsc{warped2} is achieved through the standard C++ library
 interface and does not pre-allocate any memory.  The simulation model is responsible for the
 allocation of all states and events.  The kernel only receives pointers to the states and events
 through callback functions and accesses them indirectly.  By doing this, we allow simulation model
 developers to implement their own memory management schemes or override the default malloc with
-allocators such as TCMalloc \cite{}, JEMalloc \cite{}, Hoard \cite{}, and so on
+allocators such as Tcmalloc \cite{tcmalloc}, Jemalloc \cite{evans-06}, Hoard \cite{berger-00},
+and so on.
 
-\subsection{TCMalloc and JEMalloc}
+\subsection{Multithreaded Memory Allocators}
 
-%% DOUG: yes, you should repeat the citations here.
+Memory allocators must be designed so that multithreaded applications can efficiently allocate
+and free memory efficiently from multiple threads.  To achieve this goal, most allocators keep
+separate thread local caches of reusable free memory and to avoid contention on a centralized
+heap which must be protected from concurrent access.  Some examples of memory allocators that
+use this approach are Tcmalloc \cite{tcmalloc}, Jemalloc \cite{evans-06}, Hoard \cite{berger-00},
+SuperMalloc\cite{kuszmaul-15}, Ptmalloc2\cite{ptmalloc2}, and Ltalloc\cite{ltalloc}.
 
-TCMalloc \cite{} and JEMalloc \cite{} are two good examples of memory allocators that are designed
-to efficiently allocate memory in multi-threaded applications liked \textsc{warped2}.  In both
-TCMalloc and JEMalloc, seperate thread-local caches of free memory are maintained to avoid
-contention when allocating and freeing memory.
-
-All of the eariller results reported in this thesis have been captured using TCMalloc.  This is due
-to the higher efficiences we have observed with TCMalloc.  In this next section, those results will
-be highlighted.
+All of the earlier results reported in this thesis have been captured using TCMalloc.  This is due
+to the higher efficiences we have observed with TCMalloc, especially over the GLIBC default, ptmalloc2.
+In this next section, those results will be highlighted.
 
 A comparison of the event rates for \texttt{ptmalloc2} which is the default allocator for GLIBC,
 \texttt{jemalloc} and \texttt{tcmalloc} is shown in Figure \ref{allocator_analysis_eventrate}.
@@ -2919,14 +2895,14 @@ A comparison of the event rates for \texttt{ptmalloc2} which is the default allo
   \caption{Memory Allocator Event Rate Comparison}\label{allocator_analysis_eventrate}
 \end{figure}
 
-TCMalloc is the clear winner in terms of speed and scalability.  For the aiport model, it may appear
-that \texttt{ptmalloc2} almost performs as well as \texttt{tcmalloc} but this is just a special case
-since aiport is a smaller model with less LPs and thus requires less memory.  The more interesting
-observation is what happens when the number of worker threads reaches six and the event rate drops.
-However, it is just a result of the underlying architecture of the
+Every other memory allocator is bettern than \texttt{ptmalloc2} in terms of speed and scalability.
+For the airport model, it may appear that \texttt{ptmalloc2} almost performs as well as \texttt{tcmalloc}
+but this is just a special case since aiport is a smaller model with less LPs and thus requires
+less memory.  The more interesting observation is what happens when the number of worker threads
+reaches six and the event rate drops.  However, it is just a result of the underlying architecture of the
 Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} X5675.  As shown in
 Table \ref{x86_platform} in Appendix \ref{x86_nodes_and_clusters}, it supports up to 12 simultaneous
-threads on 6 cores.  By adding a sixth worker thread which is the seventh thread counting the
+threads on 6 cores with hyperthreading.  By adding a sixth worker thread which is the seventh thread counting the
 manager thread, we may start seeing some bad cache effects such as false sharing, or inconsistent
 task scheduling.  An imbalance can also be observed as a result of these cache effects by looking at
 the efficiency as shown in Figure \ref{allocator_analysis_efficiency}.
@@ -2964,7 +2940,10 @@ Figure \ref{allocator_analysis_efficiency} also illustrates how \texttt{ptmalloc
 unstable behavior with a smaller number of threads.  The reason for this may come from the data
 structures that are used by the allocators and how often that the OS is called to allocate more
 memory from the system.  \texttt{Ptmalloc2} has memory blowup problems that stems from the
-separation of the thread local free memory pools that cannot ever merge back with a central heap. 
+separation of the thread local free memory pools that cannot ever merge back with a central heap.
+Another major difference between \texttt{ptmalloc2} and other memory allocators is that
+\texttt{ptmalloc2} does not use spinlocks to protect access to the central heap whereas all others
+do.
 
 \section{Memory Tuning Parameters in \textsc{warped2}}
 
@@ -2982,7 +2961,7 @@ but before fossil collection and $N$ is the total number of GVT calculations.
 \subsection{Number of LTSF Queues}
 
 Increasing the number of LTSF Queues can speed up the simulation significantly by removing the
-necessity to be shared among worker threads.  However, by increasng the number of LTSF queues, more
+necessity to be shared among worker threads.  However, by increasing the number of LTSF queues, more
 memory is required.  The plot in Figure \ref{ltsf_memory} illustrates this by showing the percent
 increase in average peak memory.  For all data points, the LTSF queues were shared among 10 worker
 threads.  The memory measurements are taken from the actual memory used by a \textsc{warped2}
@@ -3072,7 +3051,7 @@ with an extremely small period, the performance is only worsened by a very small
 
 \section{Summary of Findings}
 
-To better allow the system to scale to a larger number of nodes, a seperate manager thread which all
+To better allow the system to scale to a larger number of nodes, a separate manager thread which all
 remote communication is funnelled to has been shown to be the best communication model.  The reason
 is that the high contention for resources within the MPI library seem to be much more of a problem
 than a small queueing delay.  In general, though, \emph{avoiding remote communication at all costs

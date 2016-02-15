@@ -1,0 +1,34 @@
+digraph pdes {
+
+    node [shape = record];
+
+    subgraph cluster_model {
+
+        subgraph cluster_lp0 {
+            state0 [label = <State<sub>0</sub>>, style = filled, fillcolor = tomato];
+            label = <LP<sub>0</sub>>;
+            style = filled;
+            fillcolor = dodgerblue;
+        }
+
+        subgraph cluster_lp1 {
+            state1 [label = <State<sub>1</sub>>, style = filled, fillcolor = tomato];
+            label = <LP<sub>1</sub>>;
+            style = filled;
+            fillcolor = dodgerblue;
+        }
+
+        subgraph cluster_lp2 {
+            state2 [label = <State<sub>2</sub>>, style = filled, fillcolor = tomato];
+            label = <LP<sub>2</sub>>;
+            style = filled;
+            fillcolor = dodgerblue;
+        }
+
+        label = "Simulation Model";
+        style = filled;
+        color = darkolivegreen3;
+
+    }
+
+}
