@@ -11,7 +11,7 @@
     Advisor: Professor Philip A. Wilsey
 }
 \institute{University of Cincinnati}
-\date{March XX, 2016}
+\date{March 8, 2016}
 
 \begin{document}
 
@@ -153,6 +153,9 @@
 \end{frame}
 
 \begin{frame}{Sharing LTSF Queues}
+    \begin{itemize}
+        \item 10 worker threads
+    \end{itemize}
     \begin{minipage}{0.5\textwidth}
         \includegraphics[width=\textwidth]{../figs/pending_event_set/ltsf_event_rate.pdf}
         $$EventRate={CommitedEvents \over Runtime}$$
@@ -205,6 +208,10 @@
 \end{frame}
 
 \begin{frame}{Communication Model}
+    Shared Memory vs Message Passing
+    \begin{itemize}
+        \item Sending Events, GVT, Termination
+    \end{itemize}
     \includegraphics[width=\textwidth]{../figs/graphviz/warped_communication.pdf} \\
     Thread Message Passing Models
     \begin{itemize}
@@ -216,17 +223,23 @@
 \end{frame}
 
 \begin{frame}{Communication Model - Traffic Model}
-    \begin{minipage}{0.5\textwidth}
-        \includegraphics[width=\textwidth]{../figs/partitioning_communication/communication_traffic_eventrate.pdf}
-    \end{minipage}%
-    \begin{minipage}{0.5\textwidth}
-        \includegraphics[width=\textwidth]{../figs/partitioning_communication/communication_traffic_efficiency.pdf}
-    \end{minipage}
-    \begin{itemize}
-        \item Funneled/Single - Minimal Synchronization, High Latency
-        \item Serialized/Multiple - Lots of Synchronization , Low Latency
-        \item Performance will vary with model and partitioning.
-    \end{itemize}
+    \begin{block}{8 Nodes - Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} E5410}
+        \begin{itemize}
+            \item Single - 1 process per processor
+            \item Others - 7 worker threads and manager thread
+        \end{itemize}
+        \begin{minipage}{0.5\textwidth}
+            \includegraphics[width=\textwidth]{../figs/partitioning_communication/communication_traffic_eventrate.pdf}
+        \end{minipage}%
+        \begin{minipage}{0.5\textwidth}
+            \includegraphics[width=\textwidth]{../figs/partitioning_communication/communication_traffic_efficiency.pdf}
+        \end{minipage}
+        \begin{itemize}
+            \item Funneled/Single - Minimal Synchronization, High Latency
+            \item Serialized/Multiple - Lots of Synchronization , Low Latency
+            \item Performance will vary with model and partitioning.
+        \end{itemize}
+    \end{block}
 \end{frame}
 
 \begin{frame}{Message Aggregation}
@@ -236,7 +249,7 @@
         \item Pros
             \begin{itemize}
                 \item Single buffer allocated for multiple messages
-                \item Latency shared by multiple messages
+                \item Latency shared by multiple messages (TCP/IP/Ethernet/...)
                 \item Events destined for same LP may be sent together
             \end{itemize}
         \item Cons
@@ -336,14 +349,23 @@
             \begin{itemize}
                 \item Synchronization should always be avoided
                     \begin{itemize}
-                        \item Handle interprocess communication on a single thread
+                        \item Interprocess communication - Higher latency over synchronization
                         \item 1 LTSF queue per worker thread
-                        \item 
                     \end{itemize}
-                \item System can handle more rollbacks 
-                \item Message aggregation works                    
-                \item Memory allocation problem
+                \smallskip
+
+                \item Avoid communication ... If possible
+                    \begin{itemize}
+                        \item If it cannot be avoided, aggregating messages may help
+                        \item Hard to calculate GVT efficiently
+                        \item Memory consumption - May need flow control
+                    \end{itemize}
+                \smallskip
+
+                \item Alternative multithreaded memory allocators better than GLIBC default
             \end{itemize}
+        \bigskip
+
         \item Future Research
             \begin{itemize}
                 \item Optimistic Fossil Collection
