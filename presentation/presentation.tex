@@ -37,36 +37,40 @@
 \begin{frame}{Parallel Discrete Event Simulation}
 
     \begin{columns}[c]
-    \begin{column}{0.4\textwidth}
-        \includegraphics[width=\textwidth]{../figs/graphviz/pdes.pdf}
-    \end{column}
-    \begin{column}{0.6\textwidth}
+
+    \begin{column}{0.5\textwidth}
         \begin{itemize}
             \item Model system as a set of Logical Processes (LPs)
-            \item No shared state between LPs
+            \item Events exchanged between LPs
         \end{itemize}
     \end{column}
+
+    \begin{column}{0.5\textwidth}
+        \includegraphics[width=\textwidth]{../figs/graphviz/pdes.pdf}
+    \end{column}
+
     \end{columns}
 
-    \begin{itemize}
-        \item Events exchanged between LPs
-    \end{itemize}
-
     \begin{block}{Possible Causality Violations}
+
         \begin{columns}[T]
+
         \begin{column}{0.4\textwidth}
             \includegraphics[width=\textwidth]{../figs/graphviz/causality.pdf}
         \end{column}
+
         \begin{column}{0.6\textwidth}
             \begin{itemize}
-                \item Events can be received \& processed out of order
+                \item Events can be received \emph{and} processed out of order
                 \item Two solutions
                     \begin{itemize}
                         \item Conservative and Optimistic
                     \end{itemize}
             \end{itemize}
         \end{column}
-    \end{columns}
+
+        \end{columns}
+
     \end{block}
 
 \end{frame}
@@ -91,13 +95,61 @@
         \includegraphics[width=\textwidth]{../figs/graphviz/partitioning.pdf}
         \begin{itemize}
             \item Worker Threads and Manager Thread
-            \item LTSF Queues
+            \item LTSF Queues/Worker Thread - Contention vs Rollbacks
             \item LP Partitioning
-            \begin{itemize}
-                \item Processes
-                \item LTSF Queues
-            \end{itemize}
         \end{itemize}
+\end{frame}
+
+\begin{frame}{Event Scheduling and Processing}
+    \begin{columns}
+
+        \begin{column}{0.4\textwidth}
+
+            \begin{block}{Worker Threads}
+            \bigskip
+            
+            \begin{algorithm}[H]
+                \DontPrintSemicolon
+                \SetKw{Continue}{continue}
+                \SetKwFunction{getNextEvent}{getNextEvent}
+
+                \While{termination not detected}{
+                    $e \gets \getNextEvent{}$\;
+                    $lp \gets$ receiver of $e$\;\;
+
+                    \If{$e <$ last processed event for $lp$}{
+                        rollback $lp$\;
+                    }
+                    \;
+                    \If{$e$ is an anti-message}{
+                        cancel event with $e$\;
+                        schedule new event for $lp$\;
+                        \Continue\;
+                    }
+                    \;
+                    process event $e$\;
+                    save state of $lp$\;
+                    send new events\;
+                    \;
+                    move $e$ to processed queue\;
+                    replace scheduled event for $lp$\;
+                }
+            \end{algorithm}
+
+            \end{block}
+
+        \end{column}
+
+        \begin{column}{0.6\textwidth}
+            \includegraphics[width=\textwidth]{../figs/graphviz/pending_event_set.pdf}
+            \begin{itemize}
+                \item Unprocessed and Processed Queues
+                \item Scheduling to LTSF
+                \item Rollbacks
+            \end{itemize}
+        \end{column}
+
+    \end{columns}
 \end{frame}
 
 \begin{frame}{Sharing LTSF Queues}
@@ -112,25 +164,23 @@
     \begin{block}{Reducing contention more important than reducing rollbacks}\end{block}
 \end{frame}
 
-\begin{frame}{Partitioning}
-    \begin{center}
-    \includegraphics[width=0.8\textwidth]{../figs/graphviz/round_robin_partitioning.pdf} \\
-    Round-Robin \\
-    \includegraphics[width=0.8\textwidth]{../figs/graphviz/block_partitioning.pdf} \\
-    Block \\
-  \end{center}
-\end{frame}
-
-\begin{frame}{Periodic State Saving}
+\begin{frame}{Periodic State Saving - Overview}
     \begin{block}{Save state only once every $N$ events}
+        \bigskip
+        \centering
+        \includegraphics[width=0.6\textwidth]{../figs/pss.png}
+        \bigskip
         \begin{itemize}
             \item Not all states available to roll back to
             \item Must "Coast Forward" to reproduce state
-            \item Decrease time to copy states and reduce memory footprint
-            \item Increase rollback time
+            \item Increases time to rollback
+            \item Decrease time to save states and reduce memory footprint
         \end{itemize}
     \end{block}
-    \begin{block}{SMP Machine - Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} X5675}
+\end{frame}
+
+\begin{frame}{Periodic State Saving - SMP Machine}
+    \begin{block}{Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} X5675}
         \smallskip
         \begin{minipage}{0.5\textwidth}
             \includegraphics[width=\textwidth]{../figs/state_saving/bc/eventrate.pdf}
@@ -141,8 +191,8 @@
     \end{block}
 \end{frame}
 
-\begin{frame}{Periodic State Saving}
-    \begin{block}{8 Node Cluster - Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} E5410}
+\begin{frame}{Periodic State Saving - Cluster}
+    \begin{block}{8 Nodes - Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} E5410}
         \smallskip
         \begin{minipage}{0.5\textwidth}
             \includegraphics[width=\textwidth]{../figs/state_saving/beowulf/eventrate_500.pdf}
@@ -154,8 +204,90 @@
     \end{block}
 \end{frame}
 
-\begin{frame}{Memory Allocation}
-    \begin{block}{SMP Machine - Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} X5675}
+\begin{frame}{Communication Model}
+    \includegraphics[width=\textwidth]{../figs/graphviz/warped_communication.pdf} \\
+    Thread Message Passing Models
+    \begin{itemize}
+        \item Single threaded
+        \item Funnelled
+        \item Serialized
+        \item Multiple
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Communication Model - Traffic Model}
+    \begin{minipage}{0.5\textwidth}
+        \includegraphics[width=\textwidth]{../figs/partitioning_communication/communication_traffic_eventrate.pdf}
+    \end{minipage}%
+    \begin{minipage}{0.5\textwidth}
+        \includegraphics[width=\textwidth]{../figs/partitioning_communication/communication_traffic_efficiency.pdf}
+    \end{minipage}
+    \begin{itemize}
+        \item Funneled/Single - Minimal Synchronization, High Latency
+        \item Serialized/Multiple - Lots of Synchronization , Low Latency
+        \item Performance will vary with model and partitioning.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Message Aggregation}
+    \begin{itemize}
+        \item Wait for $N$ messages with same destination \emph{process} and send together
+        \includegraphics[width=\textwidth]{../figs/graphviz/aggregation_format.pdf}
+        \item Pros
+            \begin{itemize}
+                \item Single buffer allocated for multiple messages
+                \item Latency shared by multiple messages
+                \item Events destined for same LP may be sent together
+            \end{itemize}
+        \item Cons
+            \begin{itemize}
+                \item May increase event latency too high
+            \end{itemize}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Message Aggregation - Traffic Model}
+    \begin{minipage}{0.5\textwidth}
+        \includegraphics[width=\textwidth]{../figs/partitioning_communication/aggregate_traffic_speedup.pdf}
+    \end{minipage}%
+    \begin{minipage}{0.5\textwidth}
+        \includegraphics[width=\textwidth]{../figs/partitioning_communication/aggregate_traffic_efficiency.pdf}
+    \end{minipage}
+    \begin{itemize}
+        \item Best with small number of aggregated events
+        \item Different behavior with different state saving periods
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Message Aggregation - More Observations}
+
+    \begin{columns}
+
+    \begin{column}{0.5\textwidth}
+        \includegraphics[width=\textwidth]{../figs/state_saving/beowulf/remote_rate.pdf}
+        \begin{itemize}
+            \item Faster rate of remote events better
+        \end{itemize}
+    \end{column}
+
+    \begin{column}{0.5\textwidth}
+        \includegraphics[width=\textwidth]{../figs/partitioning_communication/aggregate_traffic_rblength.pdf}
+        \begin{itemize}
+            \item Can lower rollback length?
+        \end{itemize}
+    \end{column}
+
+    \end{columns}
+
+    \bigskip
+
+    $AverageRollbackLength = RolledBackEvents/Rollbacks$
+
+\end{frame}
+
+\begin{frame}{Memory Allocation - Traffic Model}
+    \begin{block}{Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} X5675}
+        Hyperthreading - 6 Cores, 12 Threads
         \begin{columns}
         \begin{column}{0.5\textwidth}
             \smallskip
@@ -164,20 +296,60 @@
         \end{column}
         \begin{column}{0.5\textwidth}
             \begin{itemize}
-                \item ptmalloc2 default in GLIBC
+                \item Imbalance at 6 worker threads
+                \item ptmalloc2 default in GLIBC - broken?
             \end{itemize}
         \end{column}
         \end{columns}
     \end{block}
 \end{frame}
 
-\begin{frame}{Message Aggregation}
+\begin{frame}{Scaling Simulation Models - Advantages}
     \begin{minipage}{0.5\textwidth}
-        \includegraphics[width=\textwidth]{../figs/partitioning_communication/aggregate_traffic_eventrate.pdf}
+        \includegraphics[width=\textwidth]{../figs/scale/scale_premote_traffic.pdf}
     \end{minipage}%
     \begin{minipage}{0.5\textwidth}
-        \includegraphics[width=\textwidth]{../figs/partitioning_communication/aggregate_traffic_efficiency.pdf}
-    \end{minipage}   
+        \includegraphics[width=\textwidth]{../figs/scale/scale_efficiency_traffic.pdf}
+    \end{minipage}
+    \begin{itemize}
+        \item Coarser Granularity
+        \item Higher Efficiency
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Scaling Simulation Models - Disadvantages}
+    \begin{minipage}{0.5\textwidth}
+        \includegraphics[width=\textwidth]{../figs/scale/scale_event_rate_traffic.pdf}
+    \end{minipage}%
+    \begin{minipage}{0.5\textwidth}
+        \includegraphics[width=\textwidth]{../figs/scale/scale_arl_traffic.pdf}
+    \end{minipage}
+    \begin{itemize}
+        \item More LPs to fossil collect
+        \item Longer Rollbacks
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Concusionsi \& Future Research}
+    \begin{itemize}
+        \item Conclusions
+            \begin{itemize}
+                \item Synchronization should always be avoided
+                    \begin{itemize}
+                        \item Handle interprocess communication on a single thread
+                        \item 1 LTSF queue per worker thread
+                        \item 
+                    \end{itemize}
+                \item System can handle more rollbacks 
+                \item Message aggregation works                    
+                \item Memory allocation problem
+            \end{itemize}
+        \item Future Research
+            \begin{itemize}
+                \item Optimistic Fossil Collection
+                \item Scaling up
+            \end{itemize}
+    \end{itemize}
 \end{frame}
 
 \end{document}

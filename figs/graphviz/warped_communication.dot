@@ -92,14 +92,13 @@ digraph warped2_communication {
 
     mpl [label = "Message Passing Library (e.g. MPI)", width = 20.0, style = filled, color = goldenrod3];
 
-    "mt_0" -> "mpl" [ltail=cluster_0];
-    "mt_1" -> "mpl" [ltail=cluster_1];
-    "mt_2" -> "mpl" [ltail=cluster_2];
-    "mt_3" -> "mpl" [ltail=cluster_3];
+    "mt_0" -> "mpl" [ltail = cluster_0];
+    "mt_1" -> "mpl" [ltail = cluster_1];
+    "mt_2" -> "mpl" [ltail = cluster_2];
+    "mt_3" -> "mpl" [ltail = cluster_3];
 
     "sm_0" -> "mpl" [style = "invis"];
     "sm_1" -> "mpl" [style = "invis"];
     "sm_2" -> "mpl" [style = "invis"];
     "sm_3" -> "mpl" [style = "invis"];
-
 }

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import re
 
 agg_list = [1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
-models = ["epidemic"];
+models = ["traffic"];
 ssp_list = [25, 150, 500];
 
 warped_data_path = "."
@@ -110,7 +110,7 @@ def main():
             cf_per_rb = [a / b for a, b in zip(coast_y, rb_y)]
             rb_len = [(a - b) / c for a, b, c in zip(proc_y, comm_y, rb_y)]
 
-#            addLineXY(speedup_lines, agg_x, speedup_y, "{}-{}".format(m, sspl))
+            addLineXY(speedup_lines, agg_x, speedup_y, "{}-{}".format(m, sspl))
             addLineXY(time_lines, agg_x, time_y, "{}-{}".format(m, sspl))
 #            addLineXY(memory_lines, agg_x, mem_y, "{}-{}".format(m, sspl))
             addLineXY(efficiency_lines, agg_x, efficiency, "{}-{}".format(m, sspl))
@@ -124,7 +124,7 @@ def main():
             addLineXY(event_rate_lines, agg_x, event_rate, "{}-{}".format(m, sspl))
             addLineXY(rb_len_lines, agg_x, rb_len, "{}-{}".format(m, sspl))
 
-#        addPlotXY(plots, "", "Aggregated Messages", "Speedup", speedup_lines)
+        addPlotXY(plots, "", "Aggregated Messages", "Speedup", speedup_lines)
 #        addPlotXY(plots, "", "Aggregated Messages", "Simulation Time (s)", time_lines)
 #        addPlotXY(plots, "", "Aggregated Messages", "Memory", memory_lines)
         addPlotXY(plots, "", "Aggregated Messages", "Efficiency", efficiency_lines)
@@ -136,7 +136,7 @@ def main():
 #        addPlotXY(plots, "", "Aggregated Messages", "Rollback Length", cf_per_rb_lines)
 #        addPlotXY(plots, "", "Aggregated Messages", "Remote Rate", remote_rate_lines)
         addPlotXY(plots, "", "Aggregated Messages", "Event Rate", event_rate_lines)
-        addPlotXY(plots, "", "Aggregated Messages", "Rollback Length", rb_len_lines)
+        addPlotXY(plots, "", "Aggregated Messages", "Average Rollback Length", rb_len_lines)
 
     for i, p in enumerate(plots):
         fig = plt.figure(i)

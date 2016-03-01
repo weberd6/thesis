@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import re
 
-models = ["pcs", "traffic"];
+models = ["traffic"];
 aggregate = [1, 5]
 dimension = [64, 128, 256, 512, 1024];
 warped_data_path = "."
@@ -42,6 +42,7 @@ def main():
     premote_lines = list()
     time_lines = list()
     event_rate_lines = list()
+    arl_lines = list()
 
     for m in models:
 
@@ -86,18 +87,21 @@ def main():
                 efficiency = [a / b * 100 for a, b in zip(comm_y, proc_y)]
                 premote = [a / (a + b) * 100 for a, b in zip(remote_y, local_y)]
                 event_rate = [a / b for a, b in zip(comm_y, time_y)]
+                arl = [(a - b) / (c + d) for a, b, c, d in zip(proc_y, comm_y, srb_y, prb_y)]
 
             addLineXY(efficiency_lines, lps_x, efficiency, "{}-{}".format(m, agg))
             addLineXY(premote_lines, lps_x, premote, "{}-{}".format(m, agg))
-#            addLineXY(memory_lines, lps_x, memory_y, "{}-{}".format(m, agg))
+            addLineXY(memory_lines, lps_x, memory_y, "{}-{}".format(m, agg))
 #            addLineXY(time_lines, lps_x, time_y, "{}-{}".format(m, agg))
             addLineXY(event_rate_lines, lps_x, event_rate, "{}-{}".format(m, agg))
+            addLineXY(arl_lines, lps_x, arl, "{}-{}".format(m, agg))
 
     addPlotXY(plots, "", "# LPs", "Efficiency (%)", efficiency_lines)
     addPlotXY(plots, "", "# LPs", "% Remote", premote_lines)
-#    addPlotXY(plots, "", "# LPs", "Average Peak Memory", memory_lines)
+    addPlotXY(plots, "", "# LPs", "Average Peak Memory", memory_lines)
 #    addPlotXY(plots, "", "# LPs", "Runtime (s)", time_lines)
     addPlotXY(plots, "", "#LPs", "Event Rate", event_rate_lines)
+    addPlotXY(plots, "", "#LPs", "Average Rollback Length", arl_lines)
 
     for i, p in enumerate(plots):
         fig = plt.figure(i)

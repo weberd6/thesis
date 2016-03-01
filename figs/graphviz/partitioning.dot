@@ -45,7 +45,7 @@ digraph partitioning {
         "w2" -> "sq1";
         "w3" -> "sq1";
 
-        label = "Process 0";
+        label = "Process";
         style = filled;
         color = lightgrey;
     }

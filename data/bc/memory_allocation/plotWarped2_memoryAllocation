@@ -3,6 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import re
+import math
 
 models = ["epidemic", "pcs", "traffic", "airport"];
 mallocs = ["tcmalloc", "ptmalloc2", "jemalloc", "supermalloc", "supermalloc_pthread", "hoard", "ltalloc"];
@@ -57,6 +58,7 @@ def main():
             time_y = list()
             time_std = list()
             proc_y = list()
+            proc_std = list()
             comm_y = list()
 
             f = filenames()
@@ -75,6 +77,7 @@ def main():
 
                 wt_x.append(wt)
                 proc_y.append(np.mean(ydata['processed']))
+                proc_std.append(np.std(ydata['processed']))
                 comm_y.append(np.mean(ydata['committed']))
                 mem_y.append(np.mean(ydata['memory']))
                 mem_std.append(np.std(ydata['memory']))
@@ -85,10 +88,13 @@ def main():
             event_rate = [a / b for a, b in zip(comm_y, time_y)]
             speedup = [singlewt_time / a for a in time_y]
 
+            eventrate_stddev = [abs(a * b / c) for a, b, c in zip(event_rate, time_std, time_y)]
+            efficiency_stddev = [abs(a * b / c) for a, b, c in zip(efficiency_y, proc_std, proc_y)]
+
 #            addLineXY(memory_lines, wt_x, mem_y, mem_std, malloc)
 #            addLineXY(time_lines, wt_x, time_y, mem_std, malloc)
-            addLineXY(efficiency_lines, wt_x, efficiency_y, None, malloc)
-            addLineXY(event_rate_lines, wt_x, event_rate, None, malloc)
+            addLineXY(efficiency_lines, wt_x, efficiency_y, efficiency_stddev, malloc)
+            addLineXY(event_rate_lines, wt_x, event_rate, eventrate_stddev, malloc)
 #            addLineXY(speedup_lines, wt_x, speedup, None, malloc)
 
         addPlotXY(plots, "({})".format(m), "Worker Threads", "Efficiency", efficiency_lines)

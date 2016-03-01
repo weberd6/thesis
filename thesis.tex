@@ -188,9 +188,9 @@ event simulations is known as Parallel Discrete Event Simulation (PDES)
 
 Parallel algorithms can be written to target many different architectures that support parallelism
 such as shared-memory multiprocessors, clusters, or any other type of system that support parallel
-execution \cite{culler-97,patterson-11}.  Furthermore, communication between concurrent workers in
-the system can be achieved by using shared data structures or by passing explicit messages between
-threads.
+execution \cite{culler-97,patterson-11}.  Furthermore, communication between concurrent threads or
+processes in the system can be achieved by using shared data structures or by passing explicit
+messages between them.
 
 The Time Warp Mechanism \cite{jefferson-85,fujimoto-90}, which is the focus of this thesis, is one
 approach to synchronize PDES where causal dependencies of events are not enforced before processing
@@ -252,7 +252,7 @@ process are aggregated and sent together as a single larger message.
 The combination of shared memory and message passing communication does create some complications in
 the implementation of a Time Warp system.  GVT and termination detection algorithms are usually
 designed for either shared memory or message passing but not both
-\cite{mattern-93,bellenot-90,fujimoto-94,xaio-95}.  Using a single message passing algorithm between
+\cite{mattern-93,bellenot-90,fujimoto-94}.  Using a single message passing algorithm between
 worker threads and between processes would mean that some kind of message passing scheme would have
 to be implemented for worker threads to communicate.  This scheme would still use shared memory for
 message communication but would also have the overheads of explicit message passing.  On the
@@ -476,8 +476,8 @@ Figure \ref{beowulf} illustrates a common realization of a beowulf cluster.
 \section{Parallel Systems Communication}
 
 Parallel applications are composed of multiple processes/threads that execute independently in
-parallel and may have to exchange information.  For the following discussion, the term process will
-be used although it still applies to threads as well.  Processes can communicate by either
+parallel and may have to exchange information.  For the following discussion, the term \emph{process}
+will be used although it still applies to threads as well.  Processes can communicate by either
 explicitly passing messages to each other by means of well defined message formats or by using
 shared data structures that all processes can access.  The former method of communication is known
 as \emph{message passing} and the latter method of communication is known as \emph{shared memory}
@@ -619,7 +619,7 @@ larger value of N can be used.  GTW calls this batch processing and N is the bat
 batch processing, multiple events will be processed at a time without processing any rollbacks or
 cancellations.
 
-Since GTW is only uses shared memory communication, anti-messages do not need to be
+Since GTW only uses shared memory communication, anti-messages do not need to be
 explicitly sent.  Only a pointer to the event that needs to be cancelled is necessary.
 Fujimoto calls this method \emph{direct cancellation}.  Also by only using shared memory,
 GVT can be calculated very quickly using shared data structures instead of passing
@@ -1297,8 +1297,6 @@ saving, and scaling up simulations.  The experiments for a single SMP node are s
         \hline
         Aggregate Messages & Efficiency & Figures \ref{aggregate_efficiency} & E5410 \\ 
         \hline
-        Aggregate Messages & Average Rollback Length & Figures \ref{aggregate_rblength} & E5410 \\ 
-        \hline
         Scaling LPs & Efficiency, \% Remote Events, Event Rate & Figure \ref{scaling}    & E5410 \\
         \hline
         State Saving Period & Event Rate, ... & Figure \ref{ssp_analysis_cluster} & E5410 \\
@@ -1870,7 +1868,8 @@ summarize, the worker thread processing loop is shown in pseudocode in Algorithm
         \;
         process event $e$\;
         save state of $lp$\;
-        \nlset{2} send new events\;
+        \nlset{2} send new events\;\;
+
         move $e$ to processed queue\;
         \nlset{3} replace scheduled event for $lp$\;
     }
@@ -2777,7 +2776,7 @@ value or the list is searched for a lower timestamp event.  This approach howeve
 produce instability caused by imbalances in rollbacks which creates imbalances in the free lists,
 and ultimately leads to a lot of aborted events or a long search time \cite{carothers-00}.
 
-\paragraph{Optimistic Fossil Collection} \cite{young-98-dsc} is another method of fossil collection
+\paragraph{Optimistic Fossil Collection} \cite{young-98-disc} is another method of fossil collection
 which, like on-the-fly aims to reuse memory instead of explicitly freeing it.  However, optimistic
 fossil collection is based on a statistical bound for rollbacks.  It is still possible that memory
 that was fossil collected could still be used.  This situation is called an OFC fault.  Therefore,
