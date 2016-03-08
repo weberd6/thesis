@@ -116,8 +116,8 @@ def main():
     for i, p in enumerate(plots):
         fig = plt.figure(i)
         plt.title(p["title"])
-        plt.xlabel(p["xlabel"])
-        plt.ylabel(p["ylabel"])
+        plt.xlabel(p["xlabel"], fontsize=20)
+        plt.ylabel(p["ylabel"], fontsize=20)
         
         legend_entries = list()
         for l in p["lines"]:

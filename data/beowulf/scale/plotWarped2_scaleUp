@@ -106,8 +106,8 @@ def main():
     for i, p in enumerate(plots):
         fig = plt.figure(i)
         plt.title(p["title"])
-        plt.xlabel(p["xlabel"])
-        plt.ylabel(p["ylabel"])
+        plt.xlabel(p["xlabel"], fontsize=20)
+        plt.ylabel(p["ylabel"], fontsize=20)
 
         plt.xlim(64*64, 1024*1024)
         plt.xscale('log', basex=2)

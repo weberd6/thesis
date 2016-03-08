@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import re
 import math
 
-models = ["epidemic", "pcs", "traffic", "airport"];
+models = ["traffic"];
 mallocs = ["tcmalloc", "ptmalloc2", "jemalloc", "supermalloc", "supermalloc_pthread", "hoard", "ltalloc"];
 
 warped_data_path = "."
@@ -97,17 +97,18 @@ def main():
             addLineXY(event_rate_lines, wt_x, event_rate, eventrate_stddev, malloc)
 #            addLineXY(speedup_lines, wt_x, speedup, None, malloc)
 
-        addPlotXY(plots, "({})".format(m), "Worker Threads", "Efficiency", efficiency_lines)
+        addPlotXY(plots, "", "Worker Threads", "Efficiency", efficiency_lines)
 #        addPlotXY(plots, "({})".format(m), "Worker Threads", "Average Peak Memory", memory_lines)
 #        addPlotXY(plots, "({})".format(m), "Worker Threads", "Simulation Time (s)", time_lines)
-        addPlotXY(plots, "({})".format(m), "Worker Threads", "Event Rate", event_rate_lines)
+        addPlotXY(plots, "", "Worker Threads", "Event Rate", event_rate_lines)
 #        addPlotXY(plots, "({})".format(m), "Worker Threads", "Speedup", speedup_lines)
 
     for i, p in enumerate(plots):
         fig = plt.figure(i)
         plt.title(p["title"])
-        plt.xlabel(p["xlabel"])
-        plt.ylabel(p["ylabel"])
+        plt.xlabel(p["xlabel"], fontsize=20)
+        plt.ylabel(p["ylabel"], fontsize=20)
+        plt.xlim(1, 10)
         
         legend_entries = list()
         for l in p["lines"]:

@@ -167,14 +167,13 @@
     \begin{minipage}{0.55\textwidth}
         \centerline{\includegraphics[width=\textwidth]{../figs/pending_event_set/ltsf_event_rate.pdf}}
         \vspace*{-\medskipamount}
-        \small{$$EventRate={CommitedEvents \over Runtime}$$}
+        \small{$$EventRate={CommitedEvents \over Second}$$}
     \end{minipage}%
     \begin{minipage}{0.55\textwidth}
         \centerline{\includegraphics[width=\textwidth]{../figs/pending_event_set/ltsf_efficiency.pdf}}
         \vspace*{-\bigskipamount}
-        \small{$$Efficiency={CommittedEvents \over ProcessedEvents}*100 \%$$}
+        \small{$$Efficiency={CommittedEvents \over ProcessedEvents} (\%)$$}
     \end{minipage}
-    \medskip
     \begin{block}{Reducing contention more important than reducing rollbacks}\end{block}
 \end{frame}
 
@@ -202,6 +201,10 @@
         \begin{minipage}{0.55\textwidth}
             \includegraphics[width=\textwidth]{../figs/state_saving/bc/percent_memory_decrease.pdf}
         \end{minipage}
+        \begin{itemize}
+            \item Performance flattens
+            \item Optimal memory footprint
+        \end{itemize}
     \end{block}
 \end{frame}
 
@@ -214,7 +217,7 @@
         \begin{minipage}{0.55\textwidth}
             \includegraphics[width=\textwidth]{../figs/state_saving/beowulf/cf_rate_500.pdf}
         \end{minipage}
-    $$ CoastForwardRate = {CoastForwardEvents \over Rollbacks} * RollbackRate $$
+        $$ CoastForwardRate = ({CoastForwardEvents \over Rollbacks}) * ({Rollbacks \over Second}) $$
     \end{block}
 \end{frame}
 
@@ -305,7 +308,7 @@
         \vspace*{-\bigskipamount}
         \begin{small}
         \begin{itemize}
-            \item Faster rate of remote events better
+            \item State saving impacts message rate
         \end{itemize}
         \end{small}
     \end{column}
@@ -336,7 +339,7 @@
         \begin{columns}
         \begin{column}{0.7\textwidth}
             \smallskip
-            \includegraphics[width=\textwidth]{../figs/memory_allocation/traffic_eventrate.pdf} \\[-0.15in]
+            \includegraphics[width=\textwidth]{../figs/memory_allocation/traffic_eventrate.pdf} \\[-0.2in]
             \includegraphics[width=\textwidth]{../figs/memory_allocation/traffic_efficiency.pdf}
         \end{column}
         \begin{column}{0.3\textwidth}
@@ -381,6 +384,51 @@
         \item More LPs to fossil collect
         \item Longer Rollbacks
     \end{itemize}
+\end{frame}
+
+\begin{frame}{Time Warp Performance: Traffic Model}
+
+    \begin{block}{Best Time Warp Configurations}
+            \smallskip
+            \centering
+            \resizebox{\textwidth}{!}{\begin{tabular}{|| l | c | c ||}
+            \hline
+            & Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} X5675 &
+                Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} E5410 \\ [0.5ex]
+                \hline\hline
+                    State Saving Period     & 50    & 150   \\
+                \hline
+                    Aggregate Messages      & N/A   & 15    \\
+                \hline
+                    Worker Threads          & 10    & 7     \\
+                \hline
+                    LTSF Queues             & 10    & 7     \\
+                \hline
+                    Processes               & 1     & 8     \\
+                \hline
+                    Total Worker Threads    & 10    & 56    \\
+                \hline
+            \end{tabular}}
+    \end{block}
+
+    \begin{block}{Speedup over Seqential Simulation}
+            \smallskip
+            \centering
+            \resizebox{\textwidth}{!}{\begin{tabular}{|| l | c | c ||}
+            \hline
+            & Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} X5675 &
+                Intel\textsuperscript{\textregistered} Xeon\textsuperscript{\textregistered} E5410 \\ [0.5ex]
+                \hline\hline
+                    Maximum GVT         & \multicolumn{2}{|c||}{100,000}    \\
+                \hline
+                    Sequential Runtime  & 182.11 s    & 465.95 s            \\
+                    Time Warp Runtime   & 49.50 s     & 11.486 s            \\
+                \hline
+                    Speedup             & 3.68        & 40.57               \\
+                \hline
+            \end{tabular}}
+    \end{block}
+
 \end{frame}
 
 \begin{frame}{Conclusions \& Future Research}
